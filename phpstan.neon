@@ -1,0 +1,17 @@
+parameters:
+    level: 6
+    paths:
+        - src
+        - app
+    excludePaths:
+        - src/helpers.php
+    ignoreErrors:
+        # NiangPro utilise volontairement des tableaux associatifs bruts (lignes de BDD, données de
+        # requête) plutôt que des objets/DTO typés, pour rester simple. Documenter chaque forme de
+        # tableau en PHPDoc générique irait à l'encontre de ce choix.
+        - identifier: missingType.iterableValue
+
+        # Request::capture()/create() utilisent new static() pour que FormRequest (qui hérite du
+        # constructeur sans le redéclarer) reste correctement typée à l'usage — c'est voulu ici.
+        - identifier: new.static
+          path: src/Core/Http/Request.php

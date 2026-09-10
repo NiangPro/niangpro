@@ -1,0 +1,9 @@
+#!/usr/bin/env php
+<?php
+
+require dirname(__DIR__) . '/vendor/autoload.php';
+
+use Niang\Core\Console\Commander;
+
+$commander = new Commander(dirname(__DIR__));
+$commander->run($argv);

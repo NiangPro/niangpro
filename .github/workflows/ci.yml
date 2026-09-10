@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite
+          coverage: none
+
+      - name: Installer les dépendances
+        run: composer install --prefer-dist --no-progress
+
+      - name: Préparer l'environnement
+        run: |
+          cp .env.example .env
+          ./bin/niang key:generate
+          ./bin/niang migrate
+
+      - name: Style de code (PSR-12)
+        run: composer lint
+
+      - name: Analyse statique (PHPStan)
+        run: composer analyse
+
+      - name: Tests
+        run: composer test
