@@ -6,13 +6,26 @@ Un micro-framework PHP **ultra simple**, plus simple que Laravel : pas de magie,
 
 ## Installation
 
+Pour démarrer un nouveau projet (le package est publié sur [Packagist](https://packagist.org/packages/niangpro/framework)) :
+
 ```bash
-composer install
-cp .env.example .env
+composer create-project niangpro/framework mon-app
+cd mon-app
 ./bin/niang serve
 ```
 
 Visitez http://127.0.0.1:8000
+
+Pour contribuer au framework lui-même (cloner ce dépôt directement) :
+
+```bash
+git clone https://github.com/NiangPro/niangpro.git
+cd niangpro
+composer install
+cp .env.example .env
+./bin/niang key:generate
+./bin/niang serve
+```
 
 ## Structure
 
@@ -90,18 +103,32 @@ User::destroy(1);
 
 Configurez la connexion dans `.env` (`DB_CONNECTION=sqlite` par défaut, ou `mysql`/`pgsql`).
 
+Limite assumée : `Schema`/`Blueprint` (migrations) génèrent du SQL **SQLite** (`$table->id()` produit
+`INTEGER PRIMARY KEY AUTOINCREMENT`, invalide en PostgreSQL et incorrect en MySQL). Avec
+`DB_CONNECTION=mysql` ou `pgsql`, créez et faites évoluer le schéma vous-même (hors `./bin/niang migrate`) ;
+le Query Builder et l'ORM, eux, fonctionnent normalement sur les trois moteurs une fois les tables en place.
+
 ## Query Builder
 
 Pour les requêtes plus riches qu'un `find`/`where` simple :
 
 ```php
 Post::query()
+    ->select('id', 'title')
     ->where('published', true)
+    ->orWhere('author_id', 1)
+    ->whereIn('category_id', [1, 2, 3])
+    ->join('users', 'posts.author_id', '=', 'users.id')
+    ->groupBy('category_id')
     ->orderBy('created_at', 'desc')
     ->limit(10)
+    ->offset(20)
     ->get();
 
 Post::query()->where('id', 5)->update(['title' => 'Nouveau titre']);
+Post::query()->where('published', true)->count();
+Post::query()->where('id', 5)->lockForUpdate()->first(); // SELECT ... FOR UPDATE, dans une transaction
+Post::query()->onConnection('read')->get(); // force la connexion 'read' ou 'write'
 ```
 
 ## Migrations
@@ -116,11 +143,20 @@ Post::query()->where('id', 5)->update(['title' => 'Nouveau titre']);
 ```php
 Schema::create('posts', function ($table) {
     $table->id();
-    $table->string('title');
+    $table->string('title', 255);       // longueur par défaut : 255
     $table->text('body')->nullable();
-    $table->timestamps();
+    $table->integer('views')->default(0);
+    $table->boolean('published')->default(false);
+    $table->float('rating')->nullable();
+    $table->date('published_at')->nullable();
+    $table->timestamp('deleted_at')->nullable();
+    $table->foreignId('author_id');
+    $table->string('slug')->unique();
+    $table->timestamps();               // created_at + updated_at
 });
 ```
+
+Chaque colonne accepte `->nullable()`, `->default($valeur)` et `->unique()`, chaînables entre eux.
 
 ## Seeders & factories
 
@@ -147,6 +183,11 @@ méthodes statiques qui interrogent la table liée :
 ```php
 class Post extends Model
 {
+    public static function author(int|string $authorId): ?array
+    {
+        return static::hasOne($authorId, Author::class, 'post_id');
+    }
+
     public static function comments(int|string $postId): array
     {
         return static::hasMany($postId, Comment::class, 'post_id');
@@ -219,6 +260,9 @@ class ContactController extends Controller
 }
 ```
 
+Règles disponibles : `required`, `string`, `numeric`, `integer`, `email`, `min:n` (longueur ou valeur
+minimale selon le type), `max:n`, `regex:/motif/`, `confirmed` (compare à `{champ}_confirmation`).
+
 Si la validation échoue : redirection automatique vers la page précédente avec les erreurs et l'ancienne
 saisie en flash (`errors('email')`, `old('email')`), ou réponse JSON 422 si la requête attend du JSON.
 
@@ -234,7 +278,10 @@ Log::info('Utilisateur {id} connecté', ['id' => $user['id']]);
 Log::error('Échec du paiement', ['order' => $orderId]);
 ```
 
-Un fichier par jour dans `storage/logs/`. Les exceptions non interceptées y sont aussi consignées automatiquement.
+Niveaux disponibles (style PSR-3) : `emergency`, `alert`, `critical`, `error`, `warning`, `notice`,
+`info`, `debug`. Les `{clé}` dans le message sont remplacées par les valeurs correspondantes du tableau
+de contexte. Un fichier par jour dans `storage/logs/`. Les exceptions non interceptées y sont aussi
+consignées automatiquement.
 
 ## Vues : layouts, composants, échappement
 
@@ -251,6 +298,11 @@ Toujours du PHP natif — pas de compilateur de templates, pas de cache à inval
 `component('components/field-errors', ['field' => 'email'])` inclut un fragment réutilisable et retourne
 son HTML. `e($valeur)` échappe pour l'affichage (alias court de `htmlspecialchars`) — à utiliser à chaque
 sortie de donnée utilisateur.
+
+Autres helpers globaux utiles : `view('home', ['title' => 'Salut'])` retourne directement une `Response`
+HTML (équivalent de `$this->view()` en dehors d'un contrôleur) ; `json_response($data, 201)` retourne une
+`Response` JSON ; `dd($valeur, ...)` (*dump and die*) affiche une variable et arrête l'exécution — pratique
+en debug, à retirer avant de committer.
 
 ## Pagination
 
@@ -349,6 +401,7 @@ Auth::attempt($email, $password); // true/false, connecte si succès
 Auth::login($user);
 Auth::logout();
 Auth::check();  // true si connecté
+Auth::guest();  // true si non connecté (inverse de check())
 Auth::user();   // le tableau utilisateur, ou null
 Auth::id();
 
@@ -370,6 +423,9 @@ Dans un contrôleur :
 
 ```php
 $this->authorize('delete-post', $post); // lève une 403 si refusé
+
+Gate::allows('delete-post', $post); // true/false, sans lever d'exception
+Gate::denies('delete-post', $post); // inverse de allows()
 ```
 
 ## Rate limiting
@@ -420,8 +476,8 @@ ou en boucle, selon vos besoins.
 ## Compression & supervision
 
 Les réponses sont automatiquement compressées en gzip si le client l'accepte et que ça vaut le coût.
-`GET /up` renvoie 200 (`{"status":"ok"}`) ou 503 si la base de données est injoignable — à brancher
-sur votre outil de supervision.
+`GET /up` renvoie `{"status":"ok","database":true}` (200) si la base de données répond, ou
+`{"status":"degraded","database":false}` (503) sinon — à brancher sur votre outil de supervision.
 
 ## Passage en production
 
@@ -530,28 +586,25 @@ déclenche l'action — sans passer par un vrai bus d'événements avec files et
 
 ## Créer un nouveau projet
 
-```bash
-./bin/niang new mon-app
-```
-
-Clone ce squelette (sans `vendor/`, `.git/`, données locales), installe les dépendances, génère une
-nouvelle `APP_KEY`. Une fois le paquet publié sur Packagist, `composer create-project niangpro/framework mon-app`
-fera la même chose sans avoir de projet existant sous la main.
+Depuis un projet existant, `./bin/niang new mon-app` clone ce squelette (sans `vendor/`, `.git/`, données
+locales), installe les dépendances et génère une nouvelle `APP_KEY`. Sans projet existant sous la main,
+utilisez plutôt `composer create-project niangpro/framework mon-app` (voir [Installation](#installation)).
 
 ## Dépôt public
 
 Le code est sur GitHub : **https://github.com/NiangPro/niangpro** (public, CI activée sur chaque push).
 
-## Publier sur Packagist
+## Packagist
 
-Le `composer.json` est prêt (nom, description, mots-clés, licence, URLs). Pour que `composer require
-niangpro/framework` fonctionne pour tout le monde :
+Le package est publié : **[packagist.org/packages/niangpro/framework](https://packagist.org/packages/niangpro/framework)**.
+`composer create-project niangpro/framework mon-app` et `composer require niangpro/framework`
+fonctionnent pour tout le monde.
 
-1. Créez un tag de version (`git tag v1.0.0 && git push --tags`).
-2. Connectez-vous sur [packagist.org](https://packagist.org) avec le compte GitHub `NiangPro`.
-3. Soumettez `https://github.com/NiangPro/niangpro` sur [packagist.org/packages/submit](https://packagist.org/packages/submit).
-4. Activez le webhook GitHub → Packagist (proposé automatiquement à la soumission) pour que les
-   futurs tags soient publiés sans action manuelle.
+Pour publier une nouvelle version : créez un tag (`git tag v1.1.0 && git push --tags`) — le webhook
+GitHub → Packagist (configuré une fois pour toutes) met à jour le package automatiquement à chaque push.
+Si le webhook n'est pas configuré : GitHub → repo → **Settings → Webhooks → Add webhook**, avec comme
+Payload URL `https://packagist.org/api/github?username=VOTRE_PSEUDO_PACKAGIST`, content type
+`application/json`, et comme secret votre [token API Packagist](https://packagist.org/profile/).
 
 ## Philosophie
 
