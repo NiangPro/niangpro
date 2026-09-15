@@ -2,6 +2,10 @@
 
 namespace Niang\Core\Database;
 
+use Niang\Core\Database\Grammar\Grammar;
+use Niang\Core\Database\Grammar\MySqlGrammar;
+use Niang\Core\Database\Grammar\PostgresGrammar;
+use Niang\Core\Database\Grammar\SQLiteGrammar;
 use Niang\Core\Env;
 use PDO;
 
@@ -52,6 +56,7 @@ class DB
             }
 
             $pdo = new PDO("sqlite:$path");
+            $pdo->exec('PRAGMA foreign_keys = ON'); // pas activé par défaut par SQLite, contrairement à MySQL/PostgreSQL
         } else {
             $host = Env::get($prefix . 'HOST', Env::get('DB_HOST', '127.0.0.1'));
             $port = Env::get($prefix . 'PORT', Env::get('DB_PORT', '3306'));
@@ -70,6 +75,19 @@ class DB
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
         return $pdo;
+    }
+
+    /** Le Grammar (traducteur SQL) correspondant au driver configuré pour $connection. */
+    public static function grammar(string $connection = 'write'): Grammar
+    {
+        $prefix = self::resolveName($connection) === 'read' ? 'DB_READ_' : 'DB_';
+        $driver = Env::get($prefix . 'CONNECTION', Env::get('DB_CONNECTION', 'sqlite'));
+
+        return match ($driver) {
+            'mysql' => new MySqlGrammar(),
+            'pgsql' => new PostgresGrammar(),
+            default => new SQLiteGrammar(),
+        };
     }
 
     public static function select(string $query, array $bindings = [], string $connection = 'read'): array

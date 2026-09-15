@@ -2,14 +2,21 @@
 
 namespace Niang\Core\Database;
 
+use Niang\Core\Database\Grammar\Grammar;
+
+/**
+ * Descripteur sémantique d'une colonne (nom + type abstrait + modificateurs) — indépendant du
+ * moteur SQL. La traduction en SQL réel se fait au dernier moment via compile(Grammar).
+ */
 class ColumnDefinition
 {
     private bool $nullable = false;
     private bool $hasDefault = false;
     private mixed $defaultValue = null;
     private bool $unique = false;
+    private ?ForeignKeyDefinition $foreignKey = null;
 
-    public function __construct(private string $definition)
+    public function __construct(private string $name, private string $type, private array $params = [])
     {
     }
 
@@ -32,26 +39,42 @@ class ColumnDefinition
         return $this;
     }
 
-    public function __toString(): string
+    /**
+     * Ajoute une contrainte de clé étrangère sur cette colonne. Sans argument, devine la table
+     * référencée à partir du nom de colonne (ex: post_id -> posts).
+     */
+    public function constrained(?string $table = null, string $column = 'id'): static
     {
-        $sql = $this->definition;
+        $table ??= $this->guessTableName();
+        $this->foreignKey = (new ForeignKeyDefinition($this->name))->references($column)->on($table);
+        return $this;
+    }
 
-        if (!$this->nullable) {
-            $sql .= ' NOT NULL';
+    public function foreignKey(): ?ForeignKeyDefinition
+    {
+        return $this->foreignKey;
+    }
+
+    private function guessTableName(): string
+    {
+        $base = str_ends_with($this->name, '_id') ? substr($this->name, 0, -3) : $this->name;
+        return $base . 's';
+    }
+
+    public function compile(Grammar $grammar): string
+    {
+        if ($this->type === 'id') {
+            return $grammar->compileId($this->name);
         }
 
-        if ($this->hasDefault) {
-            $sql .= ' DEFAULT ' . match (true) {
-                is_string($this->defaultValue) => "'{$this->defaultValue}'",
-                is_bool($this->defaultValue) => $this->defaultValue ? '1' : '0',
-                default => (string) $this->defaultValue,
-            };
-        }
-
-        if ($this->unique) {
-            $sql .= ' UNIQUE';
-        }
-
-        return $sql;
+        return $grammar->compileColumn(
+            $this->name,
+            $this->type,
+            $this->params,
+            $this->nullable,
+            $this->hasDefault,
+            $this->defaultValue,
+            $this->unique
+        );
     }
 }

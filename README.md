@@ -103,11 +103,6 @@ User::destroy(1);
 
 Configurez la connexion dans `.env` (`DB_CONNECTION=sqlite` par défaut, ou `mysql`/`pgsql`).
 
-Limite assumée : `Schema`/`Blueprint` (migrations) génèrent du SQL **SQLite** (`$table->id()` produit
-`INTEGER PRIMARY KEY AUTOINCREMENT`, invalide en PostgreSQL et incorrect en MySQL). Avec
-`DB_CONNECTION=mysql` ou `pgsql`, créez et faites évoluer le schéma vous-même (hors `./bin/niang migrate`) ;
-le Query Builder et l'ORM, eux, fonctionnent normalement sur les trois moteurs une fois les tables en place.
-
 ## Query Builder
 
 Pour les requêtes plus riches qu'un `find`/`where` simple :
@@ -147,16 +142,45 @@ Schema::create('posts', function ($table) {
     $table->text('body')->nullable();
     $table->integer('views')->default(0);
     $table->boolean('published')->default(false);
+    $table->decimal('price', 8, 2)->nullable();  // precision, scale
     $table->float('rating')->nullable();
     $table->date('published_at')->nullable();
     $table->timestamp('deleted_at')->nullable();
-    $table->foreignId('author_id');
+    $table->json('metadata')->nullable();
+    $table->foreignId('author_id')->constrained();  // -> table `authors`, colonne `id`
     $table->string('slug')->unique();
     $table->timestamps();               // created_at + updated_at
+
+    $table->unique(['title', 'author_id']);  // contrainte unique multi-colonnes
+    $table->index('published_at');
 });
 ```
 
 Chaque colonne accepte `->nullable()`, `->default($valeur)` et `->unique()`, chaînables entre eux.
+
+### Multi-SGBD (SQLite, MySQL, PostgreSQL)
+
+Les migrations sont traduites par un `Grammar` propre à chaque moteur (`DB_CONNECTION` dans `.env`) :
+`$table->id()` génère `INTEGER PRIMARY KEY AUTOINCREMENT` en SQLite, `BIGINT UNSIGNED AUTO_INCREMENT
+PRIMARY KEY` en MySQL, `BIGSERIAL PRIMARY KEY` en PostgreSQL — sans rien changer à vos migrations.
+
+```php
+$table->foreignId('author_id')->constrained();                    // devine la table `authors`
+$table->foreignId('author_id')->constrained('users');              // table explicite
+$table->foreign('author_id')->references('id')->on('authors')      // syntaxe complète
+    ->cascadeOnDelete();                                            // ou ->nullOnDelete() / ->restrictOnDelete()
+
+$table->renameColumn('old', 'new');
+$table->dropColumn('champ_obsolete');
+Schema::rename('anciens_posts', 'posts');
+```
+
+En SQLite, les clés étrangères sont activées (`PRAGMA foreign_keys = ON`) — comme en MySQL/PostgreSQL,
+une insertion référençant une ligne inexistante est rejetée.
+
+Limite assumée : `->change()` (modifier le type d'une colonne existante) n'est pas encore supporté —
+les trois moteurs divergent trop pour une traduction fiable (SQLite ne le permet même pas nativement
+sans reconstruire la table). Pour l'instant, gérez ce cas via une nouvelle migration qui recrée la colonne.
 
 ## Seeders & factories
 
