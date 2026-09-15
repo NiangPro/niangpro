@@ -536,14 +536,20 @@ Clone ce squelette (sans `vendor/`, `.git/`, données locales), installe les dé
 nouvelle `APP_KEY`. Une fois le paquet publié sur Packagist, `composer create-project niangpro/framework mon-app`
 fera la même chose sans avoir de projet existant sous la main.
 
+## Dépôt public
+
+Le code est sur GitHub : **https://github.com/NiangPro/niangpro** (public, CI activée sur chaque push).
+
 ## Publier sur Packagist
 
-Le `composer.json` est prêt (nom, description, mots-clés, licence). Pour publier réellement :
+Le `composer.json` est prêt (nom, description, mots-clés, licence, URLs). Pour que `composer require
+niangpro/framework` fonctionne pour tout le monde :
 
-1. Poussez ce dépôt sur GitHub (remplacez les URLs `support` du `composer.json` par les vraies).
-2. Créez un tag de version (`git tag v1.0.0 && git push --tags`).
-3. Soumettez l'URL du dépôt sur [packagist.org](https://packagist.org/packages/submit).
-4. Activez le webhook GitHub → Packagist pour que les futurs tags soient publiés automatiquement.
+1. Créez un tag de version (`git tag v1.0.0 && git push --tags`).
+2. Connectez-vous sur [packagist.org](https://packagist.org) avec le compte GitHub `NiangPro`.
+3. Soumettez `https://github.com/NiangPro/niangpro` sur [packagist.org/packages/submit](https://packagist.org/packages/submit).
+4. Activez le webhook GitHub → Packagist (proposé automatiquement à la soumission) pour que les
+   futurs tags soient publiés sans action manuelle.
 
 ## Philosophie
 
