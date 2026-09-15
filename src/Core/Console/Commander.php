@@ -43,6 +43,7 @@ class Commander
             'cache:clear' => $this->cacheClear(),
             'optimize' => $this->optimize(),
             'new' => $this->newProject($arg),
+            'np:install' => $this->npInstall(),
             default => $this->help(),
         };
     }
@@ -513,6 +514,64 @@ class Commander
         echo "\nProjet créé.\n\n  cd $name\n  ./bin/niang migrate\n  ./bin/niang serve\n";
     }
 
+    /** Installe un raccourci global `np` (macOS/Linux) qui trouve bin/niang en remontant depuis le dossier courant. */
+    private function npInstall(): void
+    {
+        if (str_starts_with(PHP_OS_FAMILY, 'Windows')) {
+            echo "np:install n'est pas encore disponible sur Windows. Créez un alias PowerShell manuellement :\n";
+            echo "  Set-Alias np .\\bin\\niang\n";
+            return;
+        }
+
+        $dir = $this->findWritablePathDir();
+
+        if (!$dir) {
+            echo "Aucun dossier de votre PATH n'est accessible en écriture.\n";
+            echo "Créez-en un et ajoutez-le à votre PATH, par exemple :\n";
+            echo "  mkdir -p ~/.local/bin && echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc\n";
+            echo "puis relancez : ./bin/niang np:install\n";
+            return;
+        }
+
+        $script = <<<'BASH'
+        #!/usr/bin/env bash
+        # Raccourci pour ./bin/niang : cherche bin/niang en remontant depuis le dossier courant.
+        dir="$PWD"
+        while [ "$dir" != "/" ]; do
+            if [ -x "$dir/bin/niang" ]; then
+                exec "$dir/bin/niang" "$@"
+            fi
+            dir="$(dirname "$dir")"
+        done
+
+        echo "np : bin/niang introuvable (es-tu dans un projet NiangPro ?)" >&2
+        exit 1
+
+        BASH;
+
+        $path = "$dir/np";
+        file_put_contents($path, $script);
+        chmod($path, 0755);
+
+        echo "Raccourci installé : $path\n";
+        echo "Utilisez `np serve`, `np migrate`, etc. depuis n'importe quel projet NiangPro.\n";
+    }
+
+    /** Premier dossier du PATH existant et accessible en écriture, ou null si aucun. */
+    private function findWritablePathDir(): ?string
+    {
+        $preferred = [getenv('HOME') . '/.local/bin', '/opt/homebrew/bin', '/usr/local/bin'];
+        $pathDirs = array_filter(explode(PATH_SEPARATOR, (string) getenv('PATH')));
+
+        foreach ([...$preferred, ...$pathDirs] as $dir) {
+            if (is_dir($dir) && is_writable($dir) && in_array($dir, $pathDirs, true)) {
+                return $dir;
+            }
+        }
+
+        return null;
+    }
+
     private function copyDirectory(string $source, string $target, array $exclude): void
     {
         mkdir($target, 0755, true);
@@ -569,6 +628,7 @@ class Commander
           cache:clear              Vide le cache applicatif
           optimize                 Cache les routes + rappels de prod (opcache, autoload)
           new <nom>                Crée un nouveau projet à partir de ce squelette
+          np:install                Installe le raccourci global `np` (macOS/Linux)
 
         TEXT;
     }

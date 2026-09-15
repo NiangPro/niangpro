@@ -546,7 +546,23 @@ Pour une CI/vraie isolation, pointez `DB_DATABASE` vers `:memory:` dans un `.env
 ./bin/niang cache:clear              # vide le cache applicatif
 ./bin/niang optimize                 # cache les routes + rappels de prod
 ./bin/niang new mon-app              # crée un nouveau projet à partir de ce squelette
+./bin/niang np:install               # installe le raccourci global `np` (macOS/Linux)
 ```
+
+### Raccourci `np` (optionnel)
+
+Pour taper `np serve` au lieu de `./bin/niang serve`, installez une fois le raccourci global
+(macOS/Linux) :
+
+```bash
+./bin/niang np:install
+```
+
+La commande dépose un script `np` dans un dossier déjà présent dans votre `PATH` (auto-détecté, par
+exemple `~/.local/bin`, `/opt/homebrew/bin` ou `/usr/local/bin`) qui remonte l'arborescence depuis le
+dossier courant pour retrouver `bin/niang`. Résultat : `np` fonctionne dans **n'importe quel** projet
+NiangPro sur la machine, même depuis un sous-dossier, sans rien reconfigurer par projet. Si aucun
+dossier de votre `PATH` n'est accessible en écriture, la commande vous indique comment en créer un.
 
 ## Configuration
 
