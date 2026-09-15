@@ -1,3 +1,5 @@
+<p align="center"><img src="public/logo.svg" width="140" alt="Logo NiangPro"></p>
+
 # NiangPro
 
 Un micro-framework PHP **ultra simple**, plus simple que Laravel : pas de magie, pas de compilation, juste du PHP.
