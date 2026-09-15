@@ -3,6 +3,7 @@ parameters:
     paths:
         - src
         - app
+        - tests
     excludePaths:
         - src/helpers.php
     ignoreErrors:

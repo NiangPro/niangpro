@@ -21,12 +21,6 @@ jobs:
       - name: Installer les dépendances
         run: composer install --prefer-dist --no-progress
 
-      - name: Préparer l'environnement
-        run: |
-          cp .env.example .env
-          ./bin/niang key:generate
-          ./bin/niang migrate
-
       - name: Style de code (PSR-12)
         run: composer lint
 

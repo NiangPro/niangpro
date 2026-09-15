@@ -4,11 +4,12 @@ namespace Tests\Database;
 
 use Niang\Core\Database\DB;
 use Niang\Core\Database\Schema;
-use PHPUnit\Framework\TestCase;
+use Niang\Core\Testing\TestCase;
 
 /**
- * Exécute vraiment le SQL généré (contrairement à GrammarTest, qui ne vérifie que la chaîne produite).
- * Utilise des tables jetables, nettoyées dans tearDown, pour ne pas polluer la base de développement.
+ * Exécute vraiment le SQL généré (contrairement à GrammarTest, qui ne vérifie que la chaîne produite),
+ * contre la base de test isolée (:memory:, voir .env.testing) — jamais storage/database.sqlite.
+ * Utilise des tables jetables, nettoyées dans tearDown par sécurité.
  */
 class SchemaTest extends TestCase
 {

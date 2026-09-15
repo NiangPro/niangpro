@@ -26,8 +26,22 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
   (exécution réelle : création de table, contrainte FK appliquée, rename/drop de colonne).
 - `np:install` : raccourci CLI global `np` (macOS/Linux) qui retrouve `bin/niang` depuis n'importe
   quel sous-dossier d'un projet NiangPro.
+- **Isolation complète des tests** : `.env.testing` (committé) charge une base SQLite `:memory:` au
+  lieu de `storage/database.sqlite` dès que `APP_ENV=testing` (positionné par `phpunit.xml`) ;
+  `Niang\Core\Testing\TestCase` migre automatiquement cette base ; `tests/bootstrap.php` repart d'un
+  `storage/framework/` propre à chaque run (le cache et le rate limiting sur fichier ne fuient plus
+  d'une exécution de la suite à l'autre) ; nouveau trait `Niang\Core\Testing\RefreshDatabase`
+  (transaction annulée après chaque test) pour les tests qui écrivent en base.
+- `tests/Feature/AuthTest.php` démontre `RefreshDatabase` (un test vérifie explicitement qu'aucune
+  trace du précédent ne subsiste).
 
 ### Changed
+
+- `SchemaTest` étend désormais `Niang\Core\Testing\TestCase` (au lieu de `PHPUnit\Framework\TestCase`)
+  pour charger `.env.testing` de façon fiable, indépendamment de l'ordre d'exécution des suites.
+- CI : suppression de l'étape « Préparer l'environnement » (`.env` + `migrate`), devenue inutile —
+  les tests s'auto-suffisent désormais.
+- `phpstan.neon` analyse aussi `tests/` (niveau 6, toujours 0 erreur).
 
 - `ColumnDefinition` et `Blueprint` ne construisent plus de SQL directement : ils décrivent la
   colonne de façon abstraite, et `Grammar::compile*()` traduit vers le SQL du moteur configuré.

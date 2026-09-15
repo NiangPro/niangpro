@@ -544,8 +544,40 @@ Assertions disponibles : `assertStatus`, `assertOk`, `assertRedirect`, `assertSe
 `assertJson`, `->json()`. Pour un test unitaire pur (sans HTTP), étendez directement
 `PHPUnit\Framework\TestCase` — voir `tests/Unit/ValidatorTest.php`.
 
-Limite assumée : les tests utilisent la même base sqlite que le développement local (`storage/database.sqlite`).
-Pour une CI/vraie isolation, pointez `DB_DATABASE` vers `:memory:` dans un `.env` dédié aux tests.
+### Isolation complète
+
+Les tests tournent entièrement isolés du développement local, sans rien à configurer :
+
+- `phpunit.xml` force `APP_ENV=testing`, ce qui fait charger **`.env.testing`** (committé — clé de
+  test, pas un secret) au lieu de `.env`.
+- `.env.testing` pointe `DB_DATABASE` sur **`:memory:`** : jamais `storage/database.sqlite`.
+- `Niang\Core\Testing\TestCase` migre automatiquement cette base en mémoire au premier test qui en a
+  besoin (idempotent, pas de doublon).
+- `tests/bootstrap.php` repart d'un `storage/framework/` propre à chaque run : le cache applicatif et
+  le rate limiting (sur fichier) ne s'accumulent pas d'une exécution de la suite à l'autre.
+
+Pour qu'un test qui écrit en base n'affecte pas les suivants (la base `:memory:` survit tout le run
+PHPUnit, contrairement à un vrai processus web), utilisez le trait `RefreshDatabase` — chaque test est
+enrobé dans une transaction annulée à la fin :
+
+```php
+use Niang\Core\Testing\RefreshDatabase;
+use Niang\Core\Testing\TestCase;
+
+class AuthTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_registration_creates_a_user(): void
+    {
+        $this->post('/register', [...]);
+        $this->assertNotEmpty(User::where('email', 'awa@example.test'));
+    }
+}
+```
+
+Conséquence directe : `composer test`, `composer lint` et `composer analyse` fonctionnent sans aucune
+préparation (pas de `.env`, pas de `migrate`) — vérifié en CI comme en local.
 
 ## CLI
 

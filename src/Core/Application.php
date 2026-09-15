@@ -13,7 +13,7 @@ class Application
 
     public function __construct(private string $basePath)
     {
-        Env::load($basePath . '/.env');
+        Env::load($this->envFile());
         Config::load($basePath);
 
         $this->container = new Container();
@@ -50,6 +50,21 @@ class Application
     public function basePath(string $path = ''): string
     {
         return $this->basePath . ($path ? '/' . ltrim($path, '/') : '');
+    }
+
+    /**
+     * `.env.testing` prend le pas sur `.env` quand APP_ENV=testing (positionné par phpunit.xml
+     * avant même que cette classe s'exécute) — isole complètement les tests de la base locale.
+     */
+    private function envFile(): string
+    {
+        $testingFile = $this->basePath . '/.env.testing';
+
+        if (getenv('APP_ENV') === 'testing' && file_exists($testingFile)) {
+            return $testingFile;
+        }
+
+        return $this->basePath . '/.env';
     }
 
     public function loadRoutes(string $file): void
