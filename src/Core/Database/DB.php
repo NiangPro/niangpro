@@ -114,7 +114,8 @@ class DB
     {
         self::$queryCount++;
         $statement = self::connection($connection)->prepare($query);
-        $statement->execute($bindings);
+        self::bindValues($statement, $bindings);
+        $statement->execute();
         return $statement->fetchAll();
     }
 
@@ -122,7 +123,8 @@ class DB
     {
         self::$queryCount++;
         $statement = self::connection($connection)->prepare($query);
-        $statement->execute($bindings);
+        self::bindValues($statement, $bindings);
+        $statement->execute();
         $result = $statement->fetch();
         return $result === false ? null : $result;
     }
@@ -131,7 +133,28 @@ class DB
     {
         self::$queryCount++;
         $statement = self::connection($connection)->prepare($query);
-        return $statement->execute($bindings);
+        self::bindValues($statement, $bindings);
+        return $statement->execute();
+    }
+
+    /**
+     * PDOStatement::execute($bindings) lie systématiquement tous les paramètres comme des chaînes,
+     * quel que soit leur type PHP. Sans affinité de colonne pour absorber la conversion (typiquement
+     * une expression agrégée dans une clause HAVING), SQLite compare alors un INTEGER à un TEXTE et
+     * le classe toujours avant — un ">" numérique pourtant correct peut alors ne renvoyer aucune ligne.
+     * On lie donc explicitement chaque valeur avec le type PDO qui correspond à son type PHP.
+     */
+    private static function bindValues(\PDOStatement $statement, array $bindings): void
+    {
+        foreach (array_values($bindings) as $index => $value) {
+            $type = match (true) {
+                is_int($value) => PDO::PARAM_INT,
+                is_bool($value) => PDO::PARAM_BOOL,
+                $value === null => PDO::PARAM_NULL,
+                default => PDO::PARAM_STR,
+            };
+            $statement->bindValue($index + 1, $value, $type);
+        }
     }
 
     public static function insert(string $query, array $bindings = [], string $connection = 'write'): string

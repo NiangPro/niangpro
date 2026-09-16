@@ -81,10 +81,12 @@ class QueryBuilderExecutionTest extends TestCase
     {
         $this->seed();
 
+        // SUM(views), pas la colonne brute : MySQL (ONLY_FULL_GROUP_BY) et PostgreSQL rejettent une
+        // colonne du HAVING qui n'est ni groupée ni agrégée — SQLite seul l'aurait toléré.
         $results = (new QueryBuilder('np_test_articles'))
             ->select('title')
             ->groupBy('title')
-            ->having('views', '>', 40)
+            ->havingRaw('SUM(views) > ?', [40])
             ->get();
 
         $this->assertCount(2, $results);

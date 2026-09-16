@@ -70,6 +70,14 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Fixed
 
+- **Les paramètres liés via `DB::select()`/`selectOne()`/`statement()` étaient tous transmis comme
+  chaînes** (`PDOStatement::execute($bindings)` lie systématiquement en `PDO::PARAM_STR`, quel que
+  soit le type PHP réel). Sans colonne pour absorber la conversion par affinité — typiquement une
+  expression agrégée dans une clause `HAVING`, ex. `HAVING SUM(views) > ?` — SQLite compare alors un
+  INTEGER à un TEXTE et le classe toujours avant, si bien qu'un `>` numériquement correct ne
+  renvoyait aucune ligne. Trouvé en écrivant `QueryBuilderExecutionTest::test_having` (silencieux sur
+  MySQL/PostgreSQL, qui font la conversion). Corrigé en liant chaque valeur explicitement avec
+  `bindValue()` et le type `PDO::PARAM_*` correspondant à son type PHP, plutôt que via `execute()`.
 - **`PostController::index()`/`page()` interrogeaient chaque post individuellement pour ses
   commentaires et ses tags** (`Post::comments($id)`/`Post::tags($id)` dans une boucle), soit 2N+1
   requêtes pour N posts. Remplacé par `Post::with(['comments', 'tags'])->get()`, qui ramène le total
