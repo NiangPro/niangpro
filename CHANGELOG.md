@@ -28,6 +28,13 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
   PostgreSQL — `PDO_PGSQL` ne reconnaît pas ce paramètre et refusait la connexion
   (`invalid connection option "charset"`). `charset` n'est plus ajouté qu'en MySQL ; le port par
   défaut est aussi désormais correct par moteur (3306 MySQL / 5432 PostgreSQL).
+- **`composer.lock` verrouillait des outils dev (PHPUnit 11, PHP-CS-Fixer avec Symfony 8.1)
+  nécessitant PHP 8.4+ en interne**, cassant `composer install` sur PHP 8.1/8.2/8.3 en CI — la
+  contrainte `"php": ">=8.1"` de `composer.json` n'empêche pas Composer de verrouiller, lors d'un
+  `composer update` local, des versions qui ne marchent que sur le PHP effectivement utilisé à ce
+  moment-là. Corrigé avec `config.platform.php` fixé à `8.1.0` (force Composer à résoudre pour le
+  minimum supporté, pas la version locale du contributeur) et un passage à PHPUnit 10 (dernière
+  branche majeure compatible PHP 8.1).
 
 - **Configuration & sécurité renforcée** (P0 #4 et #5 de la roadmap technique) :
   - `config/security.php` : en-têtes HTTP (CSP, HSTS, X-Frame-Options...) appliqués à toutes les
