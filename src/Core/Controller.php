@@ -27,9 +27,9 @@ abstract class Controller
      * Valide les données de la requête. Lève une ValidationException si une règle échoue
      * (interceptée par l'Application pour rediriger avec les erreurs et l'ancienne saisie).
      */
-    protected function validate(Request $request, array $rules): array
+    protected function validate(Request $request, array $rules, array $messages = [], array $attributes = []): array
     {
-        return Validator::make($request->all(), $rules)->validate();
+        return Validator::make($request->all(), $rules, $messages, $attributes)->validate();
     }
 
     /**

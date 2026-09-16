@@ -21,17 +21,15 @@ class AuthController extends Controller
 
     public function register(Request $request): Response
     {
-        $data = $this->validate($request, [
-            'name' => 'required|string|min:2',
-            'email' => 'required|email',
-            'password' => 'required|string|min:8|confirmed',
-        ]);
-
-        if (User::where('email', $data['email'])) {
-            return $this->redirect('/register')
-                ->with('errors', ['email' => ['Cet email est déjà utilisé.']])
-                ->with('old', $request->all());
-        }
+        $data = $this->validate(
+            $request,
+            [
+                'name' => 'required|string|min:2',
+                'email' => 'required|email|unique:users,email',
+                'password' => 'required|string|min:8|confirmed',
+            ],
+            ['email.unique' => 'Cet email est déjà utilisé.']
+        );
 
         $userId = User::create([
             'name' => $data['name'],

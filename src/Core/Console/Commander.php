@@ -406,6 +406,16 @@ class Commander
                     // 'email' => 'required|email',
                 ];
             }
+
+            // public function messages(): array
+            // {
+            //     return ['email.required' => 'Merci de renseigner votre email.'];
+            // }
+
+            // public function attributes(): array
+            // {
+            //     return ['email' => 'Adresse email'];
+            // }
         }
 
         PHP;

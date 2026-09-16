@@ -20,6 +20,18 @@ abstract class FormRequest extends Request
         return true;
     }
 
+    /** Surcharge de message, par 'champ.règle' (prioritaire) ou juste 'règle' — ex: ['email.required' => '...']. */
+    public function messages(): array
+    {
+        return [];
+    }
+
+    /** Nom lisible d'un champ dans les messages par défaut, ex: ['email' => 'Adresse email']. */
+    public function attributes(): array
+    {
+        return [];
+    }
+
     /** @internal appelé par le Container lors de l'injection dans un contrôleur */
     public function validateResolved(): void
     {
@@ -27,7 +39,7 @@ abstract class FormRequest extends Request
             throw new AuthorizationException('Action non autorisée.');
         }
 
-        $this->validated = Validator::make($this->all(), $this->rules())->validate();
+        $this->validated = Validator::make($this->all(), $this->rules(), $this->messages(), $this->attributes())->validate();
     }
 
     public function validated(): array

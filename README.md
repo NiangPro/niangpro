@@ -284,8 +284,40 @@ class ContactController extends Controller
 }
 ```
 
-Règles disponibles : `required`, `string`, `numeric`, `integer`, `email`, `min:n` (longueur ou valeur
-minimale selon le type), `max:n`, `regex:/motif/`, `confirmed` (compare à `{champ}_confirmation`).
+Règles disponibles :
+
+```text
+required          string            numeric           integer
+boolean           array             email             url
+date              date_format:F     min:n              max:n
+between:min,max   in:a,b,c          not_in:a,b,c       same:champ
+different:champ   regex:/motif/     confirmed          nullable
+required_if:champ,valeur           required_with:champ
+required_without:champ             unique:table,colonne[,id_à_ignorer]
+exists:table,colonne
+```
+
+`nullable` : si le champ est vide, les autres règles ne s'appliquent pas (sinon un champ absent y
+échoue normalement). `unique`/`exists` interrogent la base — `unique:users,email,5` ignore la ligne
+d'id 5 (cas « je modifie mon propre profil »). `min`/`max`/`between` comparent une longueur de chaîne
+ou une valeur numérique selon le type du champ.
+
+Validation d'un tableau, élément par élément :
+
+```php
+$this->validate($request, ['items.*.name' => 'required|string']);
+// erreurs indexées : items.0.name, items.1.name...
+```
+
+Messages et noms de champs personnalisés (aussi disponibles sur `FormRequest` via `messages()` et
+`attributes()`) :
+
+```php
+$this->validate($request, ['email' => 'required|email'],
+    messages: ['email.required' => 'Merci de renseigner votre email.'],
+    attributes: ['email' => 'Adresse email']
+);
+```
 
 Si la validation échoue : redirection automatique vers la page précédente avec les erreurs et l'ancienne
 saisie en flash (`errors('email')`, `old('email')`), ou réponse JSON 422 si la requête attend du JSON.

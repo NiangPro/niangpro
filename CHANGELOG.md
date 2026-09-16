@@ -9,6 +9,20 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Validation 2.0** (P0 #9 de la roadmap technique) :
+  - Nouvelles règles : `nullable`, `boolean`, `array`, `url`, `date`, `date_format`, `between`,
+    `in`/`not_in`, `same`/`different`, `required_if`/`required_with`/`required_without`, et
+    `unique`/`exists` (contre la base, `unique` accepte un id à ignorer pour les mises à jour).
+  - Validation d'un tableau élément par élément : `'items.*.name' => 'required|string'`.
+  - Messages et noms de champs personnalisables : `Validator::make($data, $rules, $messages,
+    $attributes)`, `Controller::validate(..., messages: [...], attributes: [...])`, et
+    `FormRequest::messages()`/`attributes()` (prévus par l'architecture FormRequest de la roadmap
+    mais pas encore câblés jusqu'ici).
+  - `AuthController::register()` simplifié : la vérification manuelle d'email déjà pris est
+    remplacée par `'email' => 'unique:users,email'` — moins de code, même comportement (vérifié
+    en direct : inscription en double toujours rejetée, avec le message personnalisé attendu).
+  - 22 nouveaux tests (règles pures dans `tests/Unit/ValidatorTest.php`, `unique`/`exists` contre
+    une vraie table dans `tests/Database/ValidatorDatabaseRulesTest.php`).
 - **Router 2.0** (P0 #8 de la roadmap technique) :
   - `$router->match(['GET', 'POST'], $uri, $action)` — une seule action pour plusieurs méthodes ;
     `->name()`/`->where()` s'appliquent à toutes les routes enregistrées.
