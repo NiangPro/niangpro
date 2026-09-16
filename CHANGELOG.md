@@ -9,6 +9,26 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **CI multi-versions et multi-SGBD** (P0 #6 de la roadmap technique) :
+  - Job `test` en matrice sur PHP 8.1, 8.2, 8.3 et 8.4.
+  - Jobs `mysql` (MySQL 8) et `postgres` (PostgreSQL 16, conteneurs de service GitHub Actions) qui
+    font vraiment tourner les migrations (`tests/Database/`) contre ces moteurs, pas seulement SQLite.
+
+### Fixed
+
+- **Bug réel trouvé en testant contre un vrai MySQL local avant de pousser en CI** :
+  `Migrator::ensureTable()` créait la table interne `migrations` en SQL SQLite brut
+  (`INTEGER PRIMARY KEY AUTOINCREMENT`), en contournant complètement le Grammar — échouait sur
+  MySQL/PostgreSQL. Corrigé pour passer par `Schema`/`Blueprint` comme toute migration applicative.
+- **`Env::get()` donnait la priorité au fichier `.env*` sur une variable d'environnement réelle** —
+  à l'inverse de la convention habituelle (CI, Docker, hébergeurs injectent leurs propres variables,
+  qui doivent gagner). Corrigé : une variable déjà présente dans l'environnement n'est plus jamais
+  écrasée par `.env`/`.env.testing`. C'est ce qui permet à la CI de piloter `DB_CONNECTION` par job.
+- **Le DSN PDO générique incluait `charset=` pour tous les moteurs non-SQLite**, y compris
+  PostgreSQL — `PDO_PGSQL` ne reconnaît pas ce paramètre et refusait la connexion
+  (`invalid connection option "charset"`). `charset` n'est plus ajouté qu'en MySQL ; le port par
+  défaut est aussi désormais correct par moteur (3306 MySQL / 5432 PostgreSQL).
+
 - **Configuration & sécurité renforcée** (P0 #4 et #5 de la roadmap technique) :
   - `config/security.php` : en-têtes HTTP (CSP, HSTS, X-Frame-Options...) appliqués à toutes les
     réponses, désormais éditables sans toucher `Application`.

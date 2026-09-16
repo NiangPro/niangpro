@@ -59,10 +59,17 @@ class DB
             $pdo->exec('PRAGMA foreign_keys = ON'); // pas activé par défaut par SQLite, contrairement à MySQL/PostgreSQL
         } else {
             $host = Env::get($prefix . 'HOST', Env::get('DB_HOST', '127.0.0.1'));
-            $port = Env::get($prefix . 'PORT', Env::get('DB_PORT', '3306'));
+            $port = Env::get($prefix . 'PORT', Env::get('DB_PORT', $driver === 'pgsql' ? '5432' : '3306'));
             $database = Env::get($prefix . 'DATABASE', Env::get('DB_DATABASE', 'niangpro'));
-            $charset = Env::get($prefix . 'CHARSET', Env::get('DB_CHARSET', 'utf8mb4'));
-            $dsn = "$driver:host=$host;port=$port;dbname=$database;charset=$charset";
+
+            // "charset" n'existe pas dans le DSN PDO_PGSQL (contrairement à PDO_MySQL) : le passer
+            // fait échouer la connexion à PostgreSQL ("invalid connection option").
+            $dsn = "$driver:host=$host;port=$port;dbname=$database";
+
+            if ($driver === 'mysql') {
+                $charset = Env::get($prefix . 'CHARSET', Env::get('DB_CHARSET', 'utf8mb4'));
+                $dsn .= ";charset=$charset";
+            }
 
             $pdo = new PDO(
                 $dsn,

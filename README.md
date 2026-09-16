@@ -602,6 +602,20 @@ class AuthTest extends TestCase
 Conséquence directe : `composer test`, `composer lint` et `composer analyse` fonctionnent sans aucune
 préparation (pas de `.env`, pas de `migrate`) — vérifié en CI comme en local.
 
+### CI multi-versions et multi-SGBD
+
+`.github/workflows/ci.yml` fait tourner :
+
+- **`test`** : lint + PHPStan + tests, en matrice sur **PHP 8.1, 8.2, 8.3 et 8.4** (SQLite `:memory:`).
+- **`mysql`** / **`postgres`** : les migrations (`tests/Database/`) contre un vrai conteneur MySQL 8
+  et PostgreSQL 16 — pas seulement SQLite. `DB_CONNECTION`/`DB_HOST`/... passés en variables
+  d'environnement CI ont priorité sur `.env.testing` (une variable d'environnement déjà présente
+  garde toujours la priorité sur les fichiers `.env*`, utile aussi derrière un vrai hébergeur).
+
+Ces deux jobs ont fait remonter un vrai bug avant même d'être poussés en CI (testé en local contre
+un MySQL réel) : la table interne de suivi des migrations était créée en SQL SQLite brut, hors du
+Grammar — corrigé pour passer par `Schema`/`Blueprint` comme n'importe quelle migration applicative.
+
 ## CLI
 
 ```bash

@@ -83,11 +83,19 @@ class Migrator
         return $rolledBack;
     }
 
+    /**
+     * Passe par Schema/Blueprint (donc par le Grammar du moteur configuré) plutôt que par du SQL
+     * écrit à la main : la table de suivi des migrations doit être aussi portable que les
+     * migrations applicatives elle-même (trouvé en testant contre un vrai MySQL — la version
+     * précédente, en SQL SQLite brut, y échouait).
+     */
     private function ensureTable(): void
     {
-        DB::statement(
-            'CREATE TABLE IF NOT EXISTS migrations (id INTEGER PRIMARY KEY AUTOINCREMENT, migration VARCHAR(255) NOT NULL, batch INTEGER NOT NULL)'
-        );
+        Schema::create('migrations', function (Blueprint $table) {
+            $table->id();
+            $table->string('migration');
+            $table->integer('batch');
+        });
     }
 
     private function files(): array

@@ -81,7 +81,10 @@ class SchemaTest extends TestCase
             $table->dropColumn('name');
         });
 
-        $columns = DB::select('PRAGMA table_info(np_test_authors)');
-        $this->assertNotContains('name', array_column($columns, 'name'));
+        // Portable entre moteurs (PRAGMA table_info est spécifique à SQLite) : après suppression,
+        // une ligne fraîchement lue n'a simplement plus la clé 'name'.
+        $row = DB::selectOne('SELECT * FROM np_test_authors');
+        $this->assertIsArray($row);
+        $this->assertArrayNotHasKey('name', $row);
     }
 }
