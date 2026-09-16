@@ -64,6 +64,11 @@ $router->get('/ping', function (Request $request): Response {
     return Response::json(['pong' => true, 'time' => time()]);
 }, [LogRequest::class]);
 
+// Démo v0.6.0 (Router 2.0) : une seule action pour plusieurs méthodes
+$router->match(['GET', 'POST'], '/status-either', function (Request $request): Response {
+    return Response::json(['method' => $request->method]);
+});
+
 // Exemple de groupe de routes
 $router->group(['prefix' => '/api'], function ($router) {
     $router->get('/status', function (): Response {

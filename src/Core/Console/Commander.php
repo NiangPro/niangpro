@@ -285,7 +285,7 @@ class Commander
         require $this->basePath . '/routes/web.php';
 
         $total = count($router->routes());
-        $cached = RouteCache::store($router->routes(), Router::namedRoutes());
+        $cached = RouteCache::store($router->routes(), Router::namedRoutes(), $router->fallbackAction());
         $skipped = $total - $cached;
 
         echo "Routes mises en cache : $cached\n";
@@ -322,6 +322,15 @@ class Commander
                 $route['name'] ?? '',
                 $action
             );
+        }
+
+        if (($fallback = $router->fallbackAction()) !== null) {
+            $action = match (true) {
+                $fallback instanceof \Closure => '{closure}',
+                is_array($fallback) => $fallback[0] . '@' . $fallback[1],
+                default => (string) $fallback,
+            };
+            printf("%-7s %-30s %-20s %s\n", 'ANY', '{fallback}', '', $action);
         }
     }
 

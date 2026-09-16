@@ -9,6 +9,17 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Router 2.0** (P0 #8 de la roadmap technique) :
+  - `$router->match(['GET', 'POST'], $uri, $action)` — une seule action pour plusieurs méthodes ;
+    `->name()`/`->where()` s'appliquent à toutes les routes enregistrées.
+  - `$router->fallback($action)` — route de secours quand rien ne correspond, prioritaire sur la
+    404 par défaut mais pas sur une 405 (une route existe, juste pas pour cette méthode). Survit à
+    `route:cache` si l'action n'est pas une closure, comme les routes normales.
+  - `$router->options(...)` et `$router->head(...)` pour un enregistrement explicite.
+  - **`HEAD` fonctionne désormais automatiquement sur toute route `GET`** (corps vidé, en-têtes et
+    statut conservés) sans rien déclarer — une route `HEAD` explicite garde, elle, entièrement la
+    main sur sa réponse (testé : les deux comportements coexistent correctement).
+  - `route:list` affiche aussi le fallback s'il y en a un.
 - **Contrats du Container** (P0 #7 de la roadmap technique) : `Niang\Core\Exceptions\ContainerException`
   remplace les `\RuntimeException` génériques, avec des messages explicites et actionnables :
   - Classe introuvable, ou binding manquant sur une interface/classe abstraite (avec un rappel de

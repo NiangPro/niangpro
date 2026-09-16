@@ -72,7 +72,7 @@ class Application
         $cached = RouteCache::load();
 
         if ($cached !== null) {
-            $this->router->loadFromCache($cached['routes'], $cached['named']);
+            $this->router->loadFromCache($cached['routes'], $cached['named'], $cached['fallback'] ?? null);
             return;
         }
 

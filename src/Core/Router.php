@@ -13,6 +13,7 @@ class Router
     private string $groupPrefix = '';
     private array $groupMiddleware = [];
     private ?string $groupDomain = null;
+    private mixed $fallbackAction = null;
 
     private static array $namedRoutes = [];
 
@@ -39,6 +40,37 @@ class Router
     public function delete(string $uri, mixed $action, array $middleware = []): RouteRegistration
     {
         return $this->add('DELETE', $uri, $action, $middleware);
+    }
+
+    public function options(string $uri, mixed $action, array $middleware = []): RouteRegistration
+    {
+        return $this->add('OPTIONS', $uri, $action, $middleware);
+    }
+
+    /**
+     * Enregistrement HEAD explicite — sans ça, une requête HEAD réutilise automatiquement la
+     * route GET correspondante et vide simplement le corps de la réponse (dispatch()).
+     */
+    public function head(string $uri, mixed $action, array $middleware = []): RouteRegistration
+    {
+        return $this->add('HEAD', $uri, $action, $middleware);
+    }
+
+    /** Une seule action pour plusieurs méthodes : $router->match(['GET', 'POST'], '/contact', ...). */
+    public function match(array $methods, string $uri, mixed $action, array $middleware = []): RouteRegistration
+    {
+        $indices = array_map(
+            fn (string $method) => $this->pushRoute(strtoupper($method), $uri, $action, $middleware),
+            $methods
+        );
+
+        return new RouteRegistration($this, $indices);
+    }
+
+    /** Exécutée quand aucune route ne correspond (à la place de la 404 par défaut). */
+    public function fallback(mixed $action): void
+    {
+        $this->fallbackAction = $action;
     }
 
     public function group(array $options, \Closure $callback): void
@@ -83,6 +115,11 @@ class Router
 
     private function add(string $method, string $uri, mixed $action, array $middleware): RouteRegistration
     {
+        return new RouteRegistration($this, [$this->pushRoute($method, $uri, $action, $middleware)]);
+    }
+
+    private function pushRoute(string $method, string $uri, mixed $action, array $middleware): int
+    {
         $uri = $this->groupPrefix . $uri;
         $uri = '/' . trim($uri, '/');
 
@@ -96,7 +133,7 @@ class Router
             'pattern' => $this->toPattern($uri),
         ];
 
-        return new RouteRegistration($this, array_key_last($this->routes));
+        return array_key_last($this->routes);
     }
 
     public function setRouteName(int $index, string $name): void
@@ -138,11 +175,18 @@ class Router
         return self::$namedRoutes;
     }
 
+    /** @internal utilisé par le cache de routes (CLI route:cache) */
+    public function fallbackAction(): mixed
+    {
+        return $this->fallbackAction;
+    }
+
     /** @internal charge des routes précompilées (les routes à closure ne sont pas cacheables) */
-    public function loadFromCache(array $routes, array $namedRoutes): void
+    public function loadFromCache(array $routes, array $namedRoutes, mixed $fallback = null): void
     {
         $this->routes = $routes;
         self::$namedRoutes = $namedRoutes;
+        $this->fallbackAction = $fallback;
     }
 
     private function toPattern(string $uri, array $constraints = []): string
@@ -161,6 +205,37 @@ class Router
         $path = '/' . trim($request->uri, '/');
         $host = explode(':', $request->server['HTTP_HOST'] ?? '')[0];
 
+        [$route, $params, $allowedMethods] = $this->matchRoute($request->method, $path, $host);
+        $usedGetForHead = false;
+
+        // Pas de route HEAD dédiée : on réutilise le GET correspondant et on vide juste le corps
+        // (une route HEAD explicite, elle, garde entièrement la main sur sa réponse).
+        if ($route === null && $request->method === 'HEAD') {
+            [$route, $params, $allowedMethods] = $this->matchRoute('GET', $path, $host);
+            $usedGetForHead = $route !== null;
+        }
+
+        if ($route !== null) {
+            $request->params = $params;
+            $response = $this->runRoute($route, $request, $container);
+
+            return $usedGetForHead ? $response->content('') : $response;
+        }
+
+        if (!empty($allowedMethods)) {
+            throw new HttpException(405, headers: ['Allow' => implode(', ', array_unique($allowedMethods))]);
+        }
+
+        if ($this->fallbackAction !== null) {
+            return $this->runRoute(['action' => $this->fallbackAction, 'middleware' => []], $request, $container);
+        }
+
+        throw new NotFoundException();
+    }
+
+    /** @return array{0: array|null, 1: array, 2: string[]} */
+    private function matchRoute(string $method, string $path, string $host): array
+    {
         $allowedMethods = [];
 
         foreach ($this->routes as $route) {
@@ -180,22 +255,17 @@ class Router
                 continue;
             }
 
-            if ($route['method'] !== $request->method) {
+            if ($route['method'] !== $method) {
                 $allowedMethods[] = $route['method'];
                 continue;
             }
 
             $params = array_filter($matches, fn ($key) => is_string($key), ARRAY_FILTER_USE_KEY);
-            $request->params = [...$domainParams, ...$params];
 
-            return $this->runRoute($route, $request, $container);
+            return [$route, [...$domainParams, ...$params], $allowedMethods];
         }
 
-        if (!empty($allowedMethods)) {
-            throw new HttpException(405, headers: ['Allow' => implode(', ', array_unique($allowedMethods))]);
-        }
-
-        throw new NotFoundException();
+        return [null, [], $allowedMethods];
     }
 
     private function matchDomain(string $pattern, string $host): ?array

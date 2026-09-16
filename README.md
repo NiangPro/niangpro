@@ -382,6 +382,24 @@ $router->resource('tags', TagController::class);
 // nommées tags.index, tags.create, tags.store, tags.show, tags.edit, tags.update, tags.destroy
 ```
 
+Une seule action pour plusieurs méthodes :
+
+```php
+$router->match(['GET', 'POST'], '/contact', [ContactController::class, 'handle']);
+```
+
+Route de secours quand rien ne correspond (remplace la 404 par défaut) :
+
+```php
+$router->fallback(function () {
+    return json_response(['message' => 'Page introuvable.'], 404);
+});
+```
+
+`HEAD` fonctionne automatiquement sur toute route `GET` (corps vidé, en-têtes/statut conservés) — pas
+besoin de la déclarer. Pour un comportement `HEAD` différent du `GET` correspondant, déclarez-le
+explicitement avec `$router->head(...)` ; elle garde alors entièrement la main sur sa réponse.
+
 ## Sous-domaines
 
 ```php
