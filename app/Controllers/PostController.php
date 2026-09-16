@@ -14,25 +14,20 @@ class PostController extends Controller
 {
     public function index(): Response
     {
-        $posts = Cache::remember('posts.index', 60, function () {
-            return array_map(function (array $post) {
-                $post['comments'] = Post::comments($post['id']);
-                $post['tags'] = Post::tags($post['id']);
-                return $post;
-            }, Post::all());
-        });
+        // Post::with(['comments', 'tags'])->get() : 3 requêtes au total quel que soit le nombre de
+        // posts (1 pour les posts, 1 pour tous les commentaires via whereIn, 1 pour tous les tags),
+        // plutôt que 2N+1 en interrogeant chaque relation post par post.
+        $posts = Cache::remember('posts.index', 60, fn () => Post::with(['comments', 'tags'])->get());
 
         return $this->json($posts);
     }
 
     public function page(Request $request): Response
     {
-        $paginator = Post::paginate(2, (int) $request->input('page', 1));
-
-        $items = array_map(fn (array $post) => [...$post, 'tags' => Post::tags($post['id'])], $paginator->items);
+        $paginator = Post::with('tags')->paginate(2, (int) $request->input('page', 1));
 
         return $this->view('posts/index', [
-            'posts' => $items,
+            'posts' => $paginator->items,
             'paginator' => $paginator,
         ]);
     }

@@ -95,6 +95,7 @@ class User extends Model
 
 User::all();
 User::find(1);
+User::findOrFail(1);  // lève NotFoundException (404) si absent, plutôt que null
 User::where('email', 'a@b.com');
 User::create(['name' => 'Awa']);
 User::update(1, ['name' => 'Fatou']);
@@ -124,6 +125,23 @@ Post::query()->where('id', 5)->update(['title' => 'Nouveau titre']);
 Post::query()->where('published', true)->count();
 Post::query()->where('id', 5)->lockForUpdate()->first(); // SELECT ... FOR UPDATE, dans une transaction
 Post::query()->onConnection('read')->get(); // force la connexion 'read' ou 'write'
+
+// Filtres supplémentaires
+Post::query()->whereNull('deleted_at')->get();
+Post::query()->whereBetween('views', [10, 1000])->get();
+Post::query()->whereColumn('updated_at', '>', 'created_at')->get();
+Post::query()->select('category_id')->distinct()->get();
+Post::query()->groupBy('category_id')->having('id', '>', 1)->get();
+
+// Agrégats
+Post::query()->count();          // ou count('id')
+Post::query()->sum('views');
+Post::query()->avg('views');
+Post::query()->min('views');
+Post::query()->max('views');
+Post::query()->where('id', 5)->exists();  // bool
+
+Post::query()->where('id', 5)->firstOrFail();  // lève NotFoundException si aucune ligne
 ```
 
 ## Migrations
@@ -231,6 +249,49 @@ class Comment extends Model
     }
 }
 ```
+
+### Eager loading (éviter le N+1)
+
+Appeler `Post::comments($id)` pour chaque post d'une liste déclenche une requête par post (N+1).
+`Model::with()` charge chaque relation en une seule requête pour toute la collection, via `whereIn`
+(hasMany/belongsTo) ou une jointure (belongsToMany) :
+
+```php
+class Post extends Model
+{
+    public static function eagerLoadable(): array
+    {
+        return [
+            'comments' => fn (array $posts) => static::loadMany($posts, 'comments', Comment::class, 'post_id'),
+            'tags' => fn (array $posts) => static::loadManyToMany($posts, 'tags', Tag::class, 'post_tag', 'post_id', 'tag_id'),
+        ];
+    }
+}
+
+class Comment extends Model
+{
+    public static function eagerLoadable(): array
+    {
+        return [
+            'post' => fn (array $comments) => static::loadOne($comments, 'post', Post::class, 'post_id'),
+        ];
+    }
+}
+
+Post::with(['comments', 'tags'])->get();               // 3 requêtes, quel que soit le nombre de posts
+Post::with('comments')->where('published', true)->get();
+Post::with('comments')->first();
+Post::with('comments')->paginate(10, $page);
+```
+
+`with()` renvoie un `EagerLoadBuilder` qui délègue `where`/`orderBy`/`limit`/etc. au `QueryBuilder`
+sous-jacent, puis charge les relations déclarées après `get()`/`first()`/`paginate()`. Trois méthodes
+protégées de `Model` couvrent les trois types de relation : `loadMany()` (hasMany), `loadOne()`
+(belongsTo), `loadManyToMany()` (belongsToMany via pivot) — toujours des tableaux associatifs, jamais
+d'objets hydratés.
+
+Pour vérifier qu'un endroit précis n'a plus de N+1, `DB::resetQueryCount()` puis `DB::queryCount()`
+donnent le nombre exact de requêtes exécutées entre les deux appels.
 
 ## Transactions
 

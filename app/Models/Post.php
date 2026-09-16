@@ -15,4 +15,13 @@ class Post extends Model
     {
         return static::belongsToMany($postId, Tag::class, 'post_tag', 'post_id', 'tag_id');
     }
+
+    /** Utilisables avec Post::with(['comments', 'tags'])->get() — une requête chacune, pas de N+1. */
+    public static function eagerLoadable(): array
+    {
+        return [
+            'comments' => fn (array $posts) => static::loadMany($posts, 'comments', Comment::class, 'post_id'),
+            'tags' => fn (array $posts) => static::loadManyToMany($posts, 'tags', Tag::class, 'post_tag', 'post_id', 'tag_id'),
+        ];
+    }
 }

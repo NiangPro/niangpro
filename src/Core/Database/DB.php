@@ -12,6 +12,19 @@ use PDO;
 class DB
 {
     private static array $connections = [];
+    private static int $queryCount = 0;
+
+    /** Nombre de requêtes exécutées depuis le dernier resetQueryCount() — utilisé pour prouver
+     *  qu'un correctif N+1 réduit vraiment le nombre de requêtes (voir tests/Database). */
+    public static function queryCount(): int
+    {
+        return self::$queryCount;
+    }
+
+    public static function resetQueryCount(): void
+    {
+        self::$queryCount = 0;
+    }
 
     public static function connection(string $name = 'write'): PDO
     {
@@ -99,6 +112,7 @@ class DB
 
     public static function select(string $query, array $bindings = [], string $connection = 'read'): array
     {
+        self::$queryCount++;
         $statement = self::connection($connection)->prepare($query);
         $statement->execute($bindings);
         return $statement->fetchAll();
@@ -106,6 +120,7 @@ class DB
 
     public static function selectOne(string $query, array $bindings = [], string $connection = 'read'): ?array
     {
+        self::$queryCount++;
         $statement = self::connection($connection)->prepare($query);
         $statement->execute($bindings);
         $result = $statement->fetch();
@@ -114,6 +129,7 @@ class DB
 
     public static function statement(string $query, array $bindings = [], string $connection = 'write'): bool
     {
+        self::$queryCount++;
         $statement = self::connection($connection)->prepare($query);
         return $statement->execute($bindings);
     }

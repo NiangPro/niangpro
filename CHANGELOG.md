@@ -9,6 +9,26 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **ORM / pagination / relations** (P0 #10 de la roadmap technique) :
+  - `QueryBuilder` : `distinct()`, `whereNull()`/`whereNotNull()`, `whereBetween()`/`whereNotBetween()`,
+    `whereDate()`, `whereColumn()` (comparaison entre deux colonnes), `having()`/`havingRaw()`,
+    `exists()`, `firstOrFail()` (lève `NotFoundException`), et les agrégats `sum()`/`avg()`/`min()`/
+    `max()` ainsi que `count(string $column = '*')`.
+  - `Model::findOrFail()` — équivalent de `find()` qui lève `NotFoundException` au lieu de renvoyer
+    `null`.
+  - **Eager loading** : `Model::with('relation')`/`with(['a', 'b'])->get()` (aussi `first()` et
+    `paginate()`), qui charge chaque relation déclarée en une seule requête pour toute la collection
+    via `whereIn`/jointure, au lieu d'une requête par enregistrement. Les relations disponibles se
+    déclarent dans la classe fille via `eagerLoadable()`, en s'appuyant sur trois nouvelles méthodes
+    protégées de `Model` : `loadMany()` (hasMany), `loadOne()` (belongsTo), `loadManyToMany()`
+    (belongsToMany via pivot) — toutes basées sur des tableaux associatifs, pas d'objets hydratés,
+    cohérent avec le choix d'architecture Active-Record-lite du framework.
+  - `DB::queryCount()`/`DB::resetQueryCount()` — compteur de requêtes exécutées, ajouté spécifiquement
+    pour *prouver* par un test qu'une correction N+1 fonctionne (plutôt que de le supposer).
+  - 21 nouveaux tests : génération SQL pure (`tests/Unit/Database/QueryBuilderTest.php`), exécution
+    réelle des nouvelles clauses/agrégats (`tests/Database/QueryBuilderExecutionTest.php`), et surtout
+    `tests/Database/EagerLoadingTest.php` qui vérifie que `DB::queryCount()` reste constant (2 ou 3
+    requêtes) quel que soit le nombre d'enregistrements chargés avec `with()`.
 - **Validation 2.0** (P0 #9 de la roadmap technique) :
   - Nouvelles règles : `nullable`, `boolean`, `array`, `url`, `date`, `date_format`, `between`,
     `in`/`not_in`, `same`/`different`, `required_if`/`required_with`/`required_without`, et
@@ -50,6 +70,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Fixed
 
+- **`PostController::index()`/`page()` interrogeaient chaque post individuellement pour ses
+  commentaires et ses tags** (`Post::comments($id)`/`Post::tags($id)` dans une boucle), soit 2N+1
+  requêtes pour N posts. Remplacé par `Post::with(['comments', 'tags'])->get()`, qui ramène le total
+  à 3 requêtes constantes quel que soit N — corrigé et prouvé par `EagerLoadingTest`, pas seulement
+  supposé.
 - **Bug réel trouvé en testant contre un vrai MySQL local avant de pousser en CI** :
   `Migrator::ensureTable()` créait la table interne `migrations` en SQL SQLite brut
   (`INTEGER PRIMARY KEY AUTOINCREMENT`), en contournant complètement le Grammar — échouait sur

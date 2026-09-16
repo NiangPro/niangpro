@@ -2,13 +2,18 @@
 
 namespace Niang\Core\Database;
 
+use Niang\Core\Exceptions\NotFoundException;
+
 class QueryBuilder
 {
     private string $columns = '*';
+    private bool $distinct = false;
     private array $wheres = [];
     private array $bindings = [];
     private array $joins = [];
     private array $groupByColumns = [];
+    private array $havings = [];
+    private array $havingBindings = [];
     private ?string $orderByClause = null;
     private ?int $limitValue = null;
     private ?int $offsetValue = null;
@@ -22,6 +27,12 @@ class QueryBuilder
     public function select(string ...$columns): static
     {
         $this->columns = implode(', ', $columns);
+        return $this;
+    }
+
+    public function distinct(): static
+    {
+        $this->distinct = true;
         return $this;
     }
 
@@ -49,9 +60,70 @@ class QueryBuilder
         return $this;
     }
 
+    public function whereNull(string $column): static
+    {
+        $this->wheres[] = [$this->wheres ? 'AND' : '', "$column IS NULL"];
+        return $this;
+    }
+
+    public function whereNotNull(string $column): static
+    {
+        $this->wheres[] = [$this->wheres ? 'AND' : '', "$column IS NOT NULL"];
+        return $this;
+    }
+
+    /** @param array{0: mixed, 1: mixed} $range */
+    public function whereBetween(string $column, array $range): static
+    {
+        $this->wheres[] = [$this->wheres ? 'AND' : '', "$column BETWEEN ? AND ?"];
+        $this->bindings[] = $range[0];
+        $this->bindings[] = $range[1];
+        return $this;
+    }
+
+    /** @param array{0: mixed, 1: mixed} $range */
+    public function whereNotBetween(string $column, array $range): static
+    {
+        $this->wheres[] = [$this->wheres ? 'AND' : '', "$column NOT BETWEEN ? AND ?"];
+        $this->bindings[] = $range[0];
+        $this->bindings[] = $range[1];
+        return $this;
+    }
+
+    /** DATE(column) = 'YYYY-MM-DD' — fonction DATE() disponible sur SQLite, MySQL et PostgreSQL. */
+    public function whereDate(string $column, string $date): static
+    {
+        $this->wheres[] = [$this->wheres ? 'AND' : '', "DATE($column) = ?"];
+        $this->bindings[] = $date;
+        return $this;
+    }
+
+    /** Compare deux colonnes entre elles, ex: whereColumn('updated_at', '>', 'created_at'). */
+    public function whereColumn(string $first, string $operatorOrSecond, ?string $second = null): static
+    {
+        [$operator, $second] = func_num_args() === 2 ? ['=', $operatorOrSecond] : [$operatorOrSecond, $second];
+        $this->wheres[] = [$this->wheres ? 'AND' : '', "$first $operator $second"];
+        return $this;
+    }
+
     public function join(string $table, string $first, string $operator, string $second): static
     {
         $this->joins[] = "JOIN $table ON $first $operator $second";
+        return $this;
+    }
+
+    public function having(string $column, mixed $operator, mixed $value = null): static
+    {
+        [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
+        $this->havings[] = "$column $operator ?";
+        $this->havingBindings[] = $value;
+        return $this;
+    }
+
+    public function havingRaw(string $raw, array $bindings = []): static
+    {
+        $this->havings[] = $raw;
+        array_push($this->havingBindings, ...$bindings);
         return $this;
     }
 
@@ -94,7 +166,7 @@ class QueryBuilder
 
     public function get(): array
     {
-        return DB::select($this->toSql(), $this->bindings, $this->connection ?? 'read');
+        return DB::select($this->toSql(), $this->allBindings(), $this->connection ?? 'read');
     }
 
     public function first(): ?array
@@ -102,6 +174,22 @@ class QueryBuilder
         $this->limitValue = 1;
         $rows = $this->get();
         return $rows[0] ?? null;
+    }
+
+    public function firstOrFail(): array
+    {
+        return $this->first() ?? throw new NotFoundException();
+    }
+
+    /** Existence seule, sans rapatrier de lignes (SELECT 1 ... LIMIT 1). */
+    public function exists(): bool
+    {
+        $original = $this->columns;
+        $this->columns = '1';
+        $this->limitValue = 1;
+        $result = DB::selectOne($this->toSql(), $this->allBindings(), $this->connection ?? 'read');
+        $this->columns = $original;
+        return $result !== null;
     }
 
     public function paginate(int $perPage = 15, int $page = 1): Paginator
@@ -113,13 +201,38 @@ class QueryBuilder
         return new Paginator($items, $total, $perPage, $page);
     }
 
-    public function count(): int
+    public function count(string $column = '*'): int
+    {
+        return (int) $this->aggregate('COUNT', $column);
+    }
+
+    public function sum(string $column): float
+    {
+        return (float) $this->aggregate('SUM', $column);
+    }
+
+    public function avg(string $column): float
+    {
+        return (float) $this->aggregate('AVG', $column);
+    }
+
+    public function min(string $column): mixed
+    {
+        return $this->aggregate('MIN', $column);
+    }
+
+    public function max(string $column): mixed
+    {
+        return $this->aggregate('MAX', $column);
+    }
+
+    private function aggregate(string $function, string $column): mixed
     {
         $original = $this->columns;
-        $this->columns = 'COUNT(*) as aggregate';
-        $result = DB::selectOne($this->toSql(), $this->bindings, $this->connection ?? 'read');
+        $this->columns = "$function($column) as aggregate";
+        $result = DB::selectOne($this->toSql(), $this->allBindings(), $this->connection ?? 'read');
         $this->columns = $original;
-        return (int) ($result['aggregate'] ?? 0);
+        return $result['aggregate'] ?? 0;
     }
 
     public function insert(array $data): string
@@ -153,7 +266,7 @@ class QueryBuilder
 
     public function toSql(): string
     {
-        $sql = "SELECT {$this->columns} FROM {$this->table}";
+        $sql = 'SELECT ' . ($this->distinct ? 'DISTINCT ' : '') . $this->columns . " FROM {$this->table}";
 
         foreach ($this->joins as $join) {
             $sql .= " $join";
@@ -163,6 +276,10 @@ class QueryBuilder
 
         if ($this->groupByColumns) {
             $sql .= ' GROUP BY ' . implode(', ', $this->groupByColumns);
+        }
+
+        if ($this->havings) {
+            $sql .= ' HAVING ' . implode(' AND ', $this->havings);
         }
 
         if ($this->orderByClause) {
@@ -182,6 +299,11 @@ class QueryBuilder
         }
 
         return $sql;
+    }
+
+    private function allBindings(): array
+    {
+        return [...$this->bindings, ...$this->havingBindings];
     }
 
     private function whereSql(): string

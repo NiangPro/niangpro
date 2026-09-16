@@ -10,4 +10,12 @@ class Comment extends Model
     {
         return static::belongsTo($comment, Post::class, 'post_id');
     }
+
+    /** Utilisable avec Comment::with('post')->get() — une requête pour toute la collection. */
+    public static function eagerLoadable(): array
+    {
+        return [
+            'post' => fn (array $comments) => static::loadOne($comments, 'post', Post::class, 'post_id'),
+        ];
+    }
 }
