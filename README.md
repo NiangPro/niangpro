@@ -694,6 +694,27 @@ sûr uniquement parce qu'il est explicitement optionnel : ne l'activez qu'en pro
 - **Régénération de session** : `Auth::login()`/`Auth::logout()` appellent `Session::regenerate()`
   automatiquement (protection contre la fixation de session).
 
+## Conteneur (Container)
+
+Auto-wiring par Reflection, sans configuration : type-hintez une dépendance dans un constructeur ou
+une méthode de contrôleur, elle est résolue automatiquement (et récursivement).
+
+```php
+$container->bind(PaymentGateway::class, fn ($c) => new StripeGateway(env('STRIPE_KEY')));
+$container->singleton(Clock::class, new SystemClock());
+```
+
+Erreurs explicites plutôt qu'un plantage silencieux ou un débordement de pile :
+
+```text
+Impossible de résoudre [App\Nope] : cette classe n'existe pas.
+Impossible de résoudre [App\PaymentGateway] : ce n'est pas une classe instanciable
+  (interface ou classe abstraite ?). Enregistrez un binding avec $container->bind(...).
+Dépendance circulaire détectée : A -> B -> A
+Paramètre manquant : $name (type string) (paramètre de PostController::store()) —
+  aucune valeur fournie et pas de valeur par défaut.
+```
+
 ## Service Providers
 
 ```php

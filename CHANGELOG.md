@@ -9,6 +9,15 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Contrats du Container** (P0 #7 de la roadmap technique) : `Niang\Core\Exceptions\ContainerException`
+  remplace les `\RuntimeException` génériques, avec des messages explicites et actionnables :
+  - Classe introuvable, ou binding manquant sur une interface/classe abstraite (avec un rappel de
+    la syntaxe `$container->bind(...)` à utiliser).
+  - **Dépendances circulaires détectées** (`A -> B -> A`) au lieu de provoquer un débordement de
+    pile — c'était un vrai trou avant : `make()` maintient maintenant une pile de résolution.
+  - Paramètre scalaire manquant : nom, type et méthode/constructeur concerné dans le message.
+  - `tests/Unit/ContainerTest.php` couvre les quatre cas (avec des classes de test dédiées pour la
+    dépendance circulaire, vérifiant qu'elle ne fait plus planter le process).
 - **CI multi-versions et multi-SGBD** (P0 #6 de la roadmap technique) :
   - Job `test` en matrice sur PHP 8.1, 8.2, 8.3 et 8.4.
   - Jobs `mysql` (MySQL 8) et `postgres` (PostgreSQL 16, conteneurs de service GitHub Actions) qui

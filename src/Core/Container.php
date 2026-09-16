@@ -2,6 +2,7 @@
 
 namespace Niang\Core;
 
+use Niang\Core\Exceptions\ContainerException;
 use Niang\Core\Http\Request;
 use Niang\Core\Validation\FormRequest;
 
@@ -9,6 +10,9 @@ class Container
 {
     private array $bindings = [];
     private array $instances = [];
+
+    /** @var string[] pile des classes en cours de résolution, pour détecter les dépendances circulaires. */
+    private array $resolving = [];
 
     public function bind(string $abstract, \Closure $factory): void
     {
@@ -30,14 +34,23 @@ class Container
             return $this->bindings[$abstract]($this);
         }
 
-        if (!class_exists($abstract)) {
-            throw new \RuntimeException("Impossible de résoudre [$abstract] : classe introuvable.");
+        if (in_array($abstract, $this->resolving, true)) {
+            $chain = implode(' -> ', [...$this->resolving, $abstract]);
+            throw new ContainerException("Dépendance circulaire détectée : $chain");
+        }
+
+        if (!class_exists($abstract) && !interface_exists($abstract)) {
+            throw new ContainerException("Impossible de résoudre [$abstract] : cette classe n'existe pas.");
         }
 
         $reflection = new \ReflectionClass($abstract);
 
         if (!$reflection->isInstantiable()) {
-            throw new \RuntimeException("[$abstract] n'est pas instanciable.");
+            throw new ContainerException(
+                "Impossible de résoudre [$abstract] : ce n'est pas une classe instanciable ".
+                '(interface ou classe abstraite ?). Enregistrez un binding avec '.
+                "\$container->bind($abstract::class, fn (\$c) => new UneImplementation())."
+            );
         }
 
         $constructor = $reflection->getConstructor();
@@ -46,12 +59,18 @@ class Container
             return new $abstract();
         }
 
-        $dependencies = array_map(
-            fn (\ReflectionParameter $param) => $this->resolveParameter($param),
-            $constructor->getParameters()
-        );
+        $this->resolving[] = $abstract;
 
-        return $reflection->newInstanceArgs($dependencies);
+        try {
+            $dependencies = array_map(
+                fn (\ReflectionParameter $param) => $this->resolveParameter($param, [], $abstract),
+                $constructor->getParameters()
+            );
+
+            return $reflection->newInstanceArgs($dependencies);
+        } finally {
+            array_pop($this->resolving);
+        }
     }
 
     public function call(callable $callback, array $extraParams = []): mixed
@@ -60,15 +79,19 @@ class Container
             ? new \ReflectionMethod($callback[0], $callback[1])
             : new \ReflectionFunction($callback);
 
+        $context = is_array($callback)
+            ? (is_object($callback[0]) ? $callback[0]::class : $callback[0]) . '::' . $callback[1] . '()'
+            : null;
+
         $args = array_map(
-            fn (\ReflectionParameter $param) => $this->resolveParameter($param, $extraParams),
+            fn (\ReflectionParameter $param) => $this->resolveParameter($param, $extraParams, $context),
             $reflection->getParameters()
         );
 
         return $callback(...$args);
     }
 
-    private function resolveParameter(\ReflectionParameter $param, array $extraParams = []): mixed
+    private function resolveParameter(\ReflectionParameter $param, array $extraParams = [], ?string $context = null): mixed
     {
         $name = $param->getName();
         $type = $param->getType();
@@ -117,7 +140,13 @@ class Container
             return null;
         }
 
-        throw new \RuntimeException("Impossible de résoudre le paramètre [\$$name].");
+        $typeName = $type instanceof \ReflectionNamedType ? $type->getName() : 'mixed';
+        $location = $context ? " (paramètre de $context)" : '';
+
+        throw new ContainerException(
+            "Paramètre manquant : \$$name (type $typeName)$location — ".
+            'aucune valeur fournie et pas de valeur par défaut.'
+        );
     }
 
     /** @param class-string<FormRequest> $className */
