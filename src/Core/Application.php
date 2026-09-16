@@ -5,6 +5,8 @@ namespace Niang\Core;
 use Niang\Core\Exceptions\Handler;
 use Niang\Core\Http\Request;
 use Niang\Core\Http\Response;
+use Psr\Container\ContainerInterface;
+use Psr\Log\LoggerInterface;
 
 class Application
 {
@@ -19,9 +21,14 @@ class Application
         $this->container = new Container();
         $this->router = new Router();
 
+        $logger = new Logger();
+
         $this->container->singleton(Router::class, $this->router);
         $this->container->singleton(Container::class, $this->container);
+        $this->container->singleton(ContainerInterface::class, $this->container);
         $this->container->singleton(self::class, $this);
+        $this->container->singleton(Logger::class, $logger);
+        $this->container->singleton(LoggerInterface::class, $logger);
 
         $this->configureErrorHandling();
         $this->bootProviders();

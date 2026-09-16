@@ -3,10 +3,12 @@
 namespace Niang\Core;
 
 use Niang\Core\Exceptions\ContainerException;
+use Niang\Core\Exceptions\ContainerNotFoundException;
 use Niang\Core\Http\Request;
 use Niang\Core\Validation\FormRequest;
+use Psr\Container\ContainerInterface;
 
-class Container
+class Container implements ContainerInterface
 {
     private array $bindings = [];
     private array $instances = [];
@@ -22,6 +24,28 @@ class Container
     public function singleton(string $abstract, mixed $instance): void
     {
         $this->instances[$abstract] = $instance;
+    }
+
+    /** PSR-11 : ContainerInterface::get(). Alias de make(), qui lève ContainerNotFoundException
+     *  (et non la ContainerException générique) quand l'identifiant n'est résoluble d'aucune façon. */
+    public function get(string $id): mixed
+    {
+        if (!$this->has($id)) {
+            throw new ContainerNotFoundException("Aucune entrée trouvée pour l'identifiant [$id].");
+        }
+
+        return $this->make($id);
+    }
+
+    /** PSR-11 : ContainerInterface::has(). true n'implique pas que get() ne lèvera aucune exception
+     *  (une interface sans binding reste "trouvée" mais pas instanciable) — seulement qu'elle ne
+     *  lèvera pas ContainerNotFoundException, conformément à la spécification. */
+    public function has(string $id): bool
+    {
+        return isset($this->instances[$id])
+            || isset($this->bindings[$id])
+            || class_exists($id)
+            || interface_exists($id);
     }
 
     public function make(string $abstract): mixed

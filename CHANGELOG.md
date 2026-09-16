@@ -9,6 +9,22 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **PSR-11 et PSR-3** (P0 #11 de la roadmap technique) :
+  - `Container` implémente désormais `Psr\Container\ContainerInterface` (`get()` — alias de
+    `make()` qui lève `ContainerNotFoundException` plutôt que la `ContainerException` générique
+    quand l'identifiant n'est résoluble d'aucune façon — et `has()`). `ContainerException`
+    implémente `ContainerExceptionInterface`.
+  - Nouveau `Niang\Core\Logger`, implémentation `Psr\Log\LoggerInterface` qui délègue à
+    `Niang\Core\Log` (même fichiers de sortie) — utilisable via injection de dépendances
+    (`LoggerInterface $logger` dans un constructeur) plutôt que la façade statique, notamment pour
+    interopérer avec du code tiers compatible PSR-3. `Application` enregistre `Container::class`/
+    `ContainerInterface::class` et `Logger::class`/`LoggerInterface::class` comme singletons au
+    démarrage.
+  - Deux dépendances ajoutées à `composer.json` : `psr/container` et `psr/log` — deux paquets
+    d'interfaces pures, sans code d'implémentation ni dépendance transitive. Le framework reste
+    sans dépendance d'implémentation à l'exécution ; seules des interfaces standard sont ajoutées,
+    pour l'interopérabilité.
+  - 9 nouveaux tests (`tests/Unit/ContainerTest.php`, nouveau `tests/Unit/LoggerTest.php`).
 - **ORM / pagination / relations** (P0 #10 de la roadmap technique) :
   - `QueryBuilder` : `distinct()`, `whereNull()`/`whereNotNull()`, `whereBetween()`/`whereNotBetween()`,
     `whereDate()`, `whereColumn()` (comparaison entre deux colonnes), `having()`/`havingRaw()`,

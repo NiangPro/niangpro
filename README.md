@@ -423,6 +423,10 @@ Niveaux disponibles (style PSR-3) : `emergency`, `alert`, `critical`, `error`, `
 de contexte. Un fichier par jour dans `storage/logs/`. Les exceptions non interceptées y sont aussi
 consignées automatiquement.
 
+Pour injecter un logger plutôt qu'appeler la façade statique (interop avec du code tiers, tests avec
+un mock), `Niang\Core\Logger` implémente `Psr\Log\LoggerInterface` et écrit dans les mêmes fichiers
+— voir [PSR-11 et PSR-3](#psr-11-et-psr-3).
+
 ## Vues : layouts, composants, échappement
 
 Toujours du PHP natif — pas de compilateur de templates, pas de cache à invalider. Juste deux helpers :
@@ -825,6 +829,33 @@ Dépendance circulaire détectée : A -> B -> A
 Paramètre manquant : $name (type string) (paramètre de PostController::store()) —
   aucune valeur fournie et pas de valeur par défaut.
 ```
+
+### PSR-11 et PSR-3
+
+`Container` implémente `Psr\Container\ContainerInterface` (`get()`/`has()`, alias standard de
+`make()`) et `ContainerException` implémente `ContainerExceptionInterface`/`NotFoundExceptionInterface`
+— du code tiers compatible PSR-11 (ou tapé contre l'interface plutôt que la classe concrète)
+fonctionne sans adaptation.
+
+`Niang\Core\Logger` implémente `Psr\Log\LoggerInterface` et délègue à `Niang\Core\Log` (la façade
+statique utilisée ailleurs dans le framework — même fichiers de sortie) :
+
+```php
+class ReportGenerator
+{
+    public function __construct(private \Psr\Log\LoggerInterface $logger)
+    {
+    }
+}
+
+// résolu automatiquement par le container ($container->singleton(LoggerInterface::class, ...)
+// est déjà enregistré par Application) :
+$container->make(ReportGenerator::class);
+```
+
+Seules deux dépendances existent dans `composer.json` : `psr/container` et `psr/log`, deux paquets
+d'interfaces pures (aucun code d'implémentation, aucune dépendance transitive) — le framework reste
+sans dépendance d'implémentation à l'exécution.
 
 ## Service Providers
 

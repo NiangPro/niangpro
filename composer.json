@@ -1,6 +1,6 @@
 {
     "name": "niangpro/framework",
-    "description": "Un micro-framework PHP ultra simple, plus simple que Laravel : routeur, DI, ORM minimal, auth, tests, sans dépendance à l'exécution.",
+    "description": "Un micro-framework PHP ultra simple, plus simple que Laravel : routeur, DI, ORM minimal, auth, tests, sans dépendance d'implémentation à l'exécution (seulement les interfaces PSR-11/PSR-3, pour l'interopérabilité).",
     "type": "project",
     "keywords": ["framework", "micro-framework", "php", "router", "orm", "minimal"],
     "license": "MIT",
@@ -15,7 +15,9 @@
         "source": "https://github.com/NiangPro/niangpro"
     },
     "require": {
-        "php": ">=8.1"
+        "php": ">=8.1",
+        "psr/container": "^2.0",
+        "psr/log": "^3.0"
     },
     "config": {
         "platform": {

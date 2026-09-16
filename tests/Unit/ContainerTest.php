@@ -4,7 +4,11 @@ namespace Tests\Unit;
 
 use Niang\Core\Container;
 use Niang\Core\Exceptions\ContainerException;
+use Niang\Core\Exceptions\ContainerNotFoundException;
 use PHPUnit\Framework\TestCase;
+use Psr\Container\ContainerExceptionInterface;
+use Psr\Container\ContainerInterface;
+use Psr\Container\NotFoundExceptionInterface;
 
 class ContainerTest extends TestCase
 {
@@ -53,6 +57,45 @@ class ContainerTest extends TestCase
         $this->expectExceptionMessageMatches('/Paramètre manquant : \$name/');
 
         (new Container())->make(ContainerTestNeedsScalar::class);
+    }
+
+    public function test_it_implements_psr11_container_interface(): void
+    {
+        $this->assertInstanceOf(ContainerInterface::class, new Container());
+    }
+
+    public function test_get_is_an_alias_of_make(): void
+    {
+        $container = new Container();
+
+        $this->assertInstanceOf(ContainerTestLeaf::class, $container->get(ContainerTestLeaf::class));
+    }
+
+    public function test_has_reflects_bindings_instances_and_existing_classes(): void
+    {
+        $container = new Container();
+
+        $this->assertTrue($container->has(ContainerTestLeaf::class));
+        $this->assertFalse($container->has('App\\Nope'));
+
+        $container->bind('un.alias', fn () => new ContainerTestLeaf());
+        $this->assertTrue($container->has('un.alias'));
+
+        $container->singleton('une.instance', new ContainerTestLeaf());
+        $this->assertTrue($container->has('une.instance'));
+    }
+
+    public function test_get_throws_container_not_found_exception_for_an_unresolvable_id(): void
+    {
+        $this->expectException(NotFoundExceptionInterface::class);
+        $this->expectException(ContainerNotFoundException::class);
+
+        (new Container())->get('App\\Nope');
+    }
+
+    public function test_container_exception_implements_psr11_exception_interface(): void
+    {
+        $this->assertInstanceOf(ContainerExceptionInterface::class, new ContainerException('x'));
     }
 }
 
