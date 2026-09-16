@@ -9,6 +9,21 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Configuration & sécurité renforcée** (P0 #4 et #5 de la roadmap technique) :
+  - `config/security.php` : en-têtes HTTP (CSP, HSTS, X-Frame-Options...) appliqués à toutes les
+    réponses, désormais éditables sans toucher `Application`.
+  - `config/session.php` : durée de vie du cookie de session, `SameSite`, `Secure` (auto-détecté
+    selon HTTPS, ou forcé via `SESSION_SECURE_COOKIE`).
+  - **Le cookie de session est maintenant réellement sécurisé** : `Session::start()` appelait
+    `session_start()` sans configurer `HttpOnly`/`Secure`/`SameSite` — c'était une vraie lacune,
+    corrigée via `session_set_cookie_params()`.
+  - `Cookie::set()` porte désormais aussi le drapeau `Secure`.
+  - `Niang\Core\ConfigCache` + `niang config:cache` / `config:clear` : fige `config/*.php` (et les
+    `env()` qu'ils contiennent) dans un seul fichier pour la production — vérifié qu'il est bien
+    pris en compte (en modifiant une valeur pendant que le cache est actif) et qu'il se vide
+    correctement.
+  - `niang optimize` met aussi en cache la configuration (en plus des routes).
+
 - **Gestion des erreurs centralisée** (`Niang\Core\Exceptions`) : `Handler` unique appelé par
   `Application::handle()`, plus aucune logique de rendu d'erreur éparpillée dans le routeur, les
   middlewares ou les contrôleurs.

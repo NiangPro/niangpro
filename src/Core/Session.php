@@ -13,6 +13,14 @@ class Session
             return;
         }
 
+        session_set_cookie_params([
+            'lifetime' => (int) Config::get('session.lifetime', 120) * 60,
+            'path' => '/',
+            'httponly' => true,
+            'secure' => self::resolveSecureFlag(),
+            'samesite' => Config::get('session.same_site', 'Lax'),
+        ]);
+
         session_start();
         self::$started = true;
 
@@ -61,5 +69,17 @@ class Session
         $_SESSION = [];
         session_destroy();
         self::$started = false;
+    }
+
+    /** Devine si la requête courante est en HTTPS, sauf si config/session.php force explicitement une valeur. */
+    private static function resolveSecureFlag(): bool
+    {
+        $configured = Config::get('session.secure');
+
+        if ($configured !== null) {
+            return (bool) $configured;
+        }
+
+        return !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
     }
 }

@@ -8,6 +8,13 @@ class Config
 
     public static function load(string $basePath): void
     {
+        $cached = ConfigCache::load();
+
+        if ($cached !== null) {
+            self::$items = $cached;
+            return;
+        }
+
         self::$items = [];
 
         foreach (glob($basePath . '/config/*.php') ?: [] as $file) {

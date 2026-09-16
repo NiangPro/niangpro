@@ -26,10 +26,11 @@ abstract class TestCase extends BaseTestCase
             Session::destroy();
         }
 
-        Session::start();
-
+        // Construit avant Session::start() : charge config/session.php (lifetime, cookie secure...).
         $this->app = new Application(base_path());
         $this->app->loadRoutes(base_path('routes/web.php'));
+
+        Session::start();
 
         // Idempotent : ne réapplique que les migrations pas encore jouées dans cette base en mémoire.
         (new Migrator(base_path('database/migrations')))->run();

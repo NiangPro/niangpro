@@ -10,7 +10,8 @@ class Cookie
             'expires' => time() + $minutes * 60,
             'path' => '/',
             'httponly' => true,
-            'samesite' => 'Lax',
+            'secure' => self::resolveSecureFlag(),
+            'samesite' => Config::get('session.same_site', 'Lax'),
         ]);
     }
 
@@ -53,5 +54,17 @@ class Cookie
     private static function key(): string
     {
         return Env::get('APP_KEY', 'niangpro-insecure-default-key');
+    }
+
+    /** Devine si la requête courante est en HTTPS, sauf si config/session.php force explicitement une valeur. */
+    private static function resolveSecureFlag(): bool
+    {
+        $configured = Config::get('session.secure');
+
+        if ($configured !== null) {
+            return (bool) $configured;
+        }
+
+        return !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
     }
 }

@@ -131,16 +131,15 @@ class Application
 
     /**
      * Appliqués à toutes les réponses : sûr par défaut plutôt que de compter sur chaque route
-     * pour y penser. Retirez ou ajustez ces en-têtes ici si votre app en a besoin d'autres.
+     * pour y penser. Ajustez la liste dans config/security.php plutôt qu'ici.
      */
     private function applySecurityHeaders(Response $response): Response
     {
-        return $response
-            ->header('X-Frame-Options', 'DENY')
-            ->header('X-Content-Type-Options', 'nosniff')
-            ->header('Referrer-Policy', 'strict-origin-when-cross-origin')
-            ->header('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:")
-            ->header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        foreach (Config::get('security.headers', []) as $key => $value) {
+            $response->header($key, $value);
+        }
+
+        return $response;
     }
 
     private function configureErrorHandling(): void

@@ -3,6 +3,7 @@
 namespace Niang\Core\Console;
 
 use Niang\Core\Cache;
+use Niang\Core\ConfigCache;
 use Niang\Core\Database\Migrator;
 use Niang\Core\Database\Seeder;
 use Niang\Core\Env;
@@ -44,6 +45,8 @@ class Commander
             'optimize' => $this->optimize(),
             'new' => $this->newProject($arg),
             'np:install' => $this->npInstall(),
+            'config:cache' => $this->configCache(),
+            'config:clear' => $this->configClear(),
             default => $this->help(),
         };
     }
@@ -468,8 +471,31 @@ class Commander
     private function optimize(): void
     {
         $this->routeCache();
+        $this->configCache();
         echo "Pensez aussi, en production : composer install --no-dev --optimize-autoloader\n";
         echo "et activez opcache.validate_timestamps=0 dans votre php.ini.\n";
+    }
+
+    /**
+     * Fige config/*.php (et les env() qu'ils contiennent) dans un seul fichier. Production
+     * uniquement : tant que le cache existe, modifier .env ou config/*.php n'a plus d'effet.
+     */
+    private function configCache(): void
+    {
+        $items = [];
+
+        foreach (glob($this->basePath . '/config/*.php') ?: [] as $file) {
+            $items[basename($file, '.php')] = require $file;
+        }
+
+        ConfigCache::store($items);
+        echo "Configuration mise en cache : storage/framework/config.php\n";
+    }
+
+    private function configClear(): void
+    {
+        ConfigCache::clear();
+        echo "Cache de configuration supprimé.\n";
     }
 
     /** Clone le projet courant (sans vendor/, .git/, données locales) comme squelette d'un nouveau projet. */
@@ -629,6 +655,8 @@ class Commander
           optimize                 Cache les routes + rappels de prod (opcache, autoload)
           new <nom>                Crée un nouveau projet à partir de ce squelette
           np:install                Installe le raccourci global `np` (macOS/Linux)
+          config:cache             Fige config/*.php (production uniquement)
+          config:clear             Supprime le cache de configuration
 
         TEXT;
     }

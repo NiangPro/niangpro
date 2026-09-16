@@ -645,7 +645,9 @@ dossier de votre `PATH` n'est accessible en écriture, la commande vous indique 
 
 ## Configuration
 
-Fichiers `config/*.php`, chargés automatiquement au démarrage :
+Fichiers `config/*.php`, chargés automatiquement au démarrage : `app.php` (nom, debug, providers),
+`security.php` (en-têtes HTTP appliqués à toutes les réponses), `session.php` (durée de vie et
+drapeaux du cookie de session).
 
 ```php
 // config/app.php
@@ -653,6 +655,30 @@ return ['name' => env('APP_NAME', 'NiangPro')];
 
 config('app.name'); // notation pointée, avec valeur par défaut : config('app.name', 'Défaut')
 ```
+
+### Cache de configuration (production)
+
+```bash
+./bin/niang config:cache   # fige config/*.php (et les env() qu'ils contiennent) dans un seul fichier
+./bin/niang config:clear   # supprime le cache
+```
+
+Une fois caché, modifier `.env` ou `config/*.php` n'a plus d'effet tant que le cache n'est pas vidé —
+sûr uniquement parce qu'il est explicitement optionnel : ne l'activez qu'en production
+(`./bin/niang optimize` le fait pour vous, avec le cache de routes).
+
+## Sécurité
+
+- **En-têtes HTTP** (CSP, HSTS, X-Frame-Options...) appliqués à toutes les réponses par défaut,
+  configurables dans `config/security.php` — pas besoin de toucher `Application`.
+- **Cookie de session** : `HttpOnly` toujours actif, `SameSite` et durée de vie configurables
+  (`config/session.php`), `Secure` détecté automatiquement selon HTTPS (ou forcé via
+  `SESSION_SECURE_COOKIE` en `.env`).
+- **CSRF** : comparaison à temps constant (`hash_equals`), voir la section CSRF plus haut.
+- **Mots de passe** : Argon2id (ou bcrypt si indisponible), voir `Hash::make()`.
+- **SQL** : toutes les requêtes de l'ORM et du Query Builder passent par des requêtes préparées PDO.
+- **Régénération de session** : `Auth::login()`/`Auth::logout()` appellent `Session::regenerate()`
+  automatiquement (protection contre la fixation de session).
 
 ## Service Providers
 
