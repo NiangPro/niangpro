@@ -58,34 +58,34 @@ abstract class TestCase extends BaseTestCase
     {
     }
 
-    protected function get(string $uri): TestResponse
+    protected function get(string $uri, array $headers = []): TestResponse
     {
-        return $this->call('GET', $uri);
+        return $this->call('GET', $uri, [], $headers);
     }
 
-    protected function post(string $uri, array $data = []): TestResponse
+    protected function post(string $uri, array $data = [], array $headers = []): TestResponse
     {
-        return $this->call('POST', $uri, $data);
+        return $this->call('POST', $uri, $data, $headers);
     }
 
-    protected function put(string $uri, array $data = []): TestResponse
+    protected function put(string $uri, array $data = [], array $headers = []): TestResponse
     {
-        return $this->call('PUT', $uri, $data);
+        return $this->call('PUT', $uri, $data, $headers);
     }
 
-    protected function patch(string $uri, array $data = []): TestResponse
+    protected function patch(string $uri, array $data = [], array $headers = []): TestResponse
     {
-        return $this->call('PATCH', $uri, $data);
+        return $this->call('PATCH', $uri, $data, $headers);
     }
 
-    protected function delete(string $uri, array $data = []): TestResponse
+    protected function delete(string $uri, array $data = [], array $headers = []): TestResponse
     {
-        return $this->call('DELETE', $uri, $data);
+        return $this->call('DELETE', $uri, $data, $headers);
     }
 
-    private function call(string $method, string $uri, array $data = []): TestResponse
+    protected function call(string $method, string $uri, array $data = [], array $headers = []): TestResponse
     {
-        $request = Request::create($method, $uri, $data);
+        $request = Request::create($method, $uri, $data, [], $headers);
         $response = $this->app->handle($request);
 
         return new TestResponse($response);

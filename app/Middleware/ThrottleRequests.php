@@ -2,6 +2,7 @@
 
 namespace App\Middleware;
 
+use Niang\Core\Exceptions\HttpException;
 use Niang\Core\Http\Request;
 use Niang\Core\Http\Response;
 use Niang\Core\Middleware;
@@ -22,8 +23,7 @@ class ThrottleRequests implements Middleware
         $key = ($request->server['REMOTE_ADDR'] ?? 'cli') . '|' . $request->uri;
 
         if (!RateLimiter::attempt($key, $this->maxAttempts, $this->decaySeconds)) {
-            return Response::json(['message' => 'Trop de requêtes, réessayez plus tard.'], 429)
-                ->header('Retry-After', (string) RateLimiter::availableIn($key));
+            throw new HttpException(429, headers: ['Retry-After' => (string) RateLimiter::availableIn($key)]);
         }
 
         return $next($request);

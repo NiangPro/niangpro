@@ -32,7 +32,11 @@ class TagController extends Controller
     {
         $tag = Tag::find($id);
 
-        return $tag ? $this->json($tag) : $this->json(['message' => 'Introuvable.'], 404);
+        if (!$tag) {
+            abort(404, 'Tag introuvable.');
+        }
+
+        return $this->json($tag);
     }
 
     public function edit(string $id): Response

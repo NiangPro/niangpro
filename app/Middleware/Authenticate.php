@@ -3,6 +3,7 @@
 namespace App\Middleware;
 
 use Niang\Core\Auth;
+use Niang\Core\Exceptions\AuthenticationException;
 use Niang\Core\Http\Request;
 use Niang\Core\Http\Response;
 use Niang\Core\Middleware;
@@ -13,7 +14,7 @@ class Authenticate implements Middleware
     {
         if (Auth::guest()) {
             if ($request->wantsJson()) {
-                return Response::json(['message' => 'Non authentifié.'], 401);
+                throw new AuthenticationException('Non authentifié.');
             }
 
             return Response::redirect('/login');

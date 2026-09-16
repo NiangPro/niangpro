@@ -2,6 +2,7 @@
 
 use Niang\Core\Csrf;
 use Niang\Core\Env;
+use Niang\Core\Exceptions\HttpException;
 use Niang\Core\Http\Response;
 use Niang\Core\Session;
 use Niang\Core\View;
@@ -106,6 +107,14 @@ if (!function_exists('errors')) {
     {
         $errors = Session::getFlash('errors', []);
         return $key ? ($errors[$key] ?? []) : $errors;
+    }
+}
+
+if (!function_exists('abort')) {
+    /** abort(404), abort(403, 'Message personnalisé')... — intercepté par Niang\Core\Exceptions\Handler. */
+    function abort(int $status, string $message = ''): never
+    {
+        throw new HttpException($status, $message);
     }
 }
 

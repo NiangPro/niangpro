@@ -65,7 +65,7 @@ class PostController extends Controller
         $post = Post::find($id);
 
         if (!$post) {
-            return $this->json(['message' => 'Introuvable.'], 404);
+            abort(404, 'Article introuvable.');
         }
 
         $this->authorize('delete-post', $post);

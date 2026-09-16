@@ -2,6 +2,8 @@
 
 namespace Niang\Core;
 
+use Niang\Core\Exceptions\HttpException;
+use Niang\Core\Exceptions\NotFoundException;
 use Niang\Core\Http\Request;
 use Niang\Core\Http\Response;
 
@@ -190,15 +192,10 @@ class Router
         }
 
         if (!empty($allowedMethods)) {
-            return Response::html('405 | Méthode non autorisée', 405)
-                ->header('Allow', implode(', ', array_unique($allowedMethods)));
+            throw new HttpException(405, headers: ['Allow' => implode(', ', array_unique($allowedMethods))]);
         }
 
-        if (file_exists(base_path('resources/views/errors/404.php'))) {
-            return View::make('errors.404')->status(404);
-        }
-
-        return Response::html($this->notFoundBody(), 404);
+        throw new NotFoundException();
     }
 
     private function matchDomain(string $pattern, string $host): ?array
@@ -248,19 +245,5 @@ class Router
         }
 
         throw new \RuntimeException('Action de route invalide.');
-    }
-
-    private function notFoundBody(): string
-    {
-        return <<<HTML
-        <!doctype html>
-        <html lang="fr">
-        <head><meta charset="utf-8"><title>404 - Introuvable</title></head>
-        <body style="font-family: sans-serif; text-align:center; margin-top:10%;">
-            <h1>404</h1>
-            <p>Cette page n'existe pas dans votre application NiangPro.</p>
-        </body>
-        </html>
-        HTML;
     }
 }

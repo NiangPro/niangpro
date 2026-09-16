@@ -74,6 +74,11 @@ class TestResponse
         return $this->response->getContent();
     }
 
+    public function header(string $key): ?string
+    {
+        return $this->response->getHeader($key);
+    }
+
     public function status(): int
     {
         return $this->response->getStatus();

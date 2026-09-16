@@ -9,6 +9,22 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Gestion des erreurs centralisée** (`Niang\Core\Exceptions`) : `Handler` unique appelé par
+  `Application::handle()`, plus aucune logique de rendu d'erreur éparpillée dans le routeur, les
+  middlewares ou les contrôleurs.
+  - `HttpException` (+ statut, en-têtes personnalisés), `NotFoundException`,
+    `AuthenticationException`, `DatabaseException`, `ConfigurationException`.
+  - `abort(404)`, `abort(403, 'message personnalisé')`.
+  - Réponse JSON automatique (`{"message": "..."}`) si le client l'attend, sinon page HTML dédiée
+    (`resources/views/errors/{code}.php`) ou générique (`errors/generic.php`).
+  - Page de debug enrichie en développement (exception, fichier:ligne, requête, route,
+    utilisateur connecté, durée) ; jamais affichée si `APP_DEBUG=false`.
+  - `\PDOException` toujours journalisée, jamais montrée telle quelle en production (SQL et
+    chaîne de connexion jamais exposés).
+  - `AuthorizationException` étend maintenant `HttpException` (403) ; `Router` lève
+    `NotFoundException`/`HttpException(405)` au lieu de construire une réponse lui-même ;
+    `VerifyCsrfToken` (419), `ThrottleRequests` (429) et `Authenticate` (401 JSON) font de même.
+
 - `docs/ROADMAP_TECHNIQUE.md` : feuille de route technique complète (P0 à P3, jalons v1.1 → v2.0)
   adoptée comme référence pour la suite du développement.
 - **Database Grammar** (`Niang\Core\Database\Grammar`) : couche de traduction SQL par moteur

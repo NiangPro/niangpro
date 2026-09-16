@@ -290,10 +290,33 @@ minimale selon le type), `max:n`, `regex:/motif/`, `confirmed` (compare à `{cha
 Si la validation échoue : redirection automatique vers la page précédente avec les erreurs et l'ancienne
 saisie en flash (`errors('email')`, `old('email')`), ou réponse JSON 422 si la requête attend du JSON.
 
-## Pages d'erreur personnalisées
+## Gestion des erreurs
 
-Créez `resources/views/errors/404.php` et `resources/views/errors/500.php` : ils remplacent
-automatiquement les pages par défaut du framework.
+Tout passe par un point d'entrée unique : `Niang\Core\Exceptions\Handler`. Le routeur, les
+middlewares (CSRF, rate limiting, authentification) et vos contrôleurs n'ont plus besoin de
+construire eux-mêmes une réponse d'erreur — il suffit de lever une exception.
+
+```php
+abort(404);
+abort(404, 'Article introuvable.');           // message personnalisé (visible en JSON)
+abort(403, 'Réservé aux administrateurs.');
+
+throw new \Niang\Core\Exceptions\NotFoundException('Article introuvable.');
+throw new \Niang\Core\Exceptions\AuthenticationException();
+```
+
+Le Handler adapte automatiquement la réponse :
+
+- **Client JSON** (`Accept: application/json`) → `{"message": "..."}` avec le bon statut.
+- **Client HTML** → la page dédiée si elle existe (`resources/views/errors/404.php`,
+  `403.php`, `500.php`), sinon `resources/views/errors/generic.php` avec le message.
+- **`APP_DEBUG=true`** → page de debug complète (exception, fichier:ligne, requête, route,
+  utilisateur connecté, durée, stack trace) — jamais affichée si `APP_DEBUG=false`.
+- Une `\PDOException` est toujours journalisée et jamais montrée telle quelle en production
+  (le SQL et la chaîne de connexion ne doivent pas fuiter).
+
+Créez `resources/views/errors/{code}.php` (404, 403, 500...) pour personnaliser une page précise ;
+`resources/views/errors/generic.php` sert de filet pour tous les autres statuts (401, 419, 429...).
 
 ## Logs
 

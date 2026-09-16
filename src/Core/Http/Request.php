@@ -28,13 +28,13 @@ class Request
     }
 
     /** Construit une requête explicite — utilisé par le client de test (Niang\Core\Testing\TestCase). */
-    public static function create(string $method, string $uri, array $data = [], array $server = []): static
+    public static function create(string $method, string $uri, array $data = [], array $server = [], array $headers = []): static
     {
         $method = strtoupper($method);
         $query = $method === 'GET' ? $data : [];
         $body = $method === 'GET' ? [] : $data;
 
-        return new static($method, $uri, $query, $body, $server);
+        return new static($method, $uri, $query, $body, $server, $headers);
     }
 
     private static function captureHeaders(array $server): array
