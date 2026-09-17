@@ -9,6 +9,14 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Debug toolbar** (P0 #15, NiangPro 2.0 — DX) : avec `APP_DEBUG=true` (défaut en développement),
+  `Niang\Core\DebugToolbar` ajoute en bas de chaque page HTML le temps de réponse, le nombre de
+  requêtes SQL exécutées (`DB::queryCount()`, désormais remis à zéro automatiquement au début de
+  chaque requête par `Application::handle()`, plutôt que seulement via un appel manuel en test),
+  le pic mémoire et le code de statut. Jamais injectée sur une réponse JSON, ni sans balise
+  `</body>` où s'accrocher, ni si `APP_DEBUG=false` — jamais en production avec la config par
+  défaut. Composé avec la compression gzip existante sans la casser (injection avant compression).
+  9 nouveaux tests (`tests/Unit/DebugToolbarTest.php`, `tests/Feature/DebugToolbarTest.php`).
 - **Authorization Policies** (P0 #15, NiangPro 2.0 — premier jalon) : `Gate::policy($prefix,
   $policyClass)` enregistre une classe pour plusieurs règles autour d'un même modèle
   (`'post.delete'` résout vers `PostPolicy::delete(Auth::user(), $post)`), en complément de

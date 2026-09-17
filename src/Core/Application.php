@@ -2,6 +2,7 @@
 
 namespace Niang\Core;
 
+use Niang\Core\Database\DB;
 use Niang\Core\Exceptions\Handler;
 use Niang\Core\Http\Request;
 use Niang\Core\Http\Response;
@@ -100,6 +101,7 @@ class Application
     public function handle(Request $request): Response
     {
         $startedAt = hrtime(true);
+        DB::resetQueryCount();
 
         try {
             $response = $this->router->dispatch($request, $this->container);
@@ -108,6 +110,7 @@ class Application
         }
 
         $response = $this->applySecurityHeaders($response);
+        $response = DebugToolbar::inject($response, $startedAt);
 
         return $this->compressIfSupported($response, $request);
     }

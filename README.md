@@ -768,6 +768,14 @@ Les réponses sont automatiquement compressées en gzip si le client l'accepte e
 `GET /up` renvoie `{"status":"ok","database":true}` (200) si la base de données répond, ou
 `{"status":"degraded","database":false}` (503) sinon — à brancher sur votre outil de supervision.
 
+## Debug toolbar
+
+Avec `APP_DEBUG=true` (défaut en développement), une barre s'ajoute en bas de chaque page HTML :
+temps de réponse, nombre de requêtes SQL exécutées (`DB::queryCount()`, remis à zéro à chaque
+requête), pic mémoire, code de statut. Jamais injectée sur une réponse JSON, jamais sur une page
+sans balise `</body>`, et absente dès que `APP_DEBUG=false` — donc jamais en production avec la
+configuration par défaut.
+
 ## Passage en production
 
 ```bash
