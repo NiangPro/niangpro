@@ -9,6 +9,47 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **`niang make:command`** (P0 #15, NiangPro 2.0 — huitième jalon) : contrairement aux autres
+  générateurs, ceci complète un vrai mécanisme d'exécution plutôt qu'un fichier mort. Nouvelle
+  classe `Niang\Core\Console\Command` (`$signature`, `$description`, `handle(array $arguments)`) —
+  `Commander` scanne `app/Console/Commands/*.php` quand une commande tapée ne correspond à aucune
+  commande native, et exécute la classe dont `$signature` correspond (`niang mon:nom ...`, les
+  arguments suivants passés à `handle()`). Une commande inconnue sans correspondance retombe sur
+  l'aide générale, comme avant. `make:command NomCommand` génère le squelette dans
+  `app/Console/Commands/NomCommand.php`. 5 nouveaux tests (`tests/Unit/Console/CommanderMakeCommandTest.php`,
+  `tests/Unit/Console/CommanderCustomCommandTest.php`).
+- **`niang make:event`** (P0 #15, NiangPro 2.0 — septième jalon) : génère `app/Events/NomEvent.php`
+  (suffixe `Event` ajouté automatiquement si absent), une classe simple à constructeur — le système
+  d'événements de NiangPro reste string-based (`Event::listen()`/`Event::dispatch()`, voir
+  `src/Core/Event.php`), donc le stub documente en commentaire le pattern déjà utilisable
+  aujourd'hui sans changement du dispatcher : `NomEvent::class` comme identifiant. N'écrase jamais
+  un événement existant. 3 nouveaux tests (`tests/Unit/Console/CommanderMakeEventTest.php`).
+- **`niang make:test`** (P0 #15, NiangPro 2.0 — sixième jalon) : génère `tests/Unit/NomTest.php`
+  (suffixe `Test` ajouté automatiquement si absent) qui étend `PHPUnit\Framework\TestCase` avec une
+  méthode d'exemple. N'écrase jamais un test existant. 3 nouveaux tests
+  (`tests/Unit/Console/CommanderMakeTestTest.php`).
+- **`niang make:job`** (P0 #15, NiangPro 2.0 — cinquième jalon) : génère `app/Jobs/NomJob.php`
+  (suffixe `Job` ajouté automatiquement si absent) qui étend `Niang\Core\Job` avec un constructeur
+  et un `handle()` vides à compléter — sur le modèle de `app/Jobs/SendWelcomeEmailJob.php`,
+  prêt à être poussé en file via `Queue::push(new NomJob(...))`. N'écrase jamais un job existant.
+  3 nouveaux tests (`tests/Unit/Console/CommanderMakeJobTest.php`).
+- **`niang make:policy`** (P0 #15, NiangPro 2.0 — quatrième jalon) : génère `app/Policies/NomPolicy.php`
+  (suffixe `Policy` ajouté automatiquement si absent, sur le modèle de `make:request`), avec un
+  rappel en commentaire de la méthode d'enregistrement (`Gate::policy('prefix', NomPolicy::class)`
+  dans `routes/web.php`) et deux méthodes d'exemple commentées (`update`/`delete`). N'écrase jamais
+  une policy existante. 3 nouveaux tests (`tests/Unit/Console/CommanderMakePolicyTest.php`).
+- **`niang doctor`** (P0 #15, NiangPro 2.0 — troisième jalon) : diagnostique l'environnement en
+  une commande — version PHP (>= 8.1.0), extension `pdo` et celle du driver configuré
+  (`pdo_sqlite`/`pdo_mysql`/`pdo_pgsql` selon `DB_CONNECTION`), extension `json`, présence de
+  `.env`, `APP_KEY` configurée, `storage/`, `storage/logs/` et `storage/framework/` accessibles en
+  écriture, connexion réelle à la base de données, chargement de `routes/web.php`. Chaque ligne
+  est indépendante (une extension manquante n'empêche pas de vérifier le reste) : `✓`/`✗` pour
+  chaque vérification, code de sortie non nul si au moins une échoue (utilisable en script de
+  déploiement, `niang doctor || exit 1`). `⚠` (sans faire échouer la commande) si `APP_DEBUG=true`
+  alors que `APP_ENV=production`. La logique des vérifications est isolée dans
+  `Commander::doctorChecks()` (pure, sans `exit()`) pour rester testable en process — `doctor()`
+  se contente de l'afficher et de sortir avec le bon code.
+  5 nouveaux tests (`tests/Unit/Console/CommanderDoctorTest.php`).
 - **Debug toolbar** (P0 #15, NiangPro 2.0 — DX) : avec `APP_DEBUG=true` (défaut en développement),
   `Niang\Core\DebugToolbar` ajoute en bas de chaque page HTML le temps de réponse, le nombre de
   requêtes SQL exécutées (`DB::queryCount()`, désormais remis à zéro automatiquement au début de

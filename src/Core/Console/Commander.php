@@ -4,6 +4,7 @@ namespace Niang\Core\Console;
 
 use Niang\Core\Cache;
 use Niang\Core\ConfigCache;
+use Niang\Core\Database\DB;
 use Niang\Core\Database\Migrator;
 use Niang\Core\Database\Seeder;
 use Niang\Core\Env;
@@ -50,8 +51,40 @@ class Commander
             'np:install' => $this->npInstall(),
             'config:cache' => $this->configCache(),
             'config:clear' => $this->configClear(),
-            default => $this->help(),
+            'doctor' => $this->doctor(),
+            'make:policy' => $this->makePolicy($arg),
+            'make:job' => $this->makeJob($arg),
+            'make:event' => $this->makeEvent($arg),
+            'make:command' => $this->makeCommand($arg),
+            'make:test' => $this->makeTest($arg),
+            default => $this->runCustomCommand($command, array_slice($argv, 2)) ? null : $this->help(),
         };
+    }
+
+    /**
+     * Cherche, parmi app/Console/Commands/*.php, une classe dont Command::$signature correspond
+     * au nom tapé, et l'exécute. Retourne false (plutôt que d'afficher une erreur) si rien ne
+     * correspond, pour laisser l'appelant retomber sur l'aide générale.
+     */
+    private function runCustomCommand(string $command, array $arguments): bool
+    {
+        $dir = $this->basePath . '/app/Console/Commands';
+
+        if (!is_dir($dir)) {
+            return false;
+        }
+
+        foreach (glob("$dir/*.php") ?: [] as $file) {
+            require_once $file;
+            $class = 'App\\Console\\Commands\\' . basename($file, '.php');
+
+            if (is_subclass_of($class, Command::class) && $class::$signature === $command) {
+                (new $class())->handle($arguments);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function serve(?string $address): void
@@ -427,6 +460,234 @@ class Commander
         echo "Requête créée : app/Requests/$name.php\n";
     }
 
+    private function makePolicy(?string $name): void
+    {
+        if (!$name) {
+            echo "Usage : niang make:policy NomPolicy\n";
+            return;
+        }
+
+        $name = str_ends_with($name, 'Policy') ? $name : $name . 'Policy';
+        $dir = $this->basePath . '/app/Policies';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $path = "$dir/$name.php";
+
+        if (file_exists($path)) {
+            echo "La policy $name existe déjà.\n";
+            return;
+        }
+
+        $stub = <<<PHP
+        <?php
+
+        namespace App\Policies;
+
+        class {$name}
+        {
+            // Chaque méthode reçoit l'utilisateur connecté (ou null) et l'enregistrement concerné,
+            // et doit renvoyer un booléen. Enregistrez la policy dans routes/web.php :
+            //   Gate::policy('prefix', {$name}::class);
+            // 'prefix.update' résoudra alors vers update() ci-dessous.
+
+            // public function update(?array \$user, array \$model): bool
+            // {
+            //     return \$user !== null;
+            // }
+
+            // public function delete(?array \$user, array \$model): bool
+            // {
+            //     return \$user !== null;
+            // }
+        }
+
+        PHP;
+
+        file_put_contents($path, $stub);
+        echo "Policy créée : app/Policies/$name.php\n";
+    }
+
+    private function makeJob(?string $name): void
+    {
+        if (!$name) {
+            echo "Usage : niang make:job NomJob\n";
+            return;
+        }
+
+        $name = str_ends_with($name, 'Job') ? $name : $name . 'Job';
+        $dir = $this->basePath . '/app/Jobs';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $path = "$dir/$name.php";
+
+        if (file_exists($path)) {
+            echo "Le job $name existe déjà.\n";
+            return;
+        }
+
+        $stub = <<<PHP
+        <?php
+
+        namespace App\Jobs;
+
+        use Niang\Core\Job;
+
+        class {$name} extends Job
+        {
+            public function __construct()
+            {
+            }
+
+            public function handle(): void
+            {
+                //
+            }
+        }
+
+        PHP;
+
+        file_put_contents($path, $stub);
+        echo "Job créé : app/Jobs/$name.php\n";
+    }
+
+    private function makeEvent(?string $name): void
+    {
+        if (!$name) {
+            echo "Usage : niang make:event NomEvent\n";
+            return;
+        }
+
+        $name = str_ends_with($name, 'Event') ? $name : $name . 'Event';
+        $dir = $this->basePath . '/app/Events';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $path = "$dir/$name.php";
+
+        if (file_exists($path)) {
+            echo "L'événement $name existe déjà.\n";
+            return;
+        }
+
+        $stub = <<<PHP
+        <?php
+
+        namespace App\Events;
+
+        /**
+         * Event::listen({$name}::class, function ({$name} \$event): void {
+         *     //
+         * });
+         *
+         * Event::dispatch({$name}::class, new {$name}(...));
+         */
+        class {$name}
+        {
+            public function __construct(
+                // public readonly array \$user,
+            ) {
+            }
+        }
+
+        PHP;
+
+        file_put_contents($path, $stub);
+        echo "Événement créé : app/Events/$name.php\n";
+    }
+
+    private function makeCommand(?string $name): void
+    {
+        if (!$name) {
+            echo "Usage : niang make:command NomCommand\n";
+            return;
+        }
+
+        $name = str_ends_with($name, 'Command') ? $name : $name . 'Command';
+        $dir = $this->basePath . '/app/Console/Commands';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $path = "$dir/$name.php";
+
+        if (file_exists($path)) {
+            echo "La commande $name existe déjà.\n";
+            return;
+        }
+
+        $stub = <<<PHP
+        <?php
+
+        namespace App\Console\Commands;
+
+        use Niang\Core\Console\Command;
+
+        class {$name} extends Command
+        {
+            /** Nom invoqué en CLI : niang mon:nom */
+            public static string \$signature = 'mon:nom';
+
+            public static string \$description = '';
+
+            public function handle(array \$arguments): void
+            {
+                //
+            }
+        }
+
+        PHP;
+
+        file_put_contents($path, $stub);
+        echo "Commande créée : app/Console/Commands/$name.php\n";
+        echo "Pensez à changer \$signature avant de lancer `niang mon:nom`.\n";
+    }
+
+    private function makeTest(?string $name): void
+    {
+        if (!$name) {
+            echo "Usage : niang make:test NomTest\n";
+            return;
+        }
+
+        $name = str_ends_with($name, 'Test') ? $name : $name . 'Test';
+        $dir = $this->basePath . '/tests/Unit';
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $path = "$dir/$name.php";
+
+        if (file_exists($path)) {
+            echo "Le test $name existe déjà.\n";
+            return;
+        }
+
+        $stub = <<<PHP
+        <?php
+
+        namespace Tests\Unit;
+
+        use PHPUnit\Framework\TestCase;
+
+        class {$name} extends TestCase
+        {
+            public function test_example(): void
+            {
+                \$this->assertTrue(true);
+            }
+        }
+
+        PHP;
+
+        file_put_contents($path, $stub);
+        echo "Test créé : tests/Unit/$name.php\n";
+    }
+
     private function tinker(): void
     {
         echo "NiangPro tinker — tapez du PHP (sans balise), 'exit' pour quitter.\n";
@@ -549,6 +810,111 @@ class Commander
     {
         ConfigCache::clear();
         echo "Cache de configuration supprimé.\n";
+    }
+
+    /**
+     * Code de sortie non nul si au moins une vérification critique échoue, pour un usage en
+     * script de déploiement (`niang doctor || exit 1`).
+     */
+    private function doctor(): void
+    {
+        $results = $this->doctorChecks();
+
+        $failures = 0;
+        foreach ($results as [$status, $message]) {
+            $icon = match ($status) {
+                'fail' => '✗',
+                'warn' => '⚠',
+                default => '✓',
+            };
+            echo "$icon $message\n";
+            $failures += $status === 'fail' ? 1 : 0;
+        }
+
+        echo "\n" . ($failures === 0 ? "Tout est en ordre.\n" : "$failures vérification(s) en échec.\n");
+
+        if ($failures > 0) {
+            exit(1);
+        }
+    }
+
+    /**
+     * Chaque ligne est indépendante (une extension manquante n'empêche pas de vérifier le reste)
+     * pour donner d'un coup toute la liste à corriger plutôt qu'une erreur à la fois. Séparée de
+     * doctor() (qui affiche et appelle exit()) pour rester testable en process.
+     *
+     * @return list<array{0: 'ok'|'warn'|'fail', 1: string}>
+     */
+    private function doctorChecks(): array
+    {
+        $driver = Env::get('DB_CONNECTION', 'sqlite');
+        $driverExtension = match ($driver) {
+            'mysql' => 'pdo_mysql',
+            'pgsql' => 'pdo_pgsql',
+            default => 'pdo_sqlite',
+        };
+
+        $results = [
+            $this->doctorCheck(
+                version_compare(PHP_VERSION, '8.1.0', '>='),
+                'PHP ' . PHP_VERSION,
+                'PHP 8.1.0 minimum requis, ' . PHP_VERSION . ' détecté'
+            ),
+            $this->doctorCheck(extension_loaded('pdo'), 'Extension pdo', 'Extension pdo manquante'),
+            $this->doctorCheck(
+                extension_loaded($driverExtension),
+                "Extension $driverExtension",
+                "Extension $driverExtension manquante (DB_CONNECTION=$driver)"
+            ),
+            $this->doctorCheck(extension_loaded('json'), 'Extension json', 'Extension json manquante'),
+            $this->doctorCheck(
+                file_exists($this->basePath . '/.env'),
+                '.env présent',
+                '.env introuvable — copiez .env.example vers .env'
+            ),
+            $this->doctorCheck(
+                Env::get('APP_KEY', '') !== '',
+                'APP_KEY configurée',
+                'APP_KEY vide — lancez `niang key:generate`'
+            ),
+        ];
+
+        foreach (['storage', 'storage/logs', 'storage/framework'] as $dir) {
+            $path = $this->basePath . '/' . $dir;
+            $writable = is_dir($path) ? is_writable($path) : @mkdir($path, 0755, true);
+            $results[] = $this->doctorCheck(
+                $writable,
+                "$dir accessible en écriture",
+                "$dir n'existe pas ou n'est pas accessible en écriture"
+            );
+        }
+
+        try {
+            DB::connection()->query('SELECT 1');
+            $results[] = $this->doctorCheck(true, "Connexion base de données ($driver)", '');
+        } catch (\Throwable $e) {
+            $results[] = $this->doctorCheck(false, '', "Connexion base de données ($driver) : " . $e->getMessage());
+        }
+
+        try {
+            $router = new Router();
+            require $this->basePath . '/routes/web.php';
+            $results[] = $this->doctorCheck(true, count($router->routes()) . ' route(s) déclarée(s)', '');
+        } catch (\Throwable $e) {
+            $results[] = $this->doctorCheck(false, '', 'Chargement de routes/web.php : ' . $e->getMessage());
+        }
+
+        if (Env::get('APP_ENV') === 'production' && Env::get('APP_DEBUG', 'true') === 'true') {
+            $results[] = ['warn', 'APP_DEBUG=true en production — désactivez-le avant déploiement'];
+        }
+
+        return $results;
+    }
+
+    /** @return array{0: 'ok'|'fail', 1: string} */
+    private function doctorCheck(bool $ok, string $okMessage, string $failMessage): array
+    {
+        return $ok ? ['ok', $okMessage] : ['fail', $failMessage];
     }
 
     /** Clone le projet courant (sans vendor/, .git/, données locales) comme squelette d'un nouveau projet. */
@@ -713,6 +1079,12 @@ class Commander
           np:install                Installe le raccourci global `np` (macOS/Linux)
           config:cache             Fige config/*.php (production uniquement)
           config:clear             Supprime le cache de configuration
+          doctor                   Diagnostique l'environnement (PHP, extensions, .env, DB, storage...)
+          make:policy <Nom>        Génère une policy dans app/Policies
+          make:job <Nom>           Génère un job dans app/Jobs
+          make:event <Nom>         Génère un événement dans app/Events
+          make:command <Nom>       Génère une commande custom dans app/Console/Commands
+          make:test <Nom>          Génère un test dans tests/Unit
 
         TEXT;
     }
