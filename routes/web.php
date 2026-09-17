@@ -9,6 +9,7 @@ use App\Controllers\HomeController;
 use App\Controllers\PostController;
 use App\Controllers\TagController;
 use App\Middleware\Authenticate;
+use App\Middleware\HandleCors;
 use App\Middleware\LogRequest;
 use App\Middleware\RedirectIfAuthenticated;
 use App\Middleware\ThrottleRequests;
@@ -51,6 +52,16 @@ $router->post('/logout', [AuthController::class, 'logout'], [VerifyCsrfToken::cl
 
 // Démo v0.6.0 : routes ressources REST (7 routes générées : tags.index, tags.show, ...)
 $router->resource('tags', TagController::class);
+
+// Démo P0 #12 : JsonResource + CORS. HandleCors répond directement au préflight OPTIONS et ajoute
+// les en-têtes Access-Control-* (voir config/cors.php) sur la vraie réponse.
+$router->group(['prefix' => '/api', 'middleware' => [HandleCors::class]], function ($router) {
+    $router->get('/posts', [PostController::class, 'apiIndex']);
+
+    // Sans route OPTIONS explicite, le préflight ne matcherait aucune route (405, avant même
+    // d'atteindre HandleCors) : chaque route API doit avoir sa contrepartie OPTIONS.
+    $router->options('/posts', fn () => Response::html('', 204));
+});
 
 // Démo v0.6.0 : sous-domaines — curl -H "Host: acme.niangpro.test" .../tenant
 $router->domain('{tenant}.niangpro.test', function ($router) {

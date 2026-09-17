@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\Comment;
 use App\Models\Post;
+use App\Resources\PostResource;
 use Niang\Core\Cache;
 use Niang\Core\Controller;
 use Niang\Core\Database\DB;
@@ -12,6 +13,14 @@ use Niang\Core\Http\Response;
 
 class PostController extends Controller
 {
+    /** Démo P0 #12 : JsonResource + pagination -> {"data": [...], "meta": {...}, "links": {...}}. */
+    public function apiIndex(Request $request): Response
+    {
+        $paginator = Post::with(['comments', 'tags'])->paginate(10, (int) $request->input('page', 1));
+
+        return PostResource::collection($paginator)->toResponse();
+    }
+
     public function index(): Response
     {
         // Post::with(['comments', 'tags'])->get() : 3 requêtes au total quel que soit le nombre de

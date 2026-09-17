@@ -462,6 +462,53 @@ Dans la vue :
 <?= $paginator->links('/blog') ?>
 ```
 
+## API : JSON Resources & CORS
+
+`JsonResource` enveloppe un enregistrement dans `{"data": ...}` — surchargez `toArray()` pour
+choisir exactement les champs exposés (masquer un mot de passe haché, renommer une clé, ajouter un
+champ calculé) plutôt que de renvoyer l'enregistrement brut de la base :
+
+```php
+class PostResource extends JsonResource
+{
+    public function toArray(): array
+    {
+        return [
+            'id' => $this->resource['id'],
+            'title' => $this->resource['title'],
+            'comments_count' => count($this->resource['comments'] ?? []),
+        ];
+    }
+}
+
+// un seul enregistrement
+(new PostResource($post))->toResponse();
+
+// une collection (tableau ou Paginator) -> {"data": [...], "meta": {...}, "links": {...}}
+PostResource::collection(Post::with('comments')->paginate(10, $page))->toResponse();
+```
+
+Pas de JSON:API complet imposé : juste `data`/`meta`/`links`, la partie utile sans la complexité de
+la spec entière. `meta` (`current_page`, `last_page`, `per_page`, `total`) et `links`
+(`prev`/`next`) n'apparaissent que si la source est un `Paginator`.
+
+CORS se configure dans `config/cors.php` (`allowed_origins`, `allowed_methods`, `allowed_headers`,
+`exposed_headers`, `supports_credentials`, `max_age`) et s'applique via le middleware
+`App\Middleware\HandleCors` :
+
+```php
+$router->group(['prefix' => '/api', 'middleware' => [HandleCors::class]], function ($router) {
+    $router->get('/posts', [PostController::class, 'apiIndex']);
+    $router->options('/posts', fn () => Response::html('', 204)); // chaque route API a besoin de sa contrepartie OPTIONS
+});
+```
+
+`HandleCors` répond directement au préflight `OPTIONS` (204, sans exécuter la route ni ses autres
+middlewares) et ajoute les en-têtes `Access-Control-*` à la vraie réponse. Avec
+`supports_credentials: true`, l'origine exacte de la requête est toujours reflétée (jamais `*`,
+que les navigateurs rejettent dans ce cas) — sans credentials et avec `allowed_origins: ['*']`,
+c'est `*` littéral.
+
 ## Routes nommées, contraintes, ressources REST
 
 ```php

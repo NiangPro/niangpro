@@ -9,6 +9,24 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **API layer : JSON Resources & CORS** (P0 #12 de la roadmap technique) :
+  - `Niang\Core\Http\JsonResource` — enveloppe un enregistrement dans `{"data": ...}`, à surcharger
+    (`toArray()`) pour choisir les champs exposés plutôt que de renvoyer l'enregistrement brut.
+    `Resource::collection($items)` accepte un tableau ou un `Paginator` et ajoute `meta`
+    (`current_page`/`last_page`/`per_page`/`total`) et `links` (`prev`/`next`) dans ce second cas.
+    Pas de JSON:API complet : juste `data`/`meta`/`links`, la partie utile sans la complexité de
+    la spec entière.
+  - CORS configurable dans `config/cors.php` (`allowed_origins`, `allowed_methods`,
+    `allowed_headers`, `exposed_headers`, `supports_credentials`, `max_age`) et appliqué via
+    `App\Middleware\HandleCors`, qui répond directement au préflight `OPTIONS` (204, sans exécuter
+    la route) et ajoute les en-têtes `Access-Control-*` à la vraie réponse. Avec
+    `supports_credentials: true`, l'origine exacte est toujours reflétée (jamais `*`, que les
+    navigateurs rejettent dans ce cas).
+  - Démo câblée : `GET /api/posts` (`PostController::apiIndex()` + `App\Resources\PostResource`)
+    sous le groupe `/api` avec `HandleCors`.
+  - 12 nouveaux tests : logique CORS pure (`tests/Unit/CorsTest.php`), exécution via le middleware
+    et le vrai routeur (`tests/Feature/CorsTest.php`), et la forme `data`/`meta`/`links`
+    (`tests/Feature/JsonResourceTest.php`).
 - **PSR-11 et PSR-3** (P0 #11 de la roadmap technique) :
   - `Container` implémente désormais `Psr\Container\ContainerInterface` (`get()` — alias de
     `make()` qui lève `ContainerNotFoundException` plutôt que la `ContainerException` générique
