@@ -72,7 +72,7 @@ class PostController extends Controller
             abort(404, 'Article introuvable.');
         }
 
-        $this->authorize('delete-post', $post);
+        $this->authorize('post.delete', $post);
 
         Post::destroy($id);
         Cache::forget('posts.index');

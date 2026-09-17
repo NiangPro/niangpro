@@ -14,15 +14,14 @@ use App\Middleware\LogRequest;
 use App\Middleware\RedirectIfAuthenticated;
 use App\Middleware\ThrottleRequests;
 use App\Middleware\VerifyCsrfToken;
+use App\Policies\PostPolicy;
 use Niang\Core\Gate;
 use Niang\Core\Http\Request;
 use Niang\Core\Http\Response;
 
-// Règles d'autorisation (v0.4.0). Pour une app plus grosse, sortez ceci dans son propre fichier.
-Gate::define('delete-post', function (?array $user, array $post): bool {
-    // Ici : simple "il faut être connecté". Dans une vraie appli, comparez $user['id'] à un auteur.
-    return $user !== null;
-});
+// Règles d'autorisation. 'post.delete'/'post.update' résolvent vers PostPolicy::delete()/update()
+// (voir app/Policies/PostPolicy.php) — pour une seule règle isolée, Gate::define() reste plus simple.
+Gate::policy('post', PostPolicy::class);
 
 $router->get('/', [HomeController::class, 'index']);
 

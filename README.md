@@ -622,20 +622,43 @@ Un autre modèle ? `Auth::useModel(MonUser::class)`.
 Protégez une route avec `Authenticate::class` (redirige vers `/login`, ou 401 JSON si la requête
 l'attend) ; empêchez l'accès aux pages login/register une fois connecté avec `RedirectIfAuthenticated::class`.
 
-## Autorisation (Gates)
+## Autorisation (Gates & Policies)
+
+Une règle isolée : `Gate::define()`.
 
 ```php
-Gate::define('delete-post', fn (?array $user, array $post) => $user && $post['author_id'] === $user['id']);
+Gate::define('view-admin', fn (?array $user) => $user && $user['role'] === 'admin');
 ```
 
 Dans un contrôleur :
 
 ```php
-$this->authorize('delete-post', $post); // lève une 403 si refusé
+$this->authorize('view-admin'); // lève une 403 si refusé
 
-Gate::allows('delete-post', $post); // true/false, sans lever d'exception
-Gate::denies('delete-post', $post); // inverse de allows()
+Gate::allows('view-admin'); // true/false, sans lever d'exception
+Gate::denies('view-admin'); // inverse de allows()
 ```
+
+Plusieurs règles autour d'un même modèle : une Policy, plutôt qu'une longue liste de closures.
+Les enregistrements restant de simples tableaux (pas d'objets), la policy se choisit par le
+préfixe de l'ability (`'post.delete'` → policy `'post'`), résolu vers la méthode du même nom :
+
+```php
+class PostPolicy
+{
+    public function delete(?array $user, array $post): bool
+    {
+        return $user && $post['author_id'] === $user['id'];
+    }
+}
+
+Gate::policy('post', PostPolicy::class);
+
+$this->authorize('post.delete', $post); // résout PostPolicy::delete(Auth::user(), $post)
+```
+
+`Gate::define()` reste prioritaire si une ability du même nom existe des deux côtés — utile pour
+surcharger ponctuellement une règle de policy sans y toucher.
 
 ## Rate limiting
 

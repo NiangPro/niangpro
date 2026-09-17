@@ -7,6 +7,22 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ## [Non publié]
 
+### Added
+
+- **Authorization Policies** (P0 #15, NiangPro 2.0 — premier jalon) : `Gate::policy($prefix,
+  $policyClass)` enregistre une classe pour plusieurs règles autour d'un même modèle
+  (`'post.delete'` résout vers `PostPolicy::delete(Auth::user(), $post)`), en complément de
+  `Gate::define()` (toujours prioritaire en cas de conflit de nom) qui reste la solution la plus
+  simple pour une règle isolée. Les enregistrements restant de simples tableaux (pas d'objets), la
+  policy se choisit par le préfixe explicite de l'ability, pas par inspection d'un type PHP qui
+  n'existe pas.
+  - `app/Policies/PostPolicy.php` remplace l'ancien `Gate::define('delete-post', ...)` dans
+    `routes/web.php` — même règle, organisée différemment.
+  - 7 nouveaux tests (`tests/Unit/GateTest.php`) et `tests/Feature/AuthorizationTest.php`, qui
+    couvre pour la première fois `DELETE /posts/{id}` (invité redirigé, utilisateur connecté
+    autorisé) — jusqu'ici sans aucun test malgré `Controller::authorize()` déjà en place depuis
+    v0.4.0.
+
 ## [1.1.0] — 2026-09-17
 
 ### Added
