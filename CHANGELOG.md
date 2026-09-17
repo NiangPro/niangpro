@@ -7,6 +7,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ## [Non publié]
 
+## [1.2.0] — 2026-09-17
+
 ### Added
 
 - **`niang make:command`** (P0 #15, NiangPro 2.0 — huitième jalon) : contrairement aux autres
