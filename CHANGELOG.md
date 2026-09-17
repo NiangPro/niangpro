@@ -7,6 +7,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ## [Non publié]
 
+## [1.1.0] — 2026-09-17
+
 ### Added
 
 - **Queue 2.0, Storage, Mail** (P0 #13 de la roadmap technique — périmètre volontairement sans
@@ -221,6 +223,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 - `ColumnDefinition` et `Blueprint` ne construisent plus de SQL directement : ils décrivent la
   colonne de façon abstraite, et `Grammar::compile*()` traduit vers le SQL du moteur configuré.
+
+**Écosystème (P0 #14)** : `composer create-project niangpro/framework` et `composer require
+niangpro/framework` installaient encore le tag `v1.0.0` (2026-09-15), donc PHPUnit 11 (qui exige
+PHP 8.3+) et aucune des fonctionnalités livrées depuis — vérifié en exécutant réellement la
+commande, pas supposé. Les Service Providers et la publication Packagist existaient déjà et
+fonctionnaient ; il manquait juste un nouveau tag. Cette version (1.1.0) comble cet écart.
 
 ## [1.0.0] — 2026-09-10
 
