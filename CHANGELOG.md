@@ -9,6 +9,23 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Queue 2.0, Storage, Mail** (P0 #13 de la roadmap technique — périmètre volontairement sans
+  Redis ni SMTP réel : les deux demanderaient une dépendance ou une extension externe, contraire
+  au principe « sans dépendance d'implémentation à l'exécution » du framework, et un client SMTP
+  écrit à la main n'aurait pas pu être vérifié contre un vrai serveur dans cet environnement) :
+  - `Queue` : les jobs échoués sont désormais retentés jusqu'à `Job::$tries` fois (défaut 1) avec
+    un backoff exponentiel (10s, 20s, 40s...), puis déplacés vers les jobs échoués plutôt que
+    perdus silencieusement. `Queue::later($delaySeconds, $job)` pour différer un job. Nouveau :
+    `Queue::failed()`, `Queue::retry($id)`, `Queue::flush()`, et les commandes
+    `queue:failed`/`queue:retry`/`queue:flush`.
+  - `Niang\Core\Storage` — disque local (`storage/app/`) : `put()`/`get()`/`exists()`/`delete()`/
+    `size()`/`url()`. Les chemins contenant `..` sont rejetés (`InvalidArgumentException`) pour
+    empêcher une traversée de répertoire à partir d'une entrée utilisateur.
+  - `Niang\Core\Mail`/`Mailable`/`PendingMail` — `Mail::to($email)->send(new WelcomeMailable(...))`.
+    Deux drivers pilotés par `MAIL_MAILER` : `log` (défaut, écrit dans `storage/logs/`, pratique en
+    dev) et `array`/`Mail::fake()` (garde les emails en mémoire pour `Mail::sent()` dans les tests).
+  - 24 nouveaux tests (`tests/Unit/QueueTest.php`, `tests/Unit/StorageTest.php`,
+    `tests/Unit/MailTest.php`).
 - **API layer : JSON Resources & CORS** (P0 #12 de la roadmap technique) :
   - `Niang\Core\Http\JsonResource` — enveloppe un enregistrement dans `{"data": ...}`, à surcharger
     (`toArray()`) pour choisir les champs exposés plutôt que de renvoyer l'enregistrement brut.

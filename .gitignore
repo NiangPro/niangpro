@@ -3,6 +3,7 @@
 storage/logs/*.log
 storage/*.sqlite
 storage/framework/
+storage/app/
 .php-cs-fixer.cache
 .phpunit.cache/
 .phpunit.result.cache

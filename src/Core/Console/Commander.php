@@ -41,6 +41,9 @@ class Commander
             'tinker' => $this->tinker(),
             'key:generate' => $this->keyGenerate(),
             'queue:work' => $this->queueWork(),
+            'queue:failed' => $this->queueFailed(),
+            'queue:retry' => $this->queueRetry($arg),
+            'queue:flush' => $this->queueFlush(),
             'cache:clear' => $this->cacheClear(),
             'optimize' => $this->optimize(),
             'new' => $this->newProject($arg),
@@ -481,6 +484,37 @@ class Commander
         echo $count > 0 ? "$count job(s) traité(s).\n" : "Aucun job en attente.\n";
     }
 
+    private function queueFailed(): void
+    {
+        $failed = Queue::failed();
+
+        if (!$failed) {
+            echo "Aucun job échoué.\n";
+            return;
+        }
+
+        foreach ($failed as $job) {
+            echo "{$job['id']}  {$job['class']}  (file: {$job['queue']}, échoué le {$job['failed_at']})\n";
+            echo "  {$job['error']}\n";
+        }
+    }
+
+    private function queueRetry(?string $id): void
+    {
+        if (!$id) {
+            echo "Usage : niang queue:retry <id>\n";
+            return;
+        }
+
+        echo Queue::retry($id) ? "Job $id remis en file.\n" : "Aucun job échoué avec l'id $id.\n";
+    }
+
+    private function queueFlush(): void
+    {
+        $count = Queue::flush();
+        echo "$count job(s) échoué(s) supprimé(s).\n";
+    }
+
     private function cacheClear(): void
     {
         Cache::flush();
@@ -670,6 +704,9 @@ class Commander
           tinker                   REPL interactif sur l'application
           key:generate             Génère une nouvelle APP_KEY dans .env
           queue:work               Traite les jobs différés en attente
+          queue:failed             Liste les jobs qui ont épuisé leurs tentatives
+          queue:retry <id>         Remet un job échoué en file, tentatives réinitialisées
+          queue:flush              Supprime définitivement tous les jobs échoués
           cache:clear              Vide le cache applicatif
           optimize                 Cache les routes + rappels de prod (opcache, autoload)
           new <nom>                Crée un nouveau projet à partir de ce squelette

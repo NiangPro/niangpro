@@ -672,15 +672,72 @@ Fichier (`storage/framework/cache/`), pas de dépendance à Redis/Memcached.
 ```php
 class SendWelcomeEmailJob extends Job
 {
+    public int $tries = 3; // par défaut : 1 (aucune retentative)
+
     public function __construct(private string $email) {}
     public function handle(): void { /* ... */ }
 }
 
 Queue::push(new SendWelcomeEmailJob($email));
+Queue::later(300, new SendWelcomeEmailJob($email)); // dû dans 5 minutes
 ```
 
 File sur fichier (`storage/framework/queue/`) — pas de démon fourni : lancez `queue:work` via cron,
 ou en boucle, selon vos besoins.
+
+Un job qui échoue est retenté jusqu'à `Job::$tries` fois, avec un backoff exponentiel (10s, 20s,
+40s...) entre les tentatives, puis déplacé vers les jobs échoués :
+
+```bash
+./bin/niang queue:failed          # liste les jobs qui ont épuisé leurs tentatives
+./bin/niang queue:retry <id>      # remet un job échoué en file, tentatives réinitialisées
+./bin/niang queue:flush           # supprime définitivement tous les jobs échoués
+```
+
+## Stockage de fichiers
+
+Disque local uniquement (`storage/app/`) — un driver S3 demanderait un SDK externe, contraire au
+principe « sans dépendance d'implémentation à l'exécution » du framework :
+
+```php
+Storage::put('avatars/1.png', $contents);
+Storage::get('avatars/1.png');     // contenu, ou null si absent
+Storage::exists('avatars/1.png');
+Storage::delete('avatars/1.png');
+Storage::size('avatars/1.png');    // en octets, ou null
+Storage::url('avatars/1.png');     // '/storage/avatars/1.png' — à router vers Storage::get() si besoin de le servir
+```
+
+Les chemins contenant `..` sont rejetés (`InvalidArgumentException`) : sans ça, un chemin construit
+à partir d'une entrée utilisateur pourrait écrire ou lire en dehors de `storage/app/`.
+
+## Emails
+
+Deux drivers, pilotés par `MAIL_MAILER` dans `.env` (`log` par défaut) — pas d'envoi SMTP réel :
+ça demanderait soit une extension, soit un client écrit à la main non vérifiable dans cet
+environnement, et une absence assumée vaut mieux qu'une implémentation non testée :
+
+```php
+class WelcomeMailable extends Mailable
+{
+    public function __construct(private string $name) {}
+    public function subject(): string { return 'Bienvenue'; }
+    public function body(): string { return "Bonjour {$this->name} !"; }
+}
+
+Mail::to('awa@example.com')->send(new WelcomeMailable('Awa'));
+```
+
+`MAIL_MAILER=log` (défaut) écrit le contenu complet dans `storage/logs/` — pratique en développement
+pour lire un lien de vérification sans boîte mail réelle (ne le gardez pas en production si vos
+emails transportent des secrets). `MAIL_MAILER=array`, ou `Mail::fake()` dans un test, garde les
+emails en mémoire pour `Mail::sent()` plutôt que de les journaliser :
+
+```php
+Mail::fake();
+$this->post('/register', [...]);
+$this->assertCount(1, Mail::sent());
+```
 
 ## Compression & supervision
 
@@ -798,6 +855,9 @@ Grammar — corrigé pour passer par `Schema`/`Blueprint` comme n'importe quelle
 ./bin/niang tinker                   # REPL interactif
 ./bin/niang key:generate             # régénère APP_KEY dans .env
 ./bin/niang queue:work               # traite les jobs différés en attente
+./bin/niang queue:failed             # liste les jobs qui ont épuisé leurs tentatives
+./bin/niang queue:retry <id>         # remet un job échoué en file
+./bin/niang queue:flush              # supprime définitivement tous les jobs échoués
 ./bin/niang cache:clear              # vide le cache applicatif
 ./bin/niang optimize                 # cache les routes + rappels de prod
 ./bin/niang new mon-app              # crée un nouveau projet à partir de ce squelette
