@@ -1,0 +1,47 @@
+/*
+ * Thème « portfolio » : décline le design system (niang.css) pour un portfolio personnel.
+ * Titres plus grands, métadonnées en police mono, visuels qui prennent toute la place.
+ */
+
+.theme-portfolio .hero h1 { font-size: var(--step-4); max-width: 20ch; }
+.portrait .art { box-shadow: var(--shadow-lg); border-radius: var(--radius-lg); max-width: 26rem; margin-inline: auto; }
+
+.tag--active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); font-weight: 700; }
+a.tag--active:hover { color: var(--accent-contrast); }
+.filters { margin-bottom: var(--space-6); }
+.filters .tag { padding: 0.45em 1.1em; font-size: var(--step--1); }
+
+/* Carte de projet : le visuel zoome doucement, les métadonnées passent en mono. */
+.project-card .art svg { transition: transform 0.5s ease; }
+.project-card:hover .art svg { transform: scale(1.06); }
+.project-card__meta { margin: 0; font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-text); }
+.project-card h3 { margin: 0; }
+
+/* Fiche d'un projet. */
+.facts { display: grid; gap: var(--space-5); grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); margin: 0 0 var(--space-7); padding-bottom: var(--space-6); border-bottom: 1px solid var(--border); }
+.facts dt { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.facts dd { margin: var(--space-1) 0 0; font-weight: 600; }
+
+.gallery-grid { display: grid; gap: var(--space-5); grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); }
+.gallery-grid figure { margin: 0; }
+.gallery-grid figure:first-child { grid-column: 1 / -1; }
+.gallery-grid .art { box-shadow: var(--shadow-md); }
+.gallery-grid figcaption { margin-top: var(--space-2); color: var(--muted); font-size: var(--step--1); }
+
+.stats--stacked { grid-template-columns: 1fr; margin-top: var(--space-4); }
+.stats--stacked li { flex-direction: row; align-items: baseline; gap: var(--space-4); padding: var(--space-4) var(--space-5); }
+.stats--stacked strong { min-width: 6rem; }
+
+.project-nav { display: grid; gap: var(--space-4); grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
+.project-nav .card { color: inherit; text-decoration: none; gap: var(--space-1); }
+.project-nav .card:hover { border-color: var(--accent-text); }
+.project-nav strong { font-size: var(--step-1); }
+
+/* Frise chronologique du CV. */
+.timeline { list-style: none; margin: 0; padding: 0 0 0 var(--space-5); border-left: 2px solid var(--border); display: grid; gap: var(--space-6); }
+.timeline li { position: relative; }
+.timeline li::before { content: ""; position: absolute; left: calc(-1 * var(--space-5) - 7px); top: 0.45rem; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px var(--bg); }
+.section--alt .timeline li::before { box-shadow: 0 0 0 4px var(--surface-2); }
+.timeline h3 { margin: 0 0 var(--space-1); }
+.timeline p { margin: 0; }
+.timeline__period { font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-text); }
