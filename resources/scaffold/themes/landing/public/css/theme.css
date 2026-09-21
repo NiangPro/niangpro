@@ -1,0 +1,66 @@
+/*
+ * Thème « landing » : décline le design system (niang.css) pour une page de présentation unique.
+ * Les sections ancrées s'arrêtent sous l'en-tête collant, et le lien de la section visible est surligné.
+ */
+
+section[id] { scroll-margin-top: calc(var(--header-height) + 0.5rem); }
+
+.hero h1 { max-width: 16ch; }
+
+/* Aperçu de l'application, dessiné en CSS : aucune image à charger. */
+.mock {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    transform: rotate(1.2deg);
+    transition: transform 0.4s ease;
+}
+.mock:hover { transform: rotate(0); }
+.mock__bar { display: flex; gap: 6px; padding: 0.8rem 1rem; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.mock__bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--border); }
+.mock__grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: var(--space-3); padding: var(--space-4); min-height: 15rem; }
+.mock__col { display: flex; flex-direction: column; gap: var(--space-2); }
+.mock__col b { font-size: 0.7rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.mock__task { display: block; height: 2.6rem; border-radius: 8px; background: var(--accent-soft); border-left: 4px solid var(--accent); }
+.mock__task--1 { background: var(--gold-soft); border-left-color: var(--gold); height: 3.6rem; }
+.mock__task--2 { background: var(--surface-2); border-left-color: var(--accent-text); height: 2rem; }
+
+/* Comment ça marche : trois étapes numérotées. */
+.how { counter-reset: how; display: grid; gap: var(--space-5); grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); margin: 0; padding: 0; list-style: none; }
+.how li { counter-increment: how; padding: var(--space-5); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.how li::before {
+    content: counter(how);
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    margin-bottom: var(--space-4);
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-contrast);
+    font-weight: 800;
+}
+.how h3 { margin-bottom: var(--space-2); }
+.how p { margin: 0; }
+
+/* Tarifs. */
+.billing { display: flex; justify-content: center; gap: var(--space-1); width: fit-content; margin: 0 auto var(--space-6); padding: var(--space-1); border: 1px solid var(--border); border-radius: 999px; background: var(--surface); }
+.billing[hidden] { display: none; }
+.billing button { display: inline-flex; align-items: center; gap: var(--space-2); padding: 0.55em 1.2em; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: var(--step--1); font-weight: 600; cursor: pointer; transition: background-color 0.15s, color 0.15s; }
+.billing button[aria-pressed="true"] { background: var(--accent); color: var(--accent-contrast); }
+
+.pricing { display: grid; gap: var(--space-5); grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); align-items: stretch; }
+.plan { padding: var(--space-6); }
+.plan--featured { border: 2px solid var(--accent-text); box-shadow: var(--shadow-md); }
+@media (min-width: 60em) { .plan--featured { transform: translateY(-0.75rem); } }
+.plan__badge { position: absolute; top: -0.8rem; left: 50%; transform: translateX(-50%); white-space: nowrap; }
+.plan h3 { font-size: var(--step-1); }
+.plan__price { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); margin: var(--space-4) 0; }
+.plan__price strong { font-size: var(--step-4); line-height: 1; letter-spacing: -0.03em; }
+.plan__price [hidden] { display: none; }
+.plan__price .muted { font-size: var(--step--1); }
+
+/* Lien de la section visible dans la navigation (posé par theme.js). */
+.site-nav a.is-current { color: var(--text); background: var(--accent-soft); font-weight: 700; }

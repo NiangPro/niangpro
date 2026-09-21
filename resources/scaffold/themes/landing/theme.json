@@ -1,0 +1,5 @@
+{
+    "label": "Landing page one-page",
+    "order": 50,
+    "next_steps": ["./bin/niang serve"]
+}
