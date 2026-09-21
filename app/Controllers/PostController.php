@@ -31,9 +31,15 @@ class PostController extends Controller
         return $this->json($posts);
     }
 
+    /**
+     * Les plus récents d'abord. 2 articles par page par défaut (pour que la pagination se voie sur les
+     * trois articles de la démo) ; un thème de blog règle 'posts_per_page' dans config/site.php.
+     */
     public function page(Request $request): Response
     {
-        $paginator = Post::with('tags')->paginate(2, (int) $request->input('page', 1));
+        $paginator = Post::with('tags')
+            ->orderBy('id', 'desc')
+            ->paginate((int) config('site.posts_per_page', 2), (int) $request->input('page', 1));
 
         return $this->view('posts/index', [
             'posts' => $paginator->items,

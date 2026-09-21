@@ -1,0 +1,9 @@
+{
+    "label": "Blog / magazine",
+    "order": 30,
+    "next_steps": [
+        "./bin/niang migrate",
+        "./bin/niang db:seed",
+        "./bin/niang serve"
+    ]
+}
