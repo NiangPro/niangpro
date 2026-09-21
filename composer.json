@@ -48,6 +48,7 @@
         "test": "phpunit",
         "lint": "php-cs-fixer fix --dry-run --diff",
         "lint:fix": "php-cs-fixer fix",
-        "analyse": "phpstan analyse"
+        "analyse": "phpstan analyse",
+        "post-create-project-cmd": "Niang\\Core\\Console\\ComposerHooks::postCreateProject"
     }
 }

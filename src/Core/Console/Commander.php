@@ -47,7 +47,7 @@ class Commander
             'queue:flush' => $this->queueFlush(),
             'cache:clear' => $this->cacheClear(),
             'optimize' => $this->optimize(),
-            'new' => $this->newProject($arg),
+            'new' => $this->newProject(array_slice($argv, 2)),
             'np:install' => $this->npInstall(),
             'config:cache' => $this->configCache(),
             'config:clear' => $this->configClear(),
@@ -917,11 +917,21 @@ class Commander
         return $ok ? ['ok', $okMessage] : ['fail', $failMessage];
     }
 
-    /** Clone le projet courant (sans vendor/, .git/, données locales) comme squelette d'un nouveau projet. */
-    private function newProject(?string $name): void
+    /**
+     * Clone le projet courant (sans vendor/, .git/, données locales) comme squelette d'un nouveau
+     * projet, puis y installe le thème du type de site choisi (--type=<slug>, NIANG_SITE_TYPE, ou
+     * une question posée sur un terminal ; « minimal » sinon) — même logique que le hook Composer
+     * de `composer create-project` (voir Niang\Core\Console\ComposerHooks).
+     *
+     * @param list<string> $arguments ce qui suit `new` sur la ligne de commande
+     */
+    private function newProject(array $arguments): void
     {
-        if (!$name || !preg_match('/^[a-zA-Z0-9_-]+$/', $name)) {
-            echo "Usage : niang new mon-app (lettres, chiffres, - et _ uniquement)\n";
+        [$name, $options] = $this->parseNewArguments($arguments);
+
+        if (!$name || !preg_match('/^[a-zA-Z0-9_-]+$/', $name) || array_diff(array_keys($options), ['type'])) {
+            echo "Usage : niang new mon-app [--type=<slug>] (lettres, chiffres, - et _ uniquement)\n";
+            echo 'Types disponibles : ' . implode(', ', array_keys($this->scaffolder()->catalog())) . "\n";
             return;
         }
 
@@ -930,6 +940,14 @@ class Commander
         if (file_exists($target)) {
             echo "$target existe déjà.\n";
             return;
+        }
+
+        // Posée avant toute copie : l'utilisateur répond tout de suite, plutôt que d'être interrompu
+        // après l'attente de `composer install`, et un --type invalide ne laisse rien derrière lui.
+        $type = $this->resolveSiteType($options['type'] ?? null);
+
+        if ($type === null) {
+            exit(1);
         }
 
         echo "Création du projet dans $target...\n";
@@ -956,7 +974,92 @@ class Commander
             : $env . "APP_KEY=$key\n";
         file_put_contents("$target/.env", $env);
 
-        echo "\nProjet créé.\n\n  cd $name\n  ./bin/niang migrate\n  ./bin/niang serve\n";
+        $nextSteps = $this->installSiteTheme($target, $type);
+
+        echo "\nProjet créé.\n\n  cd $name\n";
+
+        foreach ($nextSteps ?: ['./bin/niang migrate'] as $step) {
+            echo "  $step\n";
+        }
+
+        echo "  ./bin/niang serve\n";
+    }
+
+    /**
+     * Arguments de `niang new` : un nom (le premier argument sans tiret) et des options --clé=valeur,
+     * dans n'importe quel ordre (`niang new --type=blog mon-app` fonctionne comme `niang new mon-app --type=blog`).
+     *
+     * @param list<string> $arguments
+     * @return array{0: ?string, 1: array<string, ?string>}
+     */
+    private function parseNewArguments(array $arguments): array
+    {
+        $name = null;
+        $options = [];
+
+        foreach ($arguments as $argument) {
+            if (str_starts_with($argument, '--')) {
+                [$key, $value] = array_pad(explode('=', substr($argument, 2), 2), 2, null);
+                $options[$key] = $value;
+                continue;
+            }
+
+            $name ??= $argument;
+        }
+
+        return [$name, $options];
+    }
+
+    /**
+     * Demande (ou déduit) le type de site. Retourne null, après avoir affiché pourquoi, si le type
+     * explicitement demandé n'existe pas — jamais de repli silencieux sur « minimal » dans ce cas.
+     */
+    private function resolveSiteType(?string $requested): ?string
+    {
+        try {
+            return (new SiteTypePrompt($this->scaffolder()))->resolve(
+                $requested,
+                SiteTypePrompt::stdinIsInteractive(),
+                function (string $question): ?string {
+                    echo $question;
+                    $line = fgets(STDIN);
+
+                    return $line === false ? null : rtrim($line, "\r\n");
+                },
+                static function (string $text): void {
+                    echo $text;
+                }
+            );
+        } catch (\InvalidArgumentException $e) {
+            echo $e->getMessage() . "\n";
+
+            return null;
+        }
+    }
+
+    /**
+     * Installe le thème dans le projet $target et retourne les commandes à suggérer ensuite.
+     *
+     * @return list<string>
+     */
+    private function installSiteTheme(string $target, string $type): array
+    {
+        $scaffolder = $this->scaffolder();
+        $scaffolder->install($type, $target);
+
+        if ($type === ProjectScaffolder::DEFAULT_TYPE) {
+            return [];
+        }
+
+        echo "Thème « {$scaffolder->catalog()[$type]} » installé.\n";
+
+        return $scaffolder->nextSteps($type);
+    }
+
+    /** Les thèmes sont lus dans le projet courant : ils sont copiés avec le squelette, et extensibles sur place. */
+    private function scaffolder(): ProjectScaffolder
+    {
+        return new ProjectScaffolder($this->basePath . '/resources/scaffold');
     }
 
     /** Installe un raccourci global `np` (macOS/Linux) qui trouve bin/niang en remontant depuis le dossier courant. */
@@ -1075,7 +1178,7 @@ class Commander
           queue:flush              Supprime définitivement tous les jobs échoués
           cache:clear              Vide le cache applicatif
           optimize                 Cache les routes + rappels de prod (opcache, autoload)
-          new <nom>                Crée un nouveau projet à partir de ce squelette
+          new <nom>                Crée un nouveau projet et y installe un thème de site (--type=<slug> pour éviter la question)
           np:install                Installe le raccourci global `np` (macOS/Linux)
           config:cache             Fige config/*.php (production uniquement)
           config:clear             Supprime le cache de configuration
