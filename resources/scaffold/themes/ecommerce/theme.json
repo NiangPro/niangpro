@@ -1,0 +1,9 @@
+{
+    "label": "Boutique en ligne",
+    "order": 20,
+    "next_steps": [
+        "./bin/niang migrate",
+        "./bin/niang db:seed",
+        "./bin/niang serve"
+    ]
+}

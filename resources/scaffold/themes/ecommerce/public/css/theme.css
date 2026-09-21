@@ -1,0 +1,139 @@
+/*
+ * Thème « boutique » : décline le design system (niang.css) pour une boutique en ligne.
+ * Le doré (--gold) sert ici aux prix barrés et aux promotions.
+ */
+
+/* Boutons d'icône de l'en-tête (compte, panier) et pastille du nombre d'articles. */
+.icon-btn {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 50%;
+    color: var(--text);
+    transition: background-color 0.15s;
+}
+.icon-btn:hover { background: var(--accent-soft); }
+.cart-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    min-width: 1.15rem;
+    padding: 0 0.3rem;
+    border-radius: 999px;
+    background: var(--gold);
+    color: #2b2100;
+    font-size: 0.7rem;
+    font-weight: 800;
+    line-height: 1.15rem;
+    text-align: center;
+}
+
+/* Réassurance : quatre engagements en ligne. */
+.assurances { display: grid; gap: var(--space-5); grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); margin: 0; padding: 0; list-style: none; }
+.assurances li { display: flex; align-items: center; gap: var(--space-3); }
+.assurances strong { display: block; }
+.assurances .muted { font-size: var(--step--1); }
+
+.category-tile .card__icon { transition: background-color 0.2s, color 0.2s; }
+.category-tile:hover .card__icon { background: var(--accent); color: var(--accent-contrast); }
+
+.promo-band {
+    display: grid;
+    gap: var(--space-6);
+    padding: clamp(1.25rem, 1rem + 3vw, 3rem);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, var(--gold-soft), var(--accent-soft));
+}
+@media (min-width: 64em) { .promo-band { grid-template-columns: 1fr 2.2fr; align-items: center; } }
+
+/* Carte produit. */
+.product-card__media { position: relative; display: block; }
+.product-card__media .art svg { transition: transform 0.4s ease; }
+.product-card:hover .product-card__media .art svg { transform: scale(1.05); }
+.product-card__badge { position: absolute; top: var(--space-3); left: var(--space-3); }
+.product-card__badge--soldout { background: var(--surface); color: var(--muted); border: 1px solid var(--border); }
+.product-card__category { margin: 0; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.product-card h3 { font-size: var(--step-0); margin: 0; }
+.product-card h3 a { color: inherit; text-decoration: none; }
+.product-card h3 a:hover { color: var(--accent-text); }
+
+.price { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-3); }
+.price__now { font-weight: 800; font-variant-numeric: tabular-nums; }
+.price__old { color: var(--muted); font-size: 0.9em; }
+.price--lg { font-size: var(--step-2); margin: 0; }
+
+/* Barre d'outils du catalogue. */
+.toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-4); margin-bottom: var(--space-4); }
+.toolbar__controls { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.toolbar input, .toolbar select {
+    padding: 0.55em 0.9em;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--text);
+    font: inherit;
+    font-size: var(--step--1);
+}
+.tag--active { background: var(--accent); border-color: var(--accent); color: var(--accent-contrast); font-weight: 700; }
+a.tag--active:hover { color: var(--accent-contrast); }
+/* Avec JS le tri s'applique au changement : le bouton devient superflu. */
+html.js .toolbar .btn { display: none; }
+
+/* Fiche produit : galerie. */
+.gallery__thumbs { display: none; gap: var(--space-3); margin-top: var(--space-3); }
+html.js .gallery__thumbs { display: flex; }
+.gallery__thumbs button {
+    width: 5rem;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: var(--radius-sm);
+    background: none;
+    overflow: hidden;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.15s, border-color 0.15s;
+}
+.gallery__thumbs button:hover { opacity: 1; }
+.gallery__thumbs button[aria-pressed="true"] { border-color: var(--accent-text); opacity: 1; }
+.gallery__thumbs .art { border-radius: 0; }
+.gallery__main .art { box-shadow: var(--shadow-md); }
+.stock { margin: 0; font-weight: 600; color: var(--success-text); }
+.stock--out { color: var(--danger-text); }
+
+/* Sélecteur de quantité. */
+.qty { display: inline-flex; align-items: stretch; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); overflow: hidden; }
+.qty input { width: 3.2rem; padding: 0.55em 0; border: 0; background: transparent; color: var(--text); font: inherit; font-weight: 700; text-align: center; -moz-appearance: textfield; }
+.qty input::-webkit-outer-spin-button, .qty input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.qty input:focus-visible { outline-offset: -3px; }
+.qty button { display: none; padding: 0 0.85em; border: 0; background: transparent; color: var(--text); cursor: pointer; }
+html.js .qty button { display: grid; place-items: center; }
+.qty button:hover { background: var(--accent-soft); }
+
+/* Panier et commande. */
+.checkout-layout { display: grid; gap: var(--space-6); align-items: start; }
+@media (min-width: 60em) { .checkout-layout { grid-template-columns: 1fr 22rem; } .summary { position: sticky; top: calc(var(--header-height) + var(--space-5)); } }
+
+.cart-lines { display: grid; gap: var(--space-4); }
+.cart-line { display: grid; grid-template-columns: 5.5rem 1fr; gap: var(--space-4); flex-direction: row; }
+.cart-line h2 { margin: 0 0 var(--space-1); font-size: var(--step-0); }
+.cart-line h2 a { color: inherit; text-decoration: none; }
+.cart-line__side { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; }
+@media (min-width: 40em) {
+    .cart-line { grid-template-columns: 6.5rem 1fr auto; }
+    .cart-line__side { grid-column: auto; flex-direction: column; align-items: flex-end; justify-content: space-between; }
+}
+.link-button { display: inline-flex; align-items: center; gap: var(--space-1); padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--step--1); text-decoration: underline; cursor: pointer; }
+.link-button:hover { color: var(--danger-text); }
+
+.summary h2 { font-size: var(--step-1); }
+.summary__rows { margin: 0 0 var(--space-4); }
+.summary__rows > div { display: flex; justify-content: space-between; padding-block: var(--space-2); }
+.summary__rows dt { color: var(--muted); }
+.summary__rows dd { margin: 0; font-variant-numeric: tabular-nums; }
+.summary__total { margin-top: var(--space-2); border-top: 1px solid var(--border); font-size: var(--step-1); font-weight: 800; }
+.summary__total dt { color: var(--text); }
+.summary__items { margin: 0 0 var(--space-4); padding: 0; list-style: none; display: grid; gap: var(--space-2); font-size: var(--step--1); }
+.summary__items li { display: flex; justify-content: space-between; gap: var(--space-4); }

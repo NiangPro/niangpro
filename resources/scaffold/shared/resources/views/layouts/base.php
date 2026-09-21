@@ -17,6 +17,7 @@ $pageDescription = $description ?? (string) config('site.description', '');
 // ?v=<date de modification> : un fichier modifié est retéléchargé, un fichier inchangé reste en cache.
 $asset = static fn (string $path): string => '/' . $path . '?v=' . (@filemtime(base_path('public/' . $path)) ?: 1);
 $success = flashed('success');
+$error = flashed('error');
 ?>
 <!doctype html>
 <html lang="fr">
@@ -44,9 +45,10 @@ $success = flashed('success');
     <a class="skip-link" href="#contenu">Aller au contenu</a>
     <?= $header ?>
     <main id="contenu" tabindex="-1">
-        <?php if ($success): ?>
+        <?php if ($success || $error): ?>
             <div class="container" style="padding-top: var(--space-5)">
-                <p class="alert alert--success" role="status"><?= e($success) ?></p>
+                <?php if ($success): ?><p class="alert alert--success" role="status"><?= e($success) ?></p><?php endif; ?>
+                <?php if ($error): ?><p class="alert alert--error" role="alert"><?= e($error) ?></p><?php endif; ?>
             </div>
         <?php endif; ?>
         <?= $content ?>

@@ -42,7 +42,7 @@ class ThemeInstallationTest extends TestCase
         $project = StagedProject::withTheme($slug);
 
         try {
-            [$code, $output] = $project->phpunit(['--testsuite', 'Feature']);
+            [$code, $output] = $project->phpunit([]);
 
             $this->assertSame(0, $code, "La suite Feature du thème « $slug » échoue :\n$output");
             $this->assertMatchesRegularExpression('/OK \((\d+) tests?/', $output);
