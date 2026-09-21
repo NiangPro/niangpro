@@ -1,0 +1,21 @@
+{
+    "remove": [
+        "resources/views/home.php",
+        "resources/views/contact.php",
+        "resources/views/posts",
+        "resources/views/auth",
+        "resources/views/errors",
+        "resources/views/layouts",
+        "tests/Feature/AuthTest.php",
+        "tests/Feature/AuthorizationTest.php",
+        "tests/Feature/ContactTest.php",
+        "tests/Feature/CorsTest.php",
+        "tests/Feature/DebugToolbarTest.php",
+        "tests/Feature/ErrorHandlingTest.php",
+        "tests/Feature/HomeTest.php",
+        "tests/Feature/JsonResourceTest.php",
+        "tests/Feature/PostsTest.php",
+        "tests/Feature/SecurityHeadersTest.php",
+        "tests/Feature/ThemeInstallationTest.php"
+    ]
+}
