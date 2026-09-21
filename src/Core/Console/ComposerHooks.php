@@ -40,7 +40,13 @@ class ComposerHooks
                 null,
                 $io->isInteractive() && $stdinIsTty,
                 static function (string $question) use ($io): ?string {
-                    $answer = $io->ask(self::escape($question));
+                    try {
+                        $answer = $io->ask(self::escape($question));
+                    } catch (\RuntimeException) {
+                        // Composer lève « Aborted » sur une fin de saisie (Ctrl+D) : on garde le squelette
+                        // minimal plutôt que de faire échouer un create-project déjà presque terminé.
+                        return null;
+                    }
 
                     return $answer === null ? null : (string) $answer;
                 },

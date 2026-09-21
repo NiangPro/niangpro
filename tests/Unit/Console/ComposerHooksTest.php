@@ -45,9 +45,9 @@ class ComposerHooksTest extends TestCase
     }
 
     /** @param list<string> $answers */
-    private function event(bool $interactive, array $answers = []): object
+    private function event(bool $interactive, array $answers = [], bool $abortOnAsk = false): object
     {
-        $io = new class ($interactive, $answers) {
+        $io = new class ($interactive, $answers, $abortOnAsk) {
             /** @var list<string> */
             public array $written = [];
             /** @var list<string> */
@@ -55,7 +55,7 @@ class ComposerHooksTest extends TestCase
             public int $asked = 0;
 
             /** @param list<string> $answers */
-            public function __construct(private bool $interactive, private array $answers)
+            public function __construct(private bool $interactive, private array $answers, private bool $abortOnAsk)
             {
             }
 
@@ -67,6 +67,10 @@ class ComposerHooksTest extends TestCase
             public function ask(string $question): ?string
             {
                 $this->asked++;
+
+                if ($this->abortOnAsk) {
+                    throw new \RuntimeException('Aborted.'); // ce que fait Composer sur une fin de saisie (Ctrl+D)
+                }
 
                 return array_shift($this->answers);
             }
@@ -140,6 +144,17 @@ class ComposerHooksTest extends TestCase
 
         $this->assertSame(1, $event->io->asked);
         $this->assertSame('routes du thème', $this->routes());
+    }
+
+    public function test_end_of_input_during_the_question_keeps_the_minimal_skeleton_instead_of_failing(): void
+    {
+        $event = $this->event(true, [], abortOnAsk: true);
+
+        ComposerHooks::handle($event, $this->project, true, $this->scaffolder);
+
+        $this->assertSame(1, $event->io->asked);
+        $this->assertSame('routes de démo', $this->routes());
+        $this->assertSame([], $event->io->errors);
     }
 
     public function test_choosing_minimal_interactively_changes_nothing(): void

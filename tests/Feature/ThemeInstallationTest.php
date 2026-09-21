@@ -28,12 +28,12 @@ class ThemeInstallationTest extends TestCase
         return $themes;
     }
 
-    public function test_the_catalog_ships_the_documented_site_types_with_minimal_last(): void
+    public function test_the_catalog_ships_the_documented_site_types_in_order_with_minimal_last(): void
     {
-        $slugs = array_keys((new ProjectScaffolder())->catalog());
-
-        $this->assertContains('vitrine', $slugs);
-        $this->assertSame('minimal', end($slugs));
+        $this->assertSame(
+            ['vitrine', 'ecommerce', 'blog', 'portfolio', 'landing', 'minimal'],
+            array_keys((new ProjectScaffolder())->catalog())
+        );
     }
 
     /** @dataProvider shippedThemes */
