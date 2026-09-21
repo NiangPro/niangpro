@@ -4,8 +4,18 @@ parameters:
         - src
         - app
         - tests
+        - resources/scaffold
     excludePaths:
         - src/helpers.php
+        # Dans resources/scaffold, seules les classes PHP des thèmes (contrôleurs, modèles, tests) sont
+        # analysées : les vues, routes, configs et migrations sont des fichiers de gabarit, comme
+        # resources/views/, routes/ et config/ à la racine, qui ne le sont pas non plus.
+        - resources/scaffold/*/views/*
+        - resources/scaffold/*/*/resources/*
+        - resources/scaffold/*/*/routes/*
+        - resources/scaffold/*/*/config/*
+        - resources/scaffold/*/*/database/*
+        - resources/scaffold/*/*/public/*
     ignoreErrors:
         # NiangPro utilise volontairement des tableaux associatifs bruts (lignes de BDD, données de
         # requête) plutôt que des objets/DTO typés, pour rester simple. Documenter chaque forme de

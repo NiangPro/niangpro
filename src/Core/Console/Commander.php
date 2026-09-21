@@ -974,15 +974,15 @@ class Commander
             : $env . "APP_KEY=$key\n";
         file_put_contents("$target/.env", $env);
 
-        $nextSteps = $this->installSiteTheme($target, $type);
+        // Un thème décrit lui-même ses étapes (theme.json) : une boutique doit migrer et alimenter la
+        // base, un site vitrine n'en a pas besoin. Le squelette minimal garde ses étapes historiques.
+        $nextSteps = $this->installSiteTheme($target, $type) ?: ['./bin/niang migrate', './bin/niang serve'];
 
         echo "\nProjet créé.\n\n  cd $name\n";
 
-        foreach ($nextSteps ?: ['./bin/niang migrate'] as $step) {
+        foreach ($nextSteps as $step) {
             echo "  $step\n";
         }
-
-        echo "  ./bin/niang serve\n";
     }
 
     /**

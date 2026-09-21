@@ -1,0 +1,43 @@
+/*
+ * Thème « vitrine » : décline le design system (niang.css) pour un site institutionnel.
+ * Ne redéfinit que ce qui lui est propre — les couleurs, l'espacement et les composants viennent de la base.
+ */
+
+/* Collage de deux visuels décalés dans le héros. */
+.hero-collage {
+    display: grid;
+    grid-template-columns: 1.1fr 0.9fr;
+    gap: var(--space-4);
+    align-items: end;
+}
+.hero-collage .art { box-shadow: var(--shadow-lg); }
+.hero-collage .art:first-child { transform: translateY(-1.5rem); }
+.hero-collage .art:last-child { border: 6px solid var(--bg); }
+
+/* Réalisations : le visuel zoome légèrement au survol. */
+.gallery-item .art svg { transition: transform 0.5s ease; }
+.gallery-item:hover .art svg { transform: scale(1.06); }
+
+/* Méthode en quatre étapes numérotées. */
+.steps {
+    counter-reset: step;
+    display: grid;
+    gap: var(--space-5);
+    grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.steps li { counter-increment: step; position: relative; padding-top: var(--space-6); border-top: 2px solid var(--border); }
+.steps li::before {
+    content: counter(step, decimal-leading-zero);
+    position: absolute;
+    top: -0.85rem;
+    left: 0;
+    padding-right: var(--space-3);
+    background: var(--bg);
+    font-size: var(--step-1);
+    font-weight: 800;
+    color: var(--accent-text);
+}
+.section--alt .steps li::before { background: var(--surface-2); }

@@ -1,0 +1,5 @@
+{
+    "label": "Site vitrine / informationnel",
+    "order": 10,
+    "next_steps": ["./bin/niang serve"]
+}
