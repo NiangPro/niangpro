@@ -17,7 +17,7 @@ class CommanderMakeTestTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach (['SampleTest', 'AlreadyThereTestTest'] as $name) {
+        foreach (['SampleTest', 'AlreadyThereTest'] as $name) {
             @unlink("{$this->basePath}/tests/Unit/{$name}.php");
         }
 
@@ -51,10 +51,10 @@ class CommanderMakeTestTest extends TestCase
 
     public function test_does_not_overwrite_an_existing_test(): void
     {
-        $path = "{$this->basePath}/tests/Unit/AlreadyThereTestTest.php";
+        $path = "{$this->basePath}/tests/Unit/AlreadyThereTest.php";
         file_put_contents($path, "<?php\n// contenu personnalisé\n");
 
-        $output = $this->makeTest('AlreadyThereTest');
+        $output = $this->makeTest('AlreadyThere');
 
         $this->assertStringContainsString('existe déjà', $output);
         $this->assertStringContainsString('contenu personnalisé', file_get_contents($path));
