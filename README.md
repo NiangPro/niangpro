@@ -14,7 +14,40 @@ cd mon-app
 ./bin/niang serve
 ```
 
-Visitez http://127.0.0.1:8000
+À la fin de l'installation, NiangPro vous demande **quel type de site vous voulez construire** et installe un
+thème visiteur complet et moderne (clair et sombre, responsive, accessible, sans CDN ni dépendance) :
+
+```
+Quel type de site souhaitez-vous construire ?
+
+  1) vitrine    Site vitrine / informationnel
+  2) ecommerce  Boutique en ligne
+  3) blog       Blog / magazine
+  4) portfolio  Portfolio
+  5) landing    Landing page one-page
+  6) minimal    Minimal — squelette de démonstration (défaut)
+
+Votre choix [6] :
+```
+
+| Type | Pages livrées |
+| --- | --- |
+| `vitrine` | Accueil, à propos, services, réalisations, FAQ, contact, mentions légales, confidentialité, 404 |
+| `ecommerce` | Accueil, catalogue (filtre, recherche, tri), fiche produit, panier, commande, compte client et « Mes commandes », à propos, contact, FAQ livraison et retours, CGV, mentions légales, 404 — **sans paiement réel** (voir [Boutique en ligne](#thèmes-de-site)) |
+| `blog` | Accueil, articles paginés, article (tags, articles proches), catégories et thèmes, à propos, contact, 404 |
+| `portfolio` | Accueil, projets filtrables et pages de détail avec galerie, à propos et CV, contact, 404 |
+| `landing` | Une page à sections ancrées (fonctionnalités, fonctionnement, avis, tarifs, FAQ), mentions légales, 404 |
+| `minimal` | Le squelette de démonstration, tel quel |
+
+Sans terminal interactif (CI, script, `--no-interaction`), la question n'est pas posée : `minimal` est utilisé,
+sauf si vous choisissez explicitement le type avec la variable d'environnement `NIANG_SITE_TYPE` :
+
+```bash
+NIANG_SITE_TYPE=blog composer create-project niangpro/framework mon-app --no-interaction
+```
+
+Visitez http://127.0.0.1:8000 (les types `ecommerce` et `blog` demandent d'abord `./bin/niang migrate` puis
+`./bin/niang db:seed` : le terminal affiche les étapes de votre thème).
 
 Pour contribuer au framework lui-même (cloner ce dépôt directement) :
 
@@ -35,6 +68,7 @@ app/Middleware/      Vos middlewares
 app/Models/           Vos modèles (Active Record minimal)
 routes/web.php        Toutes vos routes
 resources/views/      Vues PHP natives (pas de moteur de template)
+resources/scaffold/   Thèmes de site proposés à la création d'un projet
 src/Core/              Le cœur du framework
 public/index.php      Point d'entrée unique
 ```
@@ -891,7 +925,8 @@ Grammar — corrigé pour passer par `Schema`/`Blueprint` comme n'importe quelle
 ./bin/niang queue:flush              # supprime définitivement tous les jobs échoués
 ./bin/niang cache:clear              # vide le cache applicatif
 ./bin/niang optimize                 # cache les routes + rappels de prod
-./bin/niang new mon-app              # crée un nouveau projet à partir de ce squelette
+./bin/niang new mon-app              # crée un nouveau projet (pose la question du type de site)
+./bin/niang new mon-app --type=blog  # idem sans question : vitrine, ecommerce, blog, portfolio, landing, minimal
 ./bin/niang np:install               # installe le raccourci global `np` (macOS/Linux)
 ```
 
@@ -1023,8 +1058,57 @@ déclenche l'action — sans passer par un vrai bus d'événements avec files et
 ## Créer un nouveau projet
 
 Depuis un projet existant, `./bin/niang new mon-app` clone ce squelette (sans `vendor/`, `.git/`, données
-locales), installe les dépendances et génère une nouvelle `APP_KEY`. Sans projet existant sous la main,
-utilisez plutôt `composer create-project niangpro/framework mon-app` (voir [Installation](#installation)).
+locales), installe les dépendances, génère une nouvelle `APP_KEY` et installe le thème du type de site choisi.
+Sans projet existant sous la main, utilisez plutôt `composer create-project niangpro/framework mon-app`
+(voir [Installation](#installation)) : les deux chemins posent la même question et exécutent le même code.
+
+```bash
+./bin/niang new mon-app                # demande le type de site (si STDIN est un terminal)
+./bin/niang new mon-app --type=ecommerce
+NIANG_SITE_TYPE=landing ./bin/niang new mon-app
+```
+
+Ordre de priorité : `--type`, puis `NIANG_SITE_TYPE`, puis la question, puis `minimal`. Un type inconnu est refusé
+avant toute copie. `niang new` clone le projet courant : lancé depuis un projet déjà thématisé, il en reprend le thème.
+
+## Thèmes de site
+
+Choisir un type de site **remplace** (et ne fusionne pas) `routes/web.php`, les vues concernées de
+`resources/views/` et les assets de démonstration, et retire les tests de fonctionnalité de la démo qui ne
+s'appliquent plus : le thème est livré avec ses propres tests, `composer test` reste donc vert. `/up` et `/health`
+sont conservés.
+
+- **Contenu** : tout le contenu de démonstration (fictif) est dans `config/site.php` — nom, navigation, services,
+  FAQ, témoignages... Modifiez-le sans toucher aux vues. Le nom se règle aussi avec `SITE_NAME` dans `.env`.
+- **Design** : `public/css/niang.css` (variables `:root`, clair/sombre via `prefers-color-scheme`, police système)
+  puis `public/css/theme.css` (propre au thème). Aucune webfont ni CDN, icônes en SVG inline
+  (`component('components/icon', ['name' => 'check'])`), JavaScript vanilla dans `public/js/`. La CSP par défaut
+  interdit les scripts inline : gardez le JavaScript dans des fichiers.
+- **Images** : les visuels de démonstration sont des illustrations SVG générées (`components/art`). Remplacez-les
+  par de vraies photos avec un `<img>` et son attribut `alt`.
+- **Boutique en ligne — paiement** : **aucun paiement réel n'est branché.** La commande est enregistrée avec le
+  statut `pending` (en attente de paiement). Le TODO documenté de `app/Controllers/CheckoutController.php` explique où
+  brancher un prestataire (Stripe, PayPal, Wave...) : créer la session de paiement, rediriger le client, et ne passer
+  la commande à `paid` que depuis le webhook du prestataire. Les prix sont des entiers en centimes d'euro.
+
+### Ajouter votre propre thème
+
+Un thème est un dossier de `resources/scaffold/themes/<slug>/` qui reproduit l'arborescence d'un projet
+(`app/`, `config/`, `database/`, `public/`, `resources/views/`, `routes/web.php`, `tests/`). Ajouter un dossier suffit :
+il apparaît dans la question posée à la création d'un projet. Un `theme.json` facultatif précise :
+
+```json
+{
+    "label": "Site d'agence",
+    "order": 60,
+    "remove": ["resources/views/posts"],
+    "next_steps": ["./bin/niang serve"]
+}
+```
+
+`label` est le libellé du catalogue, `order` sa position, `remove` les chemins du projet supprimés avant la copie et
+`next_steps` les commandes suggérées ensuite. `resources/scaffold/shared/` (design system, composants, pages d'erreur,
+contact) est copié dans tous les thèmes.
 
 ## Dépôt public
 

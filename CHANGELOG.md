@@ -7,6 +7,111 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ## [Non publié]
 
+### Added
+
+- **Thèmes de site à la création d'un projet** (P0 #15, NiangPro 2.0 — dixième jalon ; rattaché aux
+  « Starter Kits » de la roadmap, §63) : à la création d'un projet, NiangPro demande quel type de site
+  construire et installe un thème visiteur complet — plutôt que le squelette de démonstration seul.
+  Six types : `vitrine`, `ecommerce`, `blog`, `portfolio`, `landing` et `minimal` (le squelette actuel,
+  inchangé, toujours proposé en dernier et choisi par défaut).
+  - **Deux chemins d'installation, un seul code.** `composer create-project niangpro/framework mon-app`
+    (qui copie simplement les fichiers du paquet et n'exécute jamais `niang new`) déclenche le nouveau
+    script `post-create-project-cmd` → `Niang\Core\Console\ComposerHooks::postCreateProject`.
+    `./bin/niang new mon-app [--type=<slug>]` appelle la même logique. Dans les deux cas, la question est
+    posée par `SiteTypePrompt` et l'installation faite par `ProjectScaffolder`, qui ne lisent ni STDIN ni
+    n'écrivent nulle part (lecture et affichage sont injectés), sur le modèle de `HealthCheck`.
+  - **Jamais bloquant.** Ordre de priorité : `--type=<slug>`, puis la variable d'environnement
+    `NIANG_SITE_TYPE`, puis la question — posée seulement si STDIN est un terminal et que Composer n'est pas
+    en `--no-interaction` —, puis `minimal`. Un type explicite inconnu fait échouer `niang new` (code 1,
+    avant toute copie, en listant les types valides) ; pour `composer create-project`, où le projet est déjà
+    en place, il avertit et garde le squelette minimal plutôt que d'échouer après coup. Une fin de saisie
+    (Ctrl+D) garde aussi `minimal`. `niang new` pose la question *avant* de copier et de lancer
+    `composer install`, pour ne pas interrompre l'utilisateur après une longue attente.
+  - **Remplacement, pas fusion.** L'installation n'a lieu qu'une fois, avant que l'utilisateur ait touché
+    à quoi que ce soit : le thème remplace `routes/web.php`, les vues concernées de `resources/views/` et
+    les assets, et supprime les tests de fonctionnalité de la démo qui ne s'appliquent plus (`HomeTest`,
+    `PostsTest`, `CorsTest`... : les routes de démonstration `/hello`, `/echo`, `/tenant`, `/api/posts`
+    disparaissent avec `routes/web.php`). Chaque thème est livré avec **ses propres tests**, donc
+    `composer test` reste vert dans le projet créé. Seuls `/up` et `/health` sont conservés partout.
+  - **Un thème = un dossier.** `resources/scaffold/themes/<slug>/` reproduit l'arborescence d'un projet
+    (`app/`, `config/`, `database/`, `public/`, `resources/views/`, `routes/web.php`, `tests/`) : aucune
+    table de correspondance dans le code, et un thème peut aussi livrer contrôleurs, modèles, migrations et
+    tests. Ajouter un dossier suffit à l'ajouter au catalogue (extensible par l'utilisateur, sans rien
+    enregistrer). Un `theme.json` facultatif donne `label`, `order`, `remove` et `next_steps` (les
+    commandes affichées ensuite : une boutique doit migrer et alimenter la base, un site vitrine non).
+    `resources/scaffold/shared/` suit la même arborescence et fournit ce que tous les thèmes ont en
+    commun. *(Écart assumé avec l'arborescence proposée `views/`, `routes.php`, `assets/`, `seed/`.)*
+  - **Design system partagé** (`shared/public/css/niang.css`, `shared/public/js/niang.js`, composants) :
+    variables `:root` pour les couleurs et l'espacement, identité teal `#2dd4bf` / doré `#facc15`
+    conservée, clair **et** sombre via `prefers-color-scheme` (couleurs de texte distinctes des couleurs
+    de fond pour garder le contraste en mode clair), échelle typographique fluide en `clamp()`, police
+    système, header sticky avec menu burger en JS vanilla, grilles auto-adaptatives, cartes, FAQ en
+    `<details>` natif, focus visible, `prefers-reduced-motion`, icônes en SVG inline. Aucun CDN, aucune
+    webfont, aucune police d'icônes. Les assets vont dans `public/css/` et `public/js/` (convention de la
+    roadmap §45) plutôt que dans un dossier `public/assets/`. **Tout le JS est en fichiers externes** : la CSP
+    par défaut de `config/security.php` interdit les scripts inline, et chaque thème est testé pour n'en
+    contenir aucun. Sans JavaScript, les sites restent utilisables (menu affiché, prix mensuels, saisie
+    manuelle des quantités).
+  - **Contenu de démonstration** fictif en français, centralisé dans `config/site.php` de chaque thème
+    (modifiable sans toucher aux vues). Les illustrations sont des SVG générés (`components/art`, avec
+    `role="img"` et `aria-label`) à la place de photos : aucun fichier binaire à embarquer.
+  - **`vitrine`** : accueil (héros, présentation, points forts, services, réalisations, témoignages, CTA),
+    à propos, services, réalisations, FAQ, contact (réhabille `ContactController`), mentions légales,
+    politique de confidentialité, 404.
+  - **`ecommerce`** : accueil, catalogue (filtre par catégorie, recherche, tri), fiche produit (galerie,
+    promotion, stock), panier en session (quantités, retrait, total, livraison offerte au-delà d'un
+    seuil), commande et confirmation, compte client (réhabille `AuthController`) et « Mes commandes »,
+    à propos, contact, FAQ livraison et retours, CGV, mentions légales, 404. Schéma : `products` (`name`,
+    `slug` unique, `category`, `description`, `price_cents`, `old_price_cents`, `image`, `stock`,
+    `featured`), `orders` et `order_items`, avec modèles `Product`/`Order`/`OrderItem` et un seeder de neuf
+    produits fictifs idempotent. Les montants sont des **entiers en centimes**, jamais des flottants ; une
+    ligne de commande copie le nom et le prix à l'achat. **Aucun paiement réel** : la commande est
+    enregistrée « pending » et un TODO documenté dans `CheckoutController` décrit où brancher un
+    prestataire (session de paiement, retour, webhook qui passe la commande à « paid »). Le checkout
+    rejoint la transaction ambiante plutôt que d'en ouvrir une seconde (`DB::transaction()` n'imbrique
+    pas), et la confirmation n'est visible que par le client qui vient de commander ou le titulaire du
+    compte.
+  - **`blog`** : accueil, liste paginée (réutilise `PostController::page`), article (tags, temps de
+    lecture, articles proches), catégories et thèmes, à propos, contact, 404. Une migration ajoute `slug`,
+    `excerpt`, `category` et `author` (facultatifs) à `posts` ; un seeder de huit articles fictifs. Le corps
+    d'un article est du texte simple mis en forme par `App\Support\PostFormat`, entièrement échappé (pas
+    de HTML injectable, pas de moteur Markdown embarqué). `TagController` n'est exposé qu'en lecture
+    (`GET /api/tags`) : ses routes d'écriture n'ont ni authentification ni CSRF dans la démo. *(Écart avec la
+    spécification, qui prévoyait des seeds pour la boutique seule : un blog vide n'a aucun intérêt.)*
+  - **`portfolio`** : accueil, projets avec filtre par catégorie, page de détail par projet (galerie,
+    défi, démarche, résultats, navigation entre projets), à propos avec compétences et frise du CV,
+    contact, 404 — sans base de données, les projets sont dans `config/site.php`.
+  - **`landing`** : une page à sections ancrées (héros, fonctionnalités, comment ça marche, témoignages,
+    tarifs avec bascule mensuel/annuel, FAQ, CTA final, pied de page), mentions légales, 404. Les liens
+    de navigation commencent par `/#` pour fonctionner aussi depuis les mentions légales.
+  - **Tests.** 65 nouveaux tests dans le dépôt (`ProjectScaffolderTest`, `SiteTypePromptTest`,
+    `ComposerHooksTest`, `CommanderNewTest`, `ThemeInstallationTest`). `tests/Support/StagedProject` installe
+    réellement un thème dans une copie du projet et y lance PHPUnit dans un process séparé (`base_path()`
+    est figé au chargement de `helpers.php` : un test en process ne pourrait pas exercer un thème installé
+    ailleurs) ; `ThemeInstallationTest` en tire, pour chaque thème livré, l'exécution de toute la suite de
+    la copie et la vérification que ses routes sont compatibles `route:cache` (aucune closure). Vérifié
+    aussi à la main avec un vrai `composer create-project` (non interactif, `NIANG_SITE_TYPE`, faute de
+    frappe, et invite réelle pilotée dans un pseudo-terminal) et un vrai `niang new`. PHPStan et
+    PHP-CS-Fixer couvrent désormais les classes PHP de `resources/scaffold` (contrôleurs, modèles, tests) ;
+    les vues, routes, configs et migrations, comme à la racine du projet, ne sont pas analysées.
+
+### Changed
+
+- `PostController::page` (P0 #15, dixième jalon) : liste désormais les articles les plus récents d'abord,
+  et lit le nombre d'articles par page dans `config('site.posts_per_page')` (2 par défaut, comme avant :
+  le squelette minimal n'a pas de `config/site.php`).
+- `niang new <nom>` accepte `--type=<slug>` et affiche les étapes suivantes propres au thème installé
+  (`niang migrate` + `niang serve` pour le type `minimal`, comme avant). Comme il clone le projet courant,
+  lancé depuis un projet déjà thématisé il en reprend le thème.
+
+### Fixed
+
+- Isolation des tests (P0 #15) : `tests/bootstrap.php` charge `.env.testing` avant tout. Les tests de
+  `Commander` chargeaient le `.env` réel via son constructeur (`Env::load()` ne s'exécute qu'une fois par
+  process), ce qui faisait taper le reste de la suite dans `storage/database.sqlite` et échouer huit tests
+  dès qu'un `.env` local existait. `CommanderMakeTestTest` laissait en outre un fichier
+  `tests/Unit/AlreadyThereTest.php` derrière lui, qui faisait ensuite échouer PHPStan.
+
 ## [1.2.0] — 2026-09-17
 
 ### Added

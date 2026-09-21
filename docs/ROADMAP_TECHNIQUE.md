@@ -2227,6 +2227,22 @@ Subscriptions
 Billing abstraction
 ```
 
+## État d'avancement : thèmes de site (NiangPro 2.0, dixième jalon de P0 #15)
+
+Plutôt que des paquets séparés, un premier pas vers les starter kits est livré dans le paquet
+principal : à la création d'un projet (`composer create-project` ou `niang new`), NiangPro demande quel
+type de site construire et installe un thème visiteur complet.
+
+```text
+✓ vitrine     ✓ ecommerce (sans paiement réel)     ✓ blog
+✓ portfolio   ✓ landing                            ✓ minimal (squelette de démonstration)
+```
+
+Un thème est un dossier de `resources/scaffold/themes/<slug>/` : ajouter un dossier l'ajoute au catalogue.
+Restent à faire pour rejoindre la vision ci-dessus : les starters `api`, `auth` et `saas`, et la
+publication de thèmes sous forme de paquets Composer. Voir le CHANGELOG (« Thèmes de site à la création
+d'un projet ») pour les décisions prises.
+
 ---
 
 # 64. Générateurs CLI
