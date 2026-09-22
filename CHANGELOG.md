@@ -7,6 +7,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ## [Non publié]
 
+## [1.4.0] — 2026-09-22
+
 ### Added
 
 - **Intégration de frameworks frontend (Alpine.js, htmx, Vue/React via build externe)** (P0 #15,
