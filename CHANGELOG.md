@@ -7,6 +7,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ## [Non publié]
 
+## [1.3.0] — 2026-09-22
+
 ### Added
 
 - **Interopérabilité PSR-7 / PSR-15** (P0 #15, NiangPro 2.0 — dix-neuvième jalon ; PSR de la
