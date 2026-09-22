@@ -9,6 +9,33 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Écouteurs d'événements différables (`ShouldQueue`)** (P0 #15, NiangPro 2.0 — quatorzième
+  jalon ; Queue 2.0 et Events typés de la roadmap, §25-26) : qu'un listener lourd (l'envoi de
+  l'email de vérification du douzième jalon, par exemple) ne bloque plus la requête HTTP qui a
+  émis l'événement. Interface marqueur `Niang\Core\Contracts\ShouldQueue`, sans méthode requise.
+  `Event::listen()` accepte désormais aussi une classe (nom de classe, exposant `handle(...)`)
+  en plus d'une closure ; dans `Event::dispatch()`, une classe qui implémente `ShouldQueue` n'est
+  plus appelée directement mais enrobée dans `Niang\Core\Jobs\CallQueuedListener` (implémente le
+  contrat `Job` existant) et poussée sur `Queue`. **Les listeners enregistrés comme closures
+  restent toujours synchrones** — une closure ne survivrait pas sérialisée sur la file ; ce n'est
+  pas une limitation à lever, juste une conséquence de ce que `serialize()` peut représenter.
+  `App\Listeners\SendVerificationEmailListener` (`ShouldQueue`) remplace l'appel direct que
+  `AuthController::register` faisait à l'envoi de l'email de vérification : il est désormais
+  déclenché par l'événement `user.registered` déjà émis, en écouteur de classe plutôt que
+  closure (voir `AppServiceProvider`).
+  - **Effet de bord découvert en écrivant ce jalon, corrigé au passage** : `Event::$listeners`
+    et la file `Queue` (sur fichier) ne se réinitialisaient jamais entre deux tests — invisible
+    tant qu'aucun listener n'avait d'effet observable (le seul existant se contentait de
+    logguer), mais un `ShouldQueue` réel l'a rendu flagrant (jusqu'à 42 envois dupliqués en fin
+    de suite, `AppServiceProvider::boot()` empilant ses écouteurs à chaque nouvelle
+    `Application` de chaque test). `Event::reset()` et `Queue::reset()` ajoutés, tous deux
+    appelés désormais par `Niang\Core\Testing\TestCase::setUp()` — en production, chaque
+    requête est un process neuf, le problème ne s'y pose pas.
+  - 4 nouveaux tests (`tests/Unit/EventTest.php`, réutilise le pattern de `tests/Unit/
+    QueueTest.php`) : un listener `ShouldQueue` finit dans la file au lieu de s'exécuter
+    immédiatement, un listener de classe normal et un listener closure restent synchrones
+    (non-régression), `Event::reset()` vide bien les écouteurs enregistrés.
+
 - **Authentification par jeton pour l'API** (P0 #15, NiangPro 2.0 — treizième jalon ;
   Authentication 2.0 de la roadmap, §21) : permet à un client hors navigateur (app mobile, SPA
   découplée, script) de s'authentifier sur les routes `/api/*` sans session ni cookie.

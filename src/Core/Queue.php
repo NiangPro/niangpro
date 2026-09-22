@@ -124,6 +124,16 @@ class Queue
         return count(glob(self::dir() . '/*.job') ?: []);
     }
 
+    /** @internal vide la file (en attente et échouée) — appelé par TestCase entre deux tests. */
+    public static function reset(): void
+    {
+        foreach ([self::dir(), self::failedDir()] as $dir) {
+            foreach (glob($dir . '/*.job') ?: [] as $file) {
+                unlink($file);
+            }
+        }
+    }
+
     private static function store(Job $job, string $queue, int $availableAt): string
     {
         $id = uniqid('job_', true);

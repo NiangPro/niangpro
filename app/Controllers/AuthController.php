@@ -4,7 +4,6 @@ namespace App\Controllers;
 
 use App\Jobs\SendWelcomeEmailJob;
 use App\Mailables\ResetPasswordMailable;
-use App\Mailables\VerifyEmailMailable;
 use App\Models\PasswordResetToken;
 use App\Models\User;
 use Niang\Core\Auth;
@@ -47,20 +46,12 @@ class AuthController extends Controller
         // Différé : ne bloque pas l'inscription sur l'envoi de l'email. Traité par `niang queue:work`.
         Queue::push(new SendWelcomeEmailJob($data['email']));
 
-        // Découple la logique secondaire (journalisation, futurs écouteurs) du contrôleur.
+        // Découple la logique secondaire du contrôleur. App\Listeners\SendVerificationEmailListener
+        // (ShouldQueue, voir AppServiceProvider) envoie le lien de vérification en différé — les
+        // écouteurs enregistrés comme closures, eux, restent toujours synchrones.
         Event::dispatch('user.registered', $user);
 
-        $this->sendVerificationEmail($user);
-
         return $this->redirect('/');
-    }
-
-    private function sendVerificationEmail(array $user): void
-    {
-        $hours = (int) config('auth.email_verification_expire_hours', 24);
-        $signedUrl = signedRoute('verification.verify', ['id' => $user['id']], $hours * 3600);
-
-        Mail::to($user['email'])->send(new VerifyEmailMailable($signedUrl));
     }
 
     public function showLogin(): Response

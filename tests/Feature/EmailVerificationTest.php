@@ -6,6 +6,7 @@ use App\Mailables\VerifyEmailMailable;
 use App\Models\User;
 use Niang\Core\Csrf;
 use Niang\Core\Mail;
+use Niang\Core\Queue;
 use Niang\Core\Testing\RefreshDatabase;
 use Niang\Core\Testing\TestCase;
 use Niang\Core\UrlSignature;
@@ -31,6 +32,10 @@ class EmailVerificationTest extends TestCase
             'password' => 'motdepasse123',
             'password_confirmation' => 'motdepasse123',
         ])->assertRedirect('/');
+
+        // L'envoi est différé (ShouldQueue, voir SendVerificationEmailListener, testé isolément
+        // dans EventTest) : il faut traiter la file avant de le retrouver dans Mail::sent().
+        Queue::work();
 
         $sent = Mail::sent();
         $this->assertCount(1, $sent);

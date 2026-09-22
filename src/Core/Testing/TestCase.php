@@ -4,7 +4,9 @@ namespace Niang\Core\Testing;
 
 use Niang\Core\Application;
 use Niang\Core\Database\Migrator;
+use Niang\Core\Event;
 use Niang\Core\Http\Request;
+use Niang\Core\Queue;
 use Niang\Core\Session;
 use PHPUnit\Framework\TestCase as BaseTestCase;
 
@@ -25,6 +27,16 @@ abstract class TestCase extends BaseTestCase
         if (session_status() === PHP_SESSION_ACTIVE) {
             Session::destroy();
         }
+
+        // Sans quoi les listeners enregistrés par les Service Providers (AppServiceProvider::boot())
+        // s'accumuleraient à chaque nouvelle Application de chaque test du process PHPUnit — en
+        // production, chaque requête est un process neuf, le problème ne s'y pose pas.
+        Event::reset();
+
+        // Même raison, côté file d'attente sur fichier : un job poussé par un test (ex: un
+        // listener ShouldQueue déclenché par une inscription) ne doit pas être traité par
+        // Queue::work() d'un test suivant qui n'a rien à voir.
+        Queue::reset();
 
         // Construit avant Session::start() : charge config/session.php (lifetime, cookie secure...).
         $this->app = new Application(base_path());
