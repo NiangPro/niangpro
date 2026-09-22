@@ -7,6 +7,44 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ## [Non publié]
 
+### Added
+
+- **Intégration de frameworks frontend (Alpine.js, htmx, Vue/React via build externe)** (P0 #15,
+  NiangPro 2.0 — vingtième jalon ; Assets de la roadmap, §45) : le cœur ne bundle rien ni
+  n'impose rien (« PHP reste PHP ») — ce jalon documente et facilite, sans rien intégrer au noyau.
+  - **`json_for_html(mixed $data): string`** (`src/helpers.php`) passe des données PHP à du JS
+    en sécurité. **Un vrai bug de sécurité trouvé et corrigé en écrivant les tests, pas seulement
+    suivi tel quel depuis la spécification** : `json_encode()` avec uniquement
+    `JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP` protège le *contenu* JSON, mais pas
+    les guillemets *structurels* qu'il produit lui-même (`{"clé":"valeur"}`) — dès que `$data`
+    est un tableau/objet (le cas d'usage documenté : `data-props="..."`), ces guillemets
+    structurels restent des `"` littéraux et cassent l'attribut au premier caractère
+    rencontré. Vérifié avec un vrai Chromium (Playwright) : `<div data-props="{"a":"b"}">`
+    devient bien un second attribut HTML arbitraire dans le DOM, pas juste une inquiétude
+    théorique. Fix : une seconde couche `htmlspecialchars()` sur le résultat JSON — le navigateur
+    décode les entités HTML d'un attribut à la lecture (`dataset`, `getAttribute`), donc
+    `JSON.parse()` reçoit toujours le JSON d'origine intact, re-vérifié avec Chromium après
+    correction. 8 tests (`tests/Unit/HelpersJsonForHtmlTest.php`) : `</script>`, guillemets
+    simples et doubles, esperluettes, Unicode, un objet combinant guillemet et balise fermante
+    dans la même valeur — chacun via le cycle complet (construire le HTML, le faire reparser,
+    `json_decode()` le résultat), jamais `json_decode()` directement sur la sortie du helper
+    (qui n'est plus du JSON brut, justement).
+  - **`vite_asset(string $entry): string`** (`src/helpers.php`, délègue à `Niang\Core\ViteAssets`,
+    logique pure et testable) : lit `public/build/manifest.json` s'il existe (résout l'URL
+    hashée réelle, pour ne jamais casser un lien à chaque build Vite), bascule sur le serveur de
+    dev (`public/hot`, ou `http://localhost:5173` par défaut) s'il est présent — sinon échoue
+    avec un message clair plutôt qu'un lien cassé silencieux. N'exige rien d'installé pour que le
+    reste du framework fonctionne : seul un appel explicite suppose Vite configuré.
+  - Documentation (README, section « Intégration de frameworks frontend ») avec un exemple
+    concret pour chacun : Alpine.js et htmx auto-hébergés (téléchargés dans `public/js/`, aucune
+    étape de build, cohérent avec « zéro CDN ») ; Vue/React via Vite configuré côté projet comme
+    pour n'importe quel backend, assets construits dans `public/build/` et servis comme des
+    fichiers statiques ordinaires.
+  - 6 tests supplémentaires (`tests/Unit/ViteAssetsTest.php`) : résolution depuis le manifest,
+    bascule sur le serveur de dev, `public/hot` prioritaire sur le manifest, fichier `public/hot`
+    vide replié sur l'adresse par défaut, erreur claire si aucun des deux fichiers n'existe, erreur
+    claire si l'entrée demandée est absente du manifest.
+
 ## [1.3.0] — 2026-09-22
 
 ### Added

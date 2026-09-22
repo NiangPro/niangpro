@@ -1174,6 +1174,69 @@ un plugin ajouterait une dépendance de développement et de la complexité que 
 pas ici ; la convention légère couvre déjà la quasi-totalité des cas, un thème n'ayant besoin d'aucune installation
 au-delà d'une simple copie de dossier.)*
 
+## Intégration de frameworks frontend
+
+Le cœur ne bundle rien et n'impose rien ("PHP reste PHP") : voici comment brancher un framework
+frontend depuis un projet NiangPro, sans que le framework lui-même en dépende.
+
+### Alpine.js et htmx (auto-hébergés, sans build)
+
+Aucune étape de build, cohérent avec « zéro CDN » : téléchargez le fichier, mettez-le dans
+`public/js/`, incluez-le dans le layout.
+
+```bash
+curl -L https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js -o public/js/alpine.js
+curl -L https://unpkg.com/htmx.org@2.x.x/dist/htmx.min.js -o public/js/htmx.js
+```
+
+```php
+<!-- dans resources/views/layouts/app.php -->
+<script src="/js/alpine.js" defer></script>
+<script src="/js/htmx.js" defer></script>
+```
+
+`json_for_html()` (`src/helpers.php`) passe des données PHP à Alpine en toute sécurité — sensible
+en XSS, échappe en deux temps (JSON_HEX_* pour le contenu, puis `htmlspecialchars()` pour
+l'attribut HTML lui-même, qui casserait sinon dès que `$data` est un tableau) :
+
+```php
+<div data-props="<?= json_for_html(['count' => 3, 'label' => $label]) ?>"
+     x-data="JSON.parse($el.dataset.props)">
+    <span x-text="label"></span> (<span x-text="count"></span>)
+</div>
+```
+
+### Vue / React (via Vite)
+
+Ces frameworks impliquent un vrai outillage de build que NiangPro n'a pas et ne doit pas
+embarquer. Configurez Vite dans votre projet comme vous le feriez pour n'importe quel backend :
+
+```bash
+npm install -D vite laravel-vite-plugin   # ou tout autre plugin Vite écrivant un manifest standard
+```
+
+```js
+// vite.config.js
+export default {
+    build: { manifest: true, outDir: 'public/build' },
+    server: { origin: 'http://localhost:5173' },
+};
+```
+
+`npm run build` construit dans `public/build/` (fichiers hashés, servis comme n'importe quel
+fichier statique) ; `npm run dev` démarre le serveur de dev Vite. `vite_asset(string $entry):
+string` (`src/helpers.php`) résout l'URL réelle sans jamais casser un lien à chaque build :
+
+```php
+<script type="module" src="<?= e(vite_asset('resources/js/app.js')) ?>"></script>
+```
+
+Lit `public/build/manifest.json` s'il existe (résout l'URL hashée), bascule sur le serveur de dev
+(`http://localhost:5173`, ou l'URL lue dans `public/hot` si présent) sinon. **Inerte tant que vous
+n'appelez pas ce helper** : sans Vite configuré, rien dans le framework n'en dépend — un appel
+explicite sans l'un ou l'autre fichier échoue avec un message clair plutôt qu'un lien cassé
+silencieux.
+
 ## Dépôt public
 
 Le code est sur GitHub : **https://github.com/NiangPro/niangpro** (public, CI activée sur chaque push).
