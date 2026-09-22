@@ -12,6 +12,7 @@ use App\Controllers\ShopController;
 use App\Middleware\Authenticate;
 use App\Middleware\RedirectIfAuthenticated;
 use App\Middleware\ThrottleRequests;
+use App\Middleware\ValidateSignature;
 use App\Middleware\VerifyCsrfToken;
 
 // Supervision : à brancher sur votre outil de monitoring.
@@ -41,6 +42,15 @@ $router->get('/login', [AuthController::class, 'showLogin'], [RedirectIfAuthenti
 $router->post('/login', [AuthController::class, 'login'], [VerifyCsrfToken::class, ThrottleRequests::class]);
 $router->post('/logout', [AuthController::class, 'logout'], [VerifyCsrfToken::class]);
 $router->get('/compte/commandes', [AccountController::class, 'orders'], [Authenticate::class])->name('account.orders');
+
+// Récupération de mot de passe + vérification d'email (signedRoute()) — voir AuthController.
+$router->get('/forgot-password', [AuthController::class, 'showForgotPassword'], [RedirectIfAuthenticated::class])->name('password.request');
+$router->post('/forgot-password', [AuthController::class, 'sendResetLink'], [VerifyCsrfToken::class, ThrottleRequests::class]);
+$router->get('/reset-password/{token}/{email}', [AuthController::class, 'showResetPassword'], [ValidateSignature::class])->name('password.reset');
+$router->post('/reset-password/{token}/{email}', [AuthController::class, 'resetPassword'], [ValidateSignature::class, VerifyCsrfToken::class]);
+$router->get('/verify-email/{id}', [AuthController::class, 'verifyEmail'], [ValidateSignature::class])
+    ->where(['id' => '[0-9]+'])
+    ->name('verification.verify');
 
 // Pages d'information.
 $router->get('/a-propos', [ShopController::class, 'about']);

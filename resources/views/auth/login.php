@@ -15,3 +15,4 @@
     <button type="submit">Se connecter</button>
 </form>
 <p class="link">Pas de compte ? <a href="/register">Créer un compte</a></p>
+<p class="link"><a href="/forgot-password">Mot de passe oublié ?</a></p>

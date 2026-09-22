@@ -13,6 +13,7 @@ use App\Middleware\HandleCors;
 use App\Middleware\LogRequest;
 use App\Middleware\RedirectIfAuthenticated;
 use App\Middleware\ThrottleRequests;
+use App\Middleware\ValidateSignature;
 use App\Middleware\VerifyCsrfToken;
 use App\Policies\PostPolicy;
 use Niang\Core\Gate;
@@ -49,6 +50,15 @@ $router->post('/register', [AuthController::class, 'register'], [VerifyCsrfToken
 $router->get('/login', [AuthController::class, 'showLogin'], [RedirectIfAuthenticated::class])->name('login');
 $router->post('/login', [AuthController::class, 'login'], [VerifyCsrfToken::class, ThrottleRequests::class]);
 $router->post('/logout', [AuthController::class, 'logout'], [VerifyCsrfToken::class]);
+
+// P0 #15, douzième jalon : récupération de mot de passe + vérification d'email (signedRoute()).
+$router->get('/forgot-password', [AuthController::class, 'showForgotPassword'], [RedirectIfAuthenticated::class])->name('password.request');
+$router->post('/forgot-password', [AuthController::class, 'sendResetLink'], [VerifyCsrfToken::class, ThrottleRequests::class]);
+$router->get('/reset-password/{token}/{email}', [AuthController::class, 'showResetPassword'], [ValidateSignature::class])->name('password.reset');
+$router->post('/reset-password/{token}/{email}', [AuthController::class, 'resetPassword'], [ValidateSignature::class, VerifyCsrfToken::class]);
+$router->get('/verify-email/{id}', [AuthController::class, 'verifyEmail'], [ValidateSignature::class])
+    ->where(['id' => '[0-9]+'])
+    ->name('verification.verify');
 
 // Démo v0.6.0 : routes ressources REST (7 routes générées : tags.index, tags.show, ...)
 $router->resource('tags', TagController::class);

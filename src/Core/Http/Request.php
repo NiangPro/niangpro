@@ -31,8 +31,20 @@ class Request
     public static function create(string $method, string $uri, array $data = [], array $server = [], array $headers = []): static
     {
         $method = strtoupper($method);
-        $query = $method === 'GET' ? $data : [];
+
+        // Une query string peut accompagner n'importe quelle méthode (ex: un POST vers une URL
+        // signée) — capture() la lirait depuis $_GET indépendamment du corps ; ici on l'extrait
+        // de $uri pour que $data reste dédiée au corps hors GET.
+        $questionMark = strpos($uri, '?');
+        $query = [];
+
+        if ($questionMark !== false) {
+            parse_str(substr($uri, $questionMark + 1), $query);
+            $uri = substr($uri, 0, $questionMark);
+        }
+
         $body = $method === 'GET' ? [] : $data;
+        $query = $method === 'GET' ? array_merge($query, $data) : $query;
 
         return new static($method, $uri, $query, $body, $server, $headers);
     }

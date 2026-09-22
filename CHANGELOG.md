@@ -9,6 +9,44 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Récupération de mot de passe + vérification d'email** (P0 #15, NiangPro 2.0 — douzième
+  jalon ; Authentication 2.0 de la roadmap, §21 ; dépend des URLs signées, onzième jalon)
+  : `password_reset_tokens` (email, token_hash, created_at) et `users.email_verified_at`
+  (migrations `2026_09_22_100001` et `2026_09_22_100002`). `AuthController::sendResetLink`
+  génère un jeton aléatoire, le stocke haché (jamais en clair, même logique que `Hash` pour
+  les mots de passe — voir `App\Models\PasswordResetToken`), supprime tout jeton existant pour
+  cet email, et envoie un `signedRoute()` (`password.reset`, expiration `auth.
+  password_reset_expire_minutes`, 60 min par défaut) par email (`App\Mailables\
+  ResetPasswordMailable`). Réponse **strictement identique** que l'email corresponde à un
+  compte ou non, pour ne jamais révéler quels comptes existent. `AuthController::resetPassword`
+  vérifie **à la fois** la signature (middleware `ValidateSignature`, sur les routes GET et
+  POST — voir la nouvelle capacité de `Request::create()` ci-dessous) et le jeton en base ;
+  celui-ci est détruit après usage, qu'il ait servi ou non (à usage unique). Le token et l'email
+  voyagent comme paramètres de route (`/reset-password/{token}/{email}`), pas en query string
+  triée : plus simple à canonicaliser puisqu'ils font partie du chemin, seule `expires` reste en
+  query string. À l'inscription, `AuthController::register` envoie désormais aussi un
+  `signedRoute()` (`verification.verify`, expiration `auth.email_verification_expire_hours`,
+  24h par défaut, `App\Mailables\VerifyEmailMailable`) qui renseigne `email_verified_at`.
+  Middleware `App\Middleware\EnsureEmailIsVerified` fourni mais **non branché par défaut** (ni
+  sur les routes existantes, ni sur les thèmes de site livrés) : une application décide
+  elle-même où l'exiger.
+  - **`Request::create()`** (client de test) accepte désormais une query string incluse dans
+    l'URI quelle que soit la méthode HTTP (`$this->post('/reset-password/...?expires=...
+    &signature=...', ['password' => '...'])`), comme le ferait `$_GET` en production
+    indépendamment du corps — nécessaire pour tester une route POST protégée par
+    `ValidateSignature`. Rétrocompatible : sans `?` dans l'URI, comportement inchangé.
+  - Les 5 thèmes sans compte utilisateur (`vitrine`, `blog`, `portfolio`, `landing` — et
+    `minimal`, qui hérite du projet racine tel quel) n'embarquent ni les routes ni les tests de
+    ce jalon (`resources/scaffold/shared/theme.json`, liste `remove`, même mécanisme que pour
+    `AuthTest.php`) ; seul `ecommerce`, qui a déjà un compte client, reçoit les nouvelles routes
+    et vues (thémées, alerte `.alert--info`).
+  - 12 nouveaux tests (`tests/Feature/PasswordResetTest.php`, `tests/Feature/
+    EmailVerificationTest.php`, `tests/Unit/Middleware/EnsureEmailIsVerifiedTest.php`,
+    `tests/Unit/Http/RequestTest.php`) : bout en bout (demande → email capturé par
+    `Mail::fake()` → URL extraite du corps de l'email → requête dessus → nouveau mot de passe
+    fonctionne, l'ancien non), réponse identique compte existant/inconnu, jeton à usage unique,
+    lien altéré ou expiré rejeté.
+
 - **URLs signées** (P0 #15, NiangPro 2.0 — onzième jalon ; rattaché à l'Authentication 2.0 de la
   roadmap, §21) : prérequis du reset de mot de passe et de la vérification d'email (prochains
   jalons) — un lien cliquable qui prouve qu'il vient de l'application, sans authentification

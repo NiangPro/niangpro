@@ -13,5 +13,6 @@
             <button class="btn btn--primary btn--block btn--lg" type="submit">Se connecter</button>
         </form>
         <p class="text-center muted" style="margin-top: var(--space-5)">Pas encore de compte ? <a href="/register">Créer un compte</a></p>
+        <p class="text-center muted"><a href="/forgot-password">Mot de passe oublié ?</a></p>
     </div>
 </section>

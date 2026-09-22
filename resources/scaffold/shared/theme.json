@@ -11,9 +11,11 @@
         "tests/Feature/ContactTest.php",
         "tests/Feature/CorsTest.php",
         "tests/Feature/DebugToolbarTest.php",
+        "tests/Feature/EmailVerificationTest.php",
         "tests/Feature/ErrorHandlingTest.php",
         "tests/Feature/HomeTest.php",
         "tests/Feature/JsonResourceTest.php",
+        "tests/Feature/PasswordResetTest.php",
         "tests/Feature/PostsTest.php",
         "tests/Feature/SecurityHeadersTest.php",
         "tests/Feature/ThemeInstallationTest.php"
