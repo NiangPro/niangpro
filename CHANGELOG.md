@@ -9,6 +9,22 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **URLs signées** (P0 #15, NiangPro 2.0 — onzième jalon ; rattaché à l'Authentication 2.0 de la
+  roadmap, §21) : prérequis du reset de mot de passe et de la vérification d'email (prochains
+  jalons) — un lien cliquable qui prouve qu'il vient de l'application, sans authentification
+  préalable, et qui peut expirer. `Niang\Core\UrlSignature` (classe pure) signe une URL
+  (chemin + query string, comme celle que renvoie `route()`) par HMAC-SHA256 sur sa forme
+  canonique — paramètres de requête triés par clé, `expires` inclus, `signature` exclue — avec
+  `APP_KEY` comme clé, même principe que `Cookie::sign()`. Le tri des paramètres avant hachage
+  rend la signature indépendante de l'ordre dans lequel le navigateur renvoie la query string.
+  `validate()` recalcule et compare avec `hash_equals` ; renvoie `false` si `expires` est dépassé
+  ou si la signature est absente. Nouveau helper `signedRoute(nom, params, expiresInSeconds)`
+  (`route()` + `UrlSignature::sign()`) et middleware `App\Middleware\ValidateSignature`
+  (`abort(403)` si l'URL courante, reconstruite depuis la requête, ne valide pas) — sur le
+  modèle des middlewares existants (`VerifyCsrfToken`, `ThrottleRequests`). 12 nouveaux tests
+  (`tests/Unit/UrlSignatureTest.php`, `tests/Unit/Middleware/ValidateSignatureTest.php`) :
+  falsification d'un paramètre, expiration, signature absente, avec et sans paramètres nommés.
+
 - **Thèmes de site à la création d'un projet** (P0 #15, NiangPro 2.0 — dixième jalon ; rattaché aux
   « Starter Kits » de la roadmap, §63) : à la création d'un projet, NiangPro demande quel type de site
   construire et installe un thème visiteur complet — plutôt que le squelette de démonstration seul.

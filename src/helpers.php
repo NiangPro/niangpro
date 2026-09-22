@@ -5,6 +5,7 @@ use Niang\Core\Env;
 use Niang\Core\Exceptions\HttpException;
 use Niang\Core\Http\Response;
 use Niang\Core\Session;
+use Niang\Core\UrlSignature;
 use Niang\Core\View;
 
 if (!function_exists('base_path')) {
@@ -34,6 +35,14 @@ if (!function_exists('route')) {
     function route(string $name, array $params = []): string
     {
         return \Niang\Core\Router::url($name, $params);
+    }
+}
+
+if (!function_exists('signedRoute')) {
+    /** route() + UrlSignature::sign() : lien cliquable sans authentification préalable, expirable. */
+    function signedRoute(string $name, array $params = [], ?int $expiresInSeconds = null): string
+    {
+        return UrlSignature::sign(route($name, $params), $expiresInSeconds);
     }
 }
 
