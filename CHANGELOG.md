@@ -9,6 +9,44 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Authentification par jeton pour l'API** (P0 #15, NiangPro 2.0 — treizième jalon ;
+  Authentication 2.0 de la roadmap, §21) : permet à un client hors navigateur (app mobile, SPA
+  découplée, script) de s'authentifier sur les routes `/api/*` sans session ni cookie.
+  - **Superposition sur `Auth` plutôt que refonte.** `Niang\Core\Auth::id()/check()/user()`
+    résolvaient jusqu'ici exclusivement via la session (`Session::get('_auth_user_id')`).
+    Plutôt que d'introduire des « guards » multiples (surdimensionné pour ce framework), `Auth`
+    gagne un état `$tokenUser`, prioritaire sur la session dans ces trois méthodes, posé par
+    `Auth::resolveViaToken()` — `@internal`, appelée uniquement par le nouveau middleware, jamais
+    par une application. Le middleware le réinitialise dans un `finally` après chaque requête :
+    aucune fuite d'un utilisateur résolu par jeton vers une requête suivante, y compris dans un
+    process long (CLI, tests) qui en traiterait plusieurs à la suite.
+  - **`personal_access_tokens`** (user_id, name, token_hash, last_used_at, created_at ;
+    migration `2026_09_22_110001`). Le jeton en clair n'est jamais stocké ni loggé — mais
+    **hachage déterministe (HMAC-SHA256, clé `APP_KEY`, même principe que `Cookie::sign()` et
+    `UrlSignature`), pas `Hash::make()`** : contrairement à un mot de passe ou au jeton de reset
+    du jalon précédent (toujours vérifiés dans le contexte d'un email déjà connu), un jeton API
+    doit être retrouvable à partir de sa seule valeur présentée par le client — un hash salé
+    interdirait toute recherche indexée en base. La haute entropie du jeton (32 octets
+    aléatoires) rend un hash rapide suffisant, à la différence d'un mot de passe choisi par un
+    humain.
+  - **`Niang\Core\ApiToken`** (pas de sous-namespace `Niang\Core\Auth\*` : entrerait en conflit
+    avec la classe `Niang\Core\Auth` existante) : `issue(user, name): string` retourne le jeton
+    en clair une seule fois, à l'émission ; `resolve(plaintext): ?array` retrouve l'utilisateur
+    (via `Auth::model()`, nouvel accesseur public du modèle configuré par `Auth::useModel()`) et
+    met à jour `last_used_at`.
+  - **`App\Middleware\AuthenticateWithToken`** lit `Authorization: Bearer <jeton>`, 401 si
+    absent/invalide, sinon `Auth::resolveViaToken()` pour la durée de la requête. Appliquée à
+    l'exemple `GET /api/me`, pas au groupe `/api` entier : `GET /api/posts` reste public,
+    `POST /api/tokens` (l'émission elle-même) ne peut pas exiger le jeton qu'elle délivre.
+  - **`POST /api/tokens`** (`App\Controllers\Api\TokenController`) : émission minimale, sans UI
+    (email + password + device_name → jeton), sur le modèle des autres exemples du groupe `/api`.
+  - Thèmes de site : aucun n'expose de routes `/api/*` aujourd'hui (vérifié dans les 5 thèmes) —
+    rien à propager, contrairement au jalon précédent.
+  - 10 nouveaux tests (`tests/Unit/ApiTokenTest.php`, `tests/Feature/ApiTokenAuthTest.php`) :
+    émission puis résolution, jeton inconnu ou révoqué rejeté, `last_used_at` mis à jour, seul le
+    hash est en base, bout en bout via `/api/tokens` + `/api/me`, et l'authentification par jeton
+    n'interfère jamais avec une session de navigateur active en parallèle.
+
 - **Récupération de mot de passe + vérification d'email** (P0 #15, NiangPro 2.0 — douzième
   jalon ; Authentication 2.0 de la roadmap, §21 ; dépend des URLs signées, onzième jalon)
   : `password_reset_tokens` (email, token_hash, created_at) et `users.email_verified_at`

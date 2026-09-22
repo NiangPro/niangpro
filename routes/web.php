@@ -2,6 +2,7 @@
 
 /** @var \Niang\Core\Router $router */
 
+use App\Controllers\Api\TokenController;
 use App\Controllers\AuthController;
 use App\Controllers\ContactController;
 use App\Controllers\HealthController;
@@ -9,6 +10,7 @@ use App\Controllers\HomeController;
 use App\Controllers\PostController;
 use App\Controllers\TagController;
 use App\Middleware\Authenticate;
+use App\Middleware\AuthenticateWithToken;
 use App\Middleware\HandleCors;
 use App\Middleware\LogRequest;
 use App\Middleware\RedirectIfAuthenticated;
@@ -16,6 +18,7 @@ use App\Middleware\ThrottleRequests;
 use App\Middleware\ValidateSignature;
 use App\Middleware\VerifyCsrfToken;
 use App\Policies\PostPolicy;
+use Niang\Core\Auth;
 use Niang\Core\Gate;
 use Niang\Core\Http\Request;
 use Niang\Core\Http\Response;
@@ -71,6 +74,17 @@ $router->group(['prefix' => '/api', 'middleware' => [HandleCors::class]], functi
     // Sans route OPTIONS explicite, le préflight ne matcherait aucune route (405, avant même
     // d'atteindre HandleCors) : chaque route API doit avoir sa contrepartie OPTIONS.
     $router->options('/posts', fn () => Response::html('', 204));
+
+    // P0 #15, treizième jalon : authentification par jeton. AuthenticateWithToken n'est posée
+    // que sur les routes qui en ont besoin (/me), pas sur le groupe entier — /posts reste public,
+    // /tokens (l'émission elle-même) ne peut pas exiger le jeton qu'elle délivre.
+    $router->post('/tokens', [TokenController::class, 'store']);
+    $router->options('/tokens', fn () => Response::html('', 204));
+
+    $router->get('/me', function (Request $request): Response {
+        return Response::json(['user' => Auth::user()]);
+    }, [AuthenticateWithToken::class]);
+    $router->options('/me', fn () => Response::html('', 204));
 });
 
 // Démo v0.6.0 : sous-domaines — curl -H "Host: acme.niangpro.test" .../tenant

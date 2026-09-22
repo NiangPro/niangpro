@@ -6,6 +6,7 @@
         "resources/views/auth",
         "resources/views/errors",
         "resources/views/layouts",
+        "tests/Feature/ApiTokenAuthTest.php",
         "tests/Feature/AuthTest.php",
         "tests/Feature/AuthorizationTest.php",
         "tests/Feature/ContactTest.php",
