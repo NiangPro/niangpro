@@ -9,6 +9,37 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Un vrai smoke test de packaging en CI** (P0 #15, NiangPro 2.0 — seizième jalon ; CI/CD de la
+  roadmap, §58) : jusqu'ici, la CI vérifiait le code (tests, lint, analyse statique) mais jamais
+  l'expérience d'installation elle-même — ce qu'aucun test unitaire ne peut couvrir par
+  construction (permissions, fichiers manquants, dépendance oubliée dans un thème). Nouveau job
+  `packaging-smoke`, en matrice sur les 6 types de site.
+  - **`composer create-project` depuis le commit courant, pas depuis Packagist**, via un dépôt
+    Composer de type `path` (`{"type":"path","url":".","options":{"symlink":false}}`) —
+    `symlink:false` force une copie réelle, pas un lien qui masquerait un souci de packaging.
+    La commande telle que donnée ne suffit pas telle quelle : un paquet `path` n'a pas de version
+    stable tant qu'il n'est pas tagué, incompatible avec le `minimum-stability: stable` du
+    projet — il faut lui donner explicitement la version à installer
+    (`niangpro/framework /tmp/niang-demo dev-main`). Vérifié en installant réellement en local
+    (avec et sans `--no-dev`) avant d'écrire le workflow, pas seulement lu dans la documentation
+    Composer.
+  - **Vérifié avant même de démarrer le serveur** : ni `.env` ni `storage/` n'existent dans le
+    projet fraîchement créé (tous deux hors du dépôt git, jamais commités) — sans quoi le test ne
+    prouverait rien. Confirmé en local avec un `git archive` du commit courant comme source
+    (plutôt que le répertoire de travail, qui a un `.env` local qui aurait faussé le test) : la
+    suite `README.md` ne documente d'ailleurs aucune étape `.env` pour ce chemin d'installation,
+    seulement pour un clone direct du dépôt.
+  - **`./bin/niang migrate` puis `./bin/niang db:seed`** (comme le suggèrent les `next_steps` du
+    thème, voir dixième jalon) avant de servir : sans ça, `/boutique` (ecommerce) ou `/blog`
+    (blog) répondraient 500, une table inexistante plutôt qu'un vrai problème de packaging —
+    `db:seed` sur un thème qui n'a pas de seeder (`vitrine`, `portfolio`, `landing`) est un
+    no-op silencieux, sans effet ni échec.
+  - `php -S 127.0.0.1:8000 -t public` en arrière-plan, attente active sur `/up` (jusqu'à 10s)
+    avant de vérifier `/`, `/up`, `/health` et une route stable propre à chaque thème
+    (`/a-propos`, `/boutique`, `/blog`, `/projets`, `/mentions-legales`, `/contact` pour
+    `minimal`) — 200 attendu partout, log du serveur affiché en cas d'échec pour diagnostiquer
+    sans reproduire en local.
+
 - **Compilation du Router + préchargement OPcache** (P0 #15, NiangPro 2.0 — quinzième jalon ;
   Router 2.0 et OPcache/production de la roadmap, §12 et §40) : deux sujets performance
   indépendants des jalons précédents.

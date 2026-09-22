@@ -118,3 +118,97 @@ jobs:
           DB_USERNAME: postgres
           DB_PASSWORD: postgres
         run: ./vendor/bin/phpunit --testsuite=Database
+
+  packaging-smoke:
+    name: Packaging — ${{ matrix.site_type }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Une route stable propre à chaque thème, en plus de /, /up et /health communes à tous.
+          - site_type: minimal
+            page: /contact
+          - site_type: vitrine
+            page: /a-propos
+          - site_type: ecommerce
+            page: /boutique
+          - site_type: blog
+            page: /blog
+          - site_type: portfolio
+            page: /projets
+          - site_type: landing
+            page: /mentions-legales
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite
+          coverage: none
+
+      # Simule l'expérience réelle d'installation (composer create-project niangpro/framework),
+      # mais à partir du commit courant plutôt que de Packagist : dépôt Composer de type "path",
+      # copie réelle du répertoire (symlink:false) plutôt qu'un lien qui masquerait des soucis de
+      # packaging. "dev-main --stability=dev" est nécessaire : un paquet "path" n'a pas de version
+      # stable tant qu'il n'est pas tagué, incompatible avec le "minimum-stability: stable" du
+      # projet sans ces deux options.
+      - name: composer create-project depuis le commit courant (pas Packagist)
+        env:
+          NIANG_SITE_TYPE: ${{ matrix.site_type }}
+        run: >
+          composer create-project
+          --repository '{"type":"path","url":".","options":{"symlink":false}}'
+          niangpro/framework /tmp/niang-demo dev-main
+          --no-interaction --prefer-dist --no-dev
+
+      # Ni .env ni storage/ n'existent dans un checkout propre (tous deux hors du dépôt) : le
+      # projet créé doit fonctionner tel quel, sans étape manuelle — voir le README, qui ne
+      # documente aucun `cp .env.example .env` pour ce chemin d'installation.
+      - name: Le projet créé n'a ni .env ni storage/ pré-existants (sinon le test ne prouve rien)
+        run: |
+          test ! -f /tmp/niang-demo/.env
+          test ! -d /tmp/niang-demo/storage
+
+      # Idempotent et sans effet néfaste même pour un thème qui n'en a pas besoin (db:seed
+      # affiche juste "Seeder introuvable" et sort en succès) : suit le même chemin que les
+      # instructions affichées à l'utilisateur après l'installation (ProjectScaffolder::nextSteps()).
+      - name: Migrer et alimenter la base
+        working-directory: /tmp/niang-demo
+        run: |
+          ./bin/niang migrate
+          ./bin/niang db:seed
+
+      - name: Démarrer le serveur intégré
+        working-directory: /tmp/niang-demo
+        run: |
+          php -S 127.0.0.1:8000 -t public > /tmp/niang-demo-server.log 2>&1 &
+          for i in $(seq 1 20); do
+            curl -sf http://127.0.0.1:8000/up > /dev/null 2>&1 && exit 0
+            sleep 0.5
+          done
+          echo "::error::Le serveur n'a jamais répondu."
+          cat /tmp/niang-demo-server.log
+          exit 1
+
+      - name: Vérifier /, /up, /health et la page propre au thème (200 attendu)
+        run: |
+          status=0
+          for path in / /up /health "${{ matrix.page }}"; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8000$path")
+            echo "$path -> $code"
+            if [ "$code" != "200" ]; then
+              echo "::error::$path a répondu $code (200 attendu)"
+              status=1
+            fi
+          done
+          if [ "$status" != "0" ]; then
+            cat /tmp/niang-demo-server.log
+            exit 1
+          fi
+
+      - name: Arrêter le serveur
+        if: always()
+        run: pkill -f "php -S 127.0.0.1:8000" || true
