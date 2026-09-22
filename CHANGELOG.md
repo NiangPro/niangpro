@@ -9,6 +9,40 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Compilation du Router + préchargement OPcache** (P0 #15, NiangPro 2.0 — quinzième jalon ;
+  Router 2.0 et OPcache/production de la roadmap, §12 et §40) : deux sujets performance
+  indépendants des jalons précédents.
+  - **Le matching était linéaire par requête, indépendamment de la méthode HTTP.**
+    `Router::matchRoute()` testait le pattern regex de **chaque** route enregistrée, dans
+    l'ordre de déclaration, avant même de regarder si sa méthode HTTP pouvait correspondre —
+    y compris pour un 404 (aucune route ne matche : le tableau entier est parcouru). Mesuré
+    avant modification avec un micro-benchmark jetable (1000 routes, premier segment d'URI
+    distinct par route) : **0,007 ms/requête pour la première route déclarée, 0,43 ms pour la
+    dernière, 0,40 ms pour un 404** — un facteur ~60 entre le meilleur et le pire cas.
+  - **Fix : index par premier segment d'URI statique.** `Router` construit désormais, à la
+    demande et une seule fois (invalidé à chaque route ajoutée), une table `premier segment =>
+    indices de route`. `matchRoute()` n'évalue plus que les routes dont le premier segment
+    correspond exactement à celui de l'URL demandée, plus celles dont le premier segment est
+    un paramètre (`{slug}`, structurellement indécidable sans évaluer leur pattern). Après
+    modification, même benchmark : **0,0083 ms pour la dernière route (~52x plus rapide), 0,004
+    ms pour un 404 (~98x plus rapide)** ; sur un scénario plus réaliste (50 ressources × 10
+    routes, 10 routes partageant chaque premier segment), 0,013 ms pour la dernière route d'un
+    groupe. Rétrocompatible : le comportement de matching (405, fallback, domaines, HEAD
+    implicite) est inchangé, seul l'ordre dans lequel les routes sont testées change à
+    résultat égal — couvert par la suite `RouterTest` existante, complétée de 3 tests pour les
+    cas jamais exercés jusqu'ici (segment dynamique en première position, premiers segments
+    distincts qui ne s'interfèrent pas, route ajoutée après que l'index a déjà été construit).
+  - **`preload.php`** (racine du projet) précharge `src/Core/**/*.php` via
+    `opcache_compile_file()`, liste construite par `glob()` (donc toujours des fichiers
+    existants, rien à vérifier à la main de ce côté), protégé par
+    `function_exists('opcache_compile_file')`. C'est un réglage **serveur/déploiement**
+    (`opcache.preload` dans le `php.ini` du serveur, jamais dans le projet) — documenté dans
+    `docs/ROADMAP_TECHNIQUE.md` (section 40). `niang optimize` (une requête CLI ponctuelle) ne
+    peut pas l'activer lui-même ; il se contente désormais de rappeler que le fichier existe.
+  - **Honnêteté sur ce qui est testé** : le comportement réel d'OPcache ne se prête pas à un
+    test PHPUnit. Seule la syntaxe de `preload.php` est vérifiée automatiquement (`php -l`, en
+    CI, nouveau step) ; son effet sur les performances ne l'est pas et se vérifie à la main.
+
 - **Écouteurs d'événements différables (`ShouldQueue`)** (P0 #15, NiangPro 2.0 — quatorzième
   jalon ; Queue 2.0 et Events typés de la roadmap, §25-26) : qu'un listener lourd (l'envoi de
   l'email de vérification du douzième jalon, par exemple) ne bloque plus la requête HTTP qui a

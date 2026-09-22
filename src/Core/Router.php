@@ -17,6 +17,21 @@ class Router
 
     private static array $namedRoutes = [];
 
+    /**
+     * Index des routes par premier segment d'URI statique, construit à la demande (voir
+     * candidateIndexes()) et invalidé à chaque route ajoutée. Évite de tester le pattern de
+     * chaque route enregistrée à chaque requête (mesuré : ~60x plus lent sur la dernière d'un
+     * millier de routes qu'sur la première sans cet index — voir CHANGELOG). Les routes dont le
+     * premier segment est un paramètre ({slug}) ne peuvent structurellement être exclues par
+     * aucun segment : elles restent candidates de toute requête.
+     *
+     * @var array<string, list<int>>|null
+     */
+    private ?array $staticIndex = null;
+
+    /** @var list<int> */
+    private array $dynamicIndexes = [];
+
     public function get(string $uri, mixed $action, array $middleware = []): RouteRegistration
     {
         return $this->add('GET', $uri, $action, $middleware);
@@ -133,6 +148,8 @@ class Router
             'pattern' => $this->toPattern($uri),
         ];
 
+        $this->staticIndex = null; // invalidé : reconstruit à la prochaine requête
+
         return array_key_last($this->routes);
     }
 
@@ -187,6 +204,7 @@ class Router
         $this->routes = $routes;
         self::$namedRoutes = $namedRoutes;
         $this->fallbackAction = $fallback;
+        $this->staticIndex = null;
     }
 
     private function toPattern(string $uri, array $constraints = []): string
@@ -238,7 +256,8 @@ class Router
     {
         $allowedMethods = [];
 
-        foreach ($this->routes as $route) {
+        foreach ($this->candidateIndexes($path) as $index) {
+            $route = $this->routes[$index];
             $domainParams = [];
 
             if (($route['domain'] ?? null) !== null) {
@@ -266,6 +285,40 @@ class Router
         }
 
         return [null, [], $allowedMethods];
+    }
+
+    /**
+     * Indices (dans $this->routes) des routes qui peuvent structurellement matcher $path :
+     * celles dont le premier segment d'URI est identique, plus celles dont le premier segment
+     * est un paramètre ({slug}) — impossible à exclure sans évaluer leur pattern complet.
+     *
+     * @return list<int>
+     */
+    private function candidateIndexes(string $path): array
+    {
+        if ($this->staticIndex === null) {
+            $this->buildIndex();
+        }
+
+        $firstSegment = explode('/', trim($path, '/'), 2)[0];
+
+        return [...($this->staticIndex[$firstSegment] ?? []), ...$this->dynamicIndexes];
+    }
+
+    private function buildIndex(): void
+    {
+        $this->staticIndex = [];
+        $this->dynamicIndexes = [];
+
+        foreach ($this->routes as $index => $route) {
+            $firstSegment = explode('/', trim($route['uri'], '/'), 2)[0];
+
+            if (str_starts_with($firstSegment, '{')) {
+                $this->dynamicIndexes[] = $index;
+            } else {
+                $this->staticIndex[$firstSegment][] = $index;
+            }
+        }
     }
 
     private function matchDomain(string $pattern, string $host): ?array

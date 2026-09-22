@@ -26,6 +26,9 @@ jobs:
       - name: Installer les dépendances
         run: composer install --prefer-dist --no-progress
 
+      - name: Syntaxe de preload.php (opcache.preload, non exécutable en CI)
+        run: php -l preload.php
+
       - name: Style de code (PSR-12)
         run: composer lint
 

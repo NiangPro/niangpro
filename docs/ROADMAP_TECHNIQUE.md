@@ -1526,6 +1526,24 @@ niang optimize
 niang optimize:clear
 ```
 
+## État d'avancement : préchargement OPcache (NiangPro 2.0, quinzième jalon de P0 #15)
+
+`preload.php`, à la racine du projet, précharge les classes de `src/Core/` (construit par `glob()`,
+protégé par `function_exists('opcache_compile_file')`). C'est un réglage **serveur/déploiement**,
+jamais quelque chose qu'une commande CLI ponctuelle comme `niang optimize` peut activer depuis une
+requête isolée — elle se contente de rappeler que le fichier existe. Pour l'activer réellement,
+dans le `php.ini` du serveur (jamais dans le projet, jamais par requête) :
+
+```ini
+opcache.preload=/chemin/absolu/vers/le/projet/preload.php
+opcache.preload_user=www-data
+```
+
+Nécessite un redémarrage de PHP-FPM (ou du serveur web) à chaque déploiement pour que le nouveau
+code soit repréchargé — comme `opcache.validate_timestamps=0`, à réserver à un environnement où le
+déploiement redémarre déjà le processus PHP. `route:cache` et `config:cache` (voir `niang optimize`)
+restent indépendants et s'appliquent même sans préchargement.
+
 ---
 
 # 41. P2 — Scheduler

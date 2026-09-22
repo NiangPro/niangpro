@@ -790,6 +790,9 @@ class Commander
         $this->configCache();
         echo "Pensez aussi, en production : composer install --no-dev --optimize-autoloader\n";
         echo "et activez opcache.validate_timestamps=0 dans votre php.ini.\n";
+        echo "preload.php existe à la racine du projet : un réglage serveur (opcache.preload dans\n";
+        echo "php.ini), pas quelque chose qu'une commande CLI ponctuelle comme celle-ci peut activer.\n";
+        echo "Voir docs/ROADMAP_TECHNIQUE.md, section OPcache / production.\n";
     }
 
     /**
