@@ -7,6 +7,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ## [Non publié]
 
+## [1.5.0] — 2026-09-22
+
 ### Fixed
 
 - **Compatibilité multi-OS (Windows, macOS, Linux)** (P0 #15, NiangPro 2.0 — vingt-et-unième
