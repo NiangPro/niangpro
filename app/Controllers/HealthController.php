@@ -3,24 +3,16 @@
 namespace App\Controllers;
 
 use Niang\Core\Controller;
-use Niang\Core\Database\DB;
+use Niang\Core\HealthCheck;
 use Niang\Core\Http\Response;
 
-/** GET /up — à brancher sur votre supervision (Uptime Kuma, un check de load balancer, etc.). */
+/** GET /up et /health — à brancher sur votre supervision (Uptime Kuma, un check de load balancer, etc.). */
 class HealthController extends Controller
 {
     public function index(): Response
     {
-        try {
-            DB::connection()->query('SELECT 1');
-            $database = true;
-        } catch (\Throwable) {
-            $database = false;
-        }
+        $result = HealthCheck::run();
 
-        return $this->json(
-            ['status' => $database ? 'ok' : 'degraded', 'database' => $database],
-            $database ? 200 : 503
-        );
+        return $this->json($result, $result['status'] === 'ok' ? 200 : 503);
     }
 }

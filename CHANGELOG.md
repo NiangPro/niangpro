@@ -95,6 +95,19 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
     PHP-CS-Fixer couvrent désormais les classes PHP de `resources/scaffold` (contrôleurs, modèles, tests) ;
     les vues, routes, configs et migrations, comme à la racine du projet, ne sont pas analysées.
 
+- **`niang health` + `GET /health`** (P0 #15, NiangPro 2.0 — neuvième jalon) : nouvelle classe
+  `Niang\Core\HealthCheck`, logique partagée entre la commande CLI et l'endpoint HTTP — vérifie
+  l'état d'exécution réel (une vraie connexion DB, un aller-retour `Cache::put()`/`get()`,
+  `storage/` accessible en écriture, `Queue::pending()`), contrairement à `niang doctor` qui ne
+  vérifie que la configuration statique. `app/Controllers/HealthController.php` (déjà présent
+  depuis v0.9.0 sur `GET /up`, mais qui ne vérifiait que la base de données) route désormais vers
+  `HealthCheck::run()` ; `GET /health` ajouté en alias documenté par la roadmap, `/up` conservé
+  pour ne pas casser une supervision déjà branchée dessus. Réponse : `{"status": "ok"|"error",
+  "services": {"database": "ok", "cache": "ok", "storage": "ok", "queue": "ok"}}`, HTTP 200/503.
+  `niang health` affiche le même détail et sort avec le code 1 si `status !== "ok"`.
+  6 nouveaux tests (`tests/Unit/HealthCheckTest.php`, `tests/Feature/HealthTest.php`,
+  `tests/Unit/Console/CommanderHealthTest.php`).
+
 ### Changed
 
 - `PostController::page` (P0 #15, dixième jalon) : liste désormais les articles les plus récents d'abord,

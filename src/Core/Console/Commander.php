@@ -8,6 +8,7 @@ use Niang\Core\Database\DB;
 use Niang\Core\Database\Migrator;
 use Niang\Core\Database\Seeder;
 use Niang\Core\Env;
+use Niang\Core\HealthCheck;
 use Niang\Core\Queue;
 use Niang\Core\RouteCache;
 use Niang\Core\Router;
@@ -52,6 +53,7 @@ class Commander
             'config:cache' => $this->configCache(),
             'config:clear' => $this->configClear(),
             'doctor' => $this->doctor(),
+            'health' => $this->health(),
             'make:policy' => $this->makePolicy($arg),
             'make:job' => $this->makeJob($arg),
             'make:event' => $this->makeEvent($arg),
@@ -917,6 +919,22 @@ class Commander
         return $ok ? ['ok', $okMessage] : ['fail', $failMessage];
     }
 
+    /** Même logique que GET /health|/up (Niang\Core\HealthCheck) — utile en pré-déploiement sans faire de requête HTTP. */
+    private function health(): void
+    {
+        $result = HealthCheck::run();
+
+        foreach ($result['services'] as $service => $state) {
+            echo ($state === 'ok' ? '✓' : '✗') . " $service : $state\n";
+        }
+
+        echo "\nStatut global : {$result['status']}\n";
+
+        if ($result['status'] !== 'ok') {
+            exit(1);
+        }
+    }
+
     /**
      * Clone le projet courant (sans vendor/, .git/, données locales) comme squelette d'un nouveau
      * projet, puis y installe le thème du type de site choisi (--type=<slug>, NIANG_SITE_TYPE, ou
@@ -1183,6 +1201,7 @@ class Commander
           config:cache             Fige config/*.php (production uniquement)
           config:clear             Supprime le cache de configuration
           doctor                   Diagnostique l'environnement (PHP, extensions, .env, DB, storage...)
+          health                   Vérifie l'état d'exécution (DB, cache, storage, queue) — même logique que GET /health
           make:policy <Nom>        Génère une policy dans app/Policies
           make:job <Nom>           Génère un job dans app/Jobs
           make:event <Nom>         Génère un événement dans app/Events
