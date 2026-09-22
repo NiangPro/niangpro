@@ -9,6 +9,49 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Interopérabilité PSR-7 / PSR-15** (P0 #15, NiangPro 2.0 — dix-neuvième jalon ; PSR de la
+  roadmap, §10) : que quelqu'un puisse brancher un middleware PSR-15 tiers (une lib de sécurité,
+  un cache HTTP existant sur Packagist...) sans réécrire NiangPro autour de PSR-7.
+  `Request`/`Response` restent les objets simples de NiangPro partout — aucun remplacement par
+  des objets PSR-7 immuables, ça casserait l'API actuelle pour un bénéfice qui ne le justifie pas.
+  - **`psr/http-message` et `psr/http-server-middleware`** (interfaces seules, comme
+    `psr/container`/`psr/log` déjà présents) en `require` — zéro poids d'implémentation.
+    **`nyholm/psr7`** en `suggest` (jamais en `require`) : psr/http-message ne fournit que des
+    interfaces, une implémentation concrète est nécessaire pour en INSTANCIER une (contrairement
+    à la simple lecture d'une interface déjà fournie par un tiers). Mise en `require-dev`
+    (jamais en production, comme phpunit/phpstan) pour que ce jalon puisse être testé avec une
+    vraie conversion plutôt que seulement le message d'erreur en son absence.
+  - **`Niang\Core\Http\Psr7Bridge`** : `toPsrRequest()`/`toPsrResponse()` doivent construire un
+    objet concret à partir de rien — vérifient la présence de l'implémentation (`class_exists`)
+    et lèvent une `RuntimeException` explicite sinon (« installez nyholm/psr7... ») plutôt qu'une
+    erreur PHP opaque sur une classe manquante. `fromPsrResponse()`, à l'inverse, n'a besoin
+    d'aucune implémentation concrète : `ResponseInterface` expose déjà tout ce qu'il faut lire —
+    prouvé par un test qui lui passe un stub maison, sans nyholm. `Response::getHeaders()` ajouté
+    (mineur, non cassant, cohérent avec les getters déjà existants) : nécessaire pour transmettre
+    tous les en-têtes déjà posés par le pipeline NiangPro lors d'une conversion vers PSR-7, que
+    `getHeader(string $key)` seul ne permettait pas.
+  - **`Niang\Core\Http\Psr15Adapter`** implémente le contrat `Middleware` existant, reçoit un
+    `Psr\Http\Server\MiddlewareInterface` en constructeur, fait le pont dans les deux sens via
+    `Psr7Bridge` — s'attache à une route exactement comme un middleware natif :
+    `$container->bind(Psr15Adapter::class, fn () => new Psr15Adapter(new UnMiddlewareTiers()))`
+    (typiquement dans `ServiceProvider::register()`) puis `Psr15Adapter::class` dans le tableau
+    de middlewares d'une route — comportement déjà celui du Container pour toute classe dont une
+    dépendance est une interface, rien à modifier dans `Router`/`Container` pour ce jalon.
+    Limite assumée et documentée : un middleware PSR-15 qui modifie la réponse ou court-circuite
+    fonctionne pleinement ; un middleware qui n'agit que sur des attributs PSR-7 de la requête ne
+    peut pas les transmettre à NiangPro par ce pont (`Request` n'a pas de notion d'attributs, lui
+    en ajouter reviendrait à commencer la refonte que ce pont évite justement).
+  - Pas de sous-namespace `Niang\Core\Http\Psr15\*` : `Psr7Bridge`/`Psr15Adapter` vivent au
+    même niveau que `Request`/`Response`, cohérent avec l'existant (`Csrf`, `Cookie`... jamais
+    sous-namespacés pour une seule classe).
+  - 10 nouveaux tests (`tests/Unit/Http/Psr7BridgeTest.php`, `tests/Unit/Http/
+    Psr15AdapterTest.php`) : conversion réelle Request→PSR-7 (méthode, URI, query, body,
+    en-têtes) et retour, un vrai middleware PSR-15 écrit pour le test (pas une vraie lib tierce)
+    qui modifie effectivement la réponse et un autre qui court-circuite, le message d'erreur
+    clair quand aucune implémentation PSR-7 n'est installée (testé sans désinstaller nyholm : la
+    vérification `class_exists` est extraite dans une méthode qui prend la classe et le paquet en
+    paramètres, invoquée par réflexion avec un nom de classe qui n'existe sûrement pas).
+
 - **Compatibilité navigateurs (Chrome, Firefox, Edge, Safari desktop + iOS)** (P0 #15,
   NiangPro 2.0 — dix-huitième jalon ; rattaché aux Thèmes de site, §63) : audit statique du CSS/JS
   partagé et de celui de chaque thème avant toute correction, cible modernes uniquement (IE11 et

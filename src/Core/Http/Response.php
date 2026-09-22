@@ -73,6 +73,12 @@ final class Response
         return $this->headers[$key] ?? null;
     }
 
+    /** @return array<string, string> utilisé par Psr7Bridge pour transmettre tous les en-têtes lors d'une conversion vers PSR-7. */
+    public function getHeaders(): array
+    {
+        return $this->headers;
+    }
+
     public function send(): void
     {
         if (!headers_sent()) {

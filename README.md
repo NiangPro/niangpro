@@ -1027,9 +1027,43 @@ class ReportGenerator
 $container->make(ReportGenerator::class);
 ```
 
-Seules deux dépendances existent dans `composer.json` : `psr/container` et `psr/log`, deux paquets
-d'interfaces pures (aucun code d'implémentation, aucune dépendance transitive) — le framework reste
-sans dépendance d'implémentation à l'exécution.
+Seules des interfaces PSR pures existent dans `composer.json` (`psr/container`, `psr/log`,
+`psr/http-message`, `psr/http-server-middleware`) : aucun code d'implémentation, aucune dépendance
+transitive lourde — le framework reste sans dépendance d'implémentation à l'exécution.
+
+### PSR-7 / PSR-15 (brancher un middleware tiers)
+
+`Request`/`Response` restent les objets simples de NiangPro — pas d'objets PSR-7 immuables partout,
+ça casserait l'API actuelle pour un bénéfice qui ne le justifie pas. Mais un middleware PSR-15 tiers
+(une lib de sécurité, un cache HTTP existant sur Packagist...) reste branchable sans réécrire le
+framework autour de PSR-7, via un pont :
+
+```bash
+composer require nyholm/psr7   # implémentation concrète — psr/http-message ne fournit que des interfaces
+```
+
+```php
+use Niang\Core\Http\Psr15Adapter;
+
+// Dans ServiceProvider::register() : $this->app->container y est accessible.
+$this->app->container->bind(Psr15Adapter::class, fn () => new Psr15Adapter(new UnMiddlewarePsr15Tiers()));
+```
+
+```php
+// routes/web.php : s'attache exactement comme un middleware natif.
+$router->get('/api/x', [Controller::class, 'index'], [Psr15Adapter::class]);
+```
+
+`Niang\Core\Http\Psr7Bridge` fait la conversion (`toPsrRequest()`, `toPsrResponse()`,
+`fromPsrResponse()`), logique pure et testable indépendamment de l'adaptateur. Sans `nyholm/psr7`
+(ou une autre implémentation PSR-7 concrète) installé, `Psr7Bridge` lève une `RuntimeException`
+explicite plutôt qu'une erreur PHP opaque sur une classe manquante.
+
+Limite assumée : un middleware PSR-15 qui modifie la **réponse**, ou qui **court-circuite** la
+requête (ne délègue jamais au handler), fonctionne pleinement. Un middleware qui n'agit que sur des
+attributs PSR-7 de la **requête** pour un usage plus en aval ne peut pas les transmettre à NiangPro
+par ce pont — `Request` n'a pas de notion d'attributs, lui en ajouter reviendrait à commencer la
+refonte que ce pont évite justement.
 
 ## Service Providers
 

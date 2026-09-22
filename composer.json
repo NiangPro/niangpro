@@ -1,6 +1,6 @@
 {
     "name": "niangpro/framework",
-    "description": "Un micro-framework PHP ultra simple, plus simple que Laravel : routeur, DI, ORM minimal, auth, tests, sans dépendance d'implémentation à l'exécution (seulement les interfaces PSR-11/PSR-3, pour l'interopérabilité).",
+    "description": "Un micro-framework PHP ultra simple, plus simple que Laravel : routeur, DI, ORM minimal, auth, tests, sans dépendance d'implémentation à l'exécution (seulement les interfaces PSR-11/PSR-3/PSR-7/PSR-15, pour l'interopérabilité).",
     "type": "project",
     "keywords": ["framework", "micro-framework", "php", "router", "orm", "minimal"],
     "license": "MIT",
@@ -17,7 +17,12 @@
     "require": {
         "php": ">=8.1",
         "psr/container": "^2.0",
-        "psr/log": "^3.0"
+        "psr/log": "^3.0",
+        "psr/http-message": "^1.1 || ^2.0",
+        "psr/http-server-middleware": "^1.0"
+    },
+    "suggest": {
+        "nyholm/psr7": "Fournit l'implémentation PSR-7 concrète (interfaces seulement en require) nécessaire pour Niang\\Core\\Http\\Psr7Bridge et Psr15Adapter."
     },
     "config": {
         "platform": {
@@ -42,7 +47,8 @@
     "require-dev": {
         "phpunit/phpunit": "^10.0",
         "friendsofphp/php-cs-fixer": "^3.0",
-        "phpstan/phpstan": "^1.0 || ^2.0"
+        "phpstan/phpstan": "^1.0 || ^2.0",
+        "nyholm/psr7": "^1.8"
     },
     "scripts": {
         "test": "phpunit",
