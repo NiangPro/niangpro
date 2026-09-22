@@ -1,0 +1,12 @@
+{
+    "name": "niangpro-browser-smoke",
+    "private": true,
+    "type": "module",
+    "description": "Outil jetable, hors du projet PHP : vérifie le rendu des thèmes de site sur Chromium, Firefox et WebKit (le seul moyen réaliste de tester Safari sans Mac dédié). Jamais un prérequis de composer test.",
+    "scripts": {
+        "smoke": "node smoke.mjs"
+    },
+    "devDependencies": {
+        "playwright": "^1.47.0"
+    }
+}

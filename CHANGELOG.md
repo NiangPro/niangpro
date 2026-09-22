@@ -9,6 +9,50 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Compatibilité navigateurs (Chrome, Firefox, Edge, Safari desktop + iOS)** (P0 #15,
+  NiangPro 2.0 — dix-huitième jalon ; rattaché aux Thèmes de site, §63) : audit statique du CSS/JS
+  partagé et de celui de chaque thème avant toute correction, cible modernes uniquement (IE11 et
+  WebView Android ancien explicitement hors cible — rien de moderne déjà en place n'a été
+  sacrifié pour eux).
+  - **Rien de récent/spécifique à un moteur trouvé** : aucun `:has()`, `color-mix()`, `@container`
+    ni `subgrid` nulle part dans `resources/scaffold/`. Rien à simplifier ni à replier de ce côté.
+  - **`body { min-height: 100vh }`** (`niang.css`, seule occurrence de `100vh` du design system —
+    les héros des thèmes utilisent déjà `padding-block: clamp(...)`, jamais de hauteur fixe en
+    `vh`) : complété par `min-height: 100dvh` en repli progressif, à cause du bug connu de la
+    barre d'adresse rétractable de Safari iOS qui laisse un vide sous le pied de page tant qu'elle
+    reste affichée.
+  - **FAQ (`<details>`/`<summary>`)** : `list-style: none` + `::-webkit-details-marker` masquaient
+    déjà le triangle par défaut (Chrome/Firefox honorent `list-style` sur `<summary>`, WebKit ne
+    l'honore pas et n'obéit qu'à son propre pseudo-élément) — `::marker { display: none }` ajouté
+    en complément explicite, conforme au standard, pour ne dépendre d'aucun comportement implicite.
+  - **Autofill** (connexion, inscription, checkout, formulaire de contact) : Chrome et Safari
+    peignent un fond propre au navigateur sur un champ mémorisé, indépendant de `color-scheme` —
+    cassait le thème sombre. `-webkit-box-shadow: 0 0 0 1000px var(--surface) inset` +
+    `-webkit-text-fill-color` ajoutés sur `.field input:-webkit-autofill`.
+  - **Vérifié, non applicable — documenté honnêtement plutôt que corrigé pour rien** :
+    `env(safe-area-inset-*)` n'a d'effet que si le meta viewport déclare `viewport-fit=cover`, ce
+    qui n'est le cas nulle part ici, et aucune barre `position: fixed` n'existe dans le design
+    system ni dans aucun thème (le header est `sticky`, pas `fixed`) — l'ajouter serait un
+    no-op. Le « bouton clair/sombre manuel » évoqué comme point de vigilance n'existe pas non
+    plus : la bascule est uniquement automatique via `prefers-color-scheme` (`niang.js` ne touche
+    jamais `localStorage`), rien à encapsuler dans un `try/catch`.
+  - **Vérification par mesure réelle, pas seulement une relecture visuelle** : Node étant
+    disponible sur cette machine, `tools/browser-smoke/` (outil jetable, jamais un prérequis de
+    `composer test` — voir son README) lance un vrai serveur PHP par thème et vérifie, sur les
+    trois moteurs que Playwright embarque (Chromium, Firefox, **WebKit** — seul moyen réaliste de
+    tester le rendu Safari sans Mac dédié, et qui couvre aussi Safari iOS au passage, même
+    moteur), que `/`, `/up`, `/health` répondent sur les 6 thèmes, et que les interactions
+    (menu burger, formulaire de contact, FAQ, rendu clair/sombre via `prefers-color-scheme`
+    émulé) fonctionnent sur `vitrine` (représentatif : les trois mécanismes viennent du design
+    system partagé, communs à tous les thèmes — inutile de répéter la vérification 6 fois).
+    **69/69 vérifications réussies sur les 3 moteurs**, exécuté réellement en écrivant ce jalon
+    (pas seulement écrit puis supposé fonctionner).
+  - **Un vrai piège rencontré et documenté, pas un bug produit** : le premier essai du clic FAQ
+    échouait sur les 3 moteurs à l'identique — pas un bug de rendu, mais deux pièges de
+    l'automatisation elle-même (la debug toolbar `position: fixed` interceptait les clics près du
+    bas de l'écran ; un sélecteur `:not([open])` se ré-évaluait après le clic et la vérification
+    portait sur un autre `<details>`). Voir `tools/browser-smoke/README.md`.
+
 - **Extensibilité des thèmes en paquets Composer séparés** (P0 #15, NiangPro 2.0 — dix-septième
   jalon ; complète les « Starter Kits » de la roadmap, §63, voir aussi Plugins/packages, §47) :
   jusqu'ici, un thème n'existait qu'en dossier local de `resources/scaffold/themes/<slug>/` —

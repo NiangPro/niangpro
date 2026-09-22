@@ -107,6 +107,11 @@ html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 body {
     margin: 0;
     min-height: 100vh;
+    /* La barre d'adresse rétractable de Safari iOS redimensionne le viewport : 100vh y est calculé
+       sur la hauteur maximale (barre masquée), laissant un vide sous le pied de page tant qu'elle
+       est visible. dvh suit la hauteur réelle affichée. Repli 100vh ci-dessus pour les navigateurs
+       qui ne le supportent pas encore (la ligne suivante est simplement ignorée par eux). */
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
     font-family: var(--font-sans);
@@ -471,6 +476,11 @@ a.tag:hover { border-color: var(--accent-text); color: var(--accent-text); }
     cursor: pointer;
     list-style: none;
 }
+/* Le triangle de disclosure par défaut diffère selon le moteur : list-style ne suffit pas partout
+   (WebKit/Safari l'ignore sur <summary> et n'obéit qu'à son propre pseudo-élément), ::marker ne
+   suffit pas non plus partout (moteurs plus anciens) — les deux ensemble couvrent Chrome, Firefox,
+   Edge et Safari desktop/iOS. */
+.faq summary::marker { display: none; content: ""; }
 .faq summary::-webkit-details-marker { display: none; }
 .faq summary .icon { transition: transform 0.2s; color: var(--accent-text); }
 .faq details[open] summary .icon { transform: rotate(180deg); }
@@ -521,6 +531,19 @@ a.tag:hover { border-color: var(--accent-text); color: var(--accent-text); }
 }
 .field textarea { min-height: 9rem; resize: vertical; }
 .field input:hover, .field textarea:hover, .field select:hover { border-color: var(--muted); }
+/* Chrome et Safari peignent l'autofill avec un fond propre au navigateur (jaune pâle, bleu clair),
+   indépendant de color-scheme : sans ça, un champ mémorisé (connexion, inscription, checkout)
+   casse le thème sombre. Fond et texte du design system imposés par une box-shadow interne plutôt
+   que background (background est ignoré sur un champ autofilli). */
+.field input:-webkit-autofill,
+.field input:-webkit-autofill:hover,
+.field input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--text);
+    -webkit-box-shadow: 0 0 0 1000px var(--surface) inset;
+    box-shadow: 0 0 0 1000px var(--surface) inset;
+    caret-color: var(--text);
+    transition: background-color 600000s 0s, color 600000s 0s;
+}
 .field input:focus-visible, .field textarea:focus-visible, .field select:focus-visible {
     outline: none;
     border-color: var(--accent-text);

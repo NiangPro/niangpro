@@ -1,4 +1,6 @@
 /vendor/
+tools/browser-smoke/node_modules/
+tools/browser-smoke/test-results/
 .env
 storage/logs/*.log
 storage/*.sqlite
