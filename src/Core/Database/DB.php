@@ -58,7 +58,7 @@ class DB
             $path = Env::get($prefix . 'DATABASE', Env::get('DB_DATABASE', 'storage/database.sqlite'));
 
             if ($path !== ':memory:') {
-                if (!str_starts_with($path, '/')) {
+                if (!self::isAbsolutePath($path)) {
                     $path = base_path($path);
                 }
 
@@ -95,6 +95,18 @@ class DB
         $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 
         return $pdo;
+    }
+
+    /**
+     * `/chemin` (Unix, macOS) ou `C:\chemin`/`C:/chemin` (Windows, lettre de lecteur) ou
+     * `\\serveur\partage` (UNC Windows) — sans ce dernier cas, un DB_DATABASE Windows absolu
+     * serait pris pour un chemin relatif et préfixé de base_path(), cassant la connexion SQLite.
+     */
+    private static function isAbsolutePath(string $path): bool
+    {
+        return str_starts_with($path, '/')
+            || str_starts_with($path, '\\\\')
+            || (bool) preg_match('#^[A-Za-z]:[\\\\/]#', $path);
     }
 
     /** Le Grammar (traducteur SQL) correspondant au driver configuré pour $connection. */

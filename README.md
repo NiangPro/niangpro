@@ -14,6 +14,11 @@ cd mon-app
 ./bin/niang serve
 ```
 
+Testé en CI sur Linux, macOS et Windows (voir `.github/workflows/ci.yml`, job `cross-platform`).
+Sous Windows en CMD/PowerShell natif (hors WSL/Git Bash, où `./bin/niang` fonctionne tel quel),
+utilisez `bin\niang serve` (le shebang `#!/usr/bin/env php` n'y est pas interprété ; `bin\niang.bat`
+relaie automatiquement vers `php bin\niang`).
+
 À la fin de l'installation, NiangPro vous demande **quel type de site vous voulez construire** et installe un
 thème visiteur complet et moderne (clair et sombre, responsive, accessible, sans CDN ni dépendance) :
 

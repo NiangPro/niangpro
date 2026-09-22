@@ -84,9 +84,14 @@ class StagedProject
 
         // Environnement minimal et explicite : celui du process courant contient déjà les valeurs de
         // .env.testing (Env::load fait des putenv), qui masqueraient ce que la copie doit charger seule.
+        // SystemRoot/windir : sans eux, PHP peut échouer au démarrage sur Windows avec un
+        // environnement aussi restreint (fonctions socket notamment) — absents et sans effet sur
+        // Unix, où getenv() y renvoie simplement false.
         $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes, $this->path, [
             'PATH' => (string) getenv('PATH'),
             'HOME' => (string) getenv('HOME'),
+            'SystemRoot' => (string) getenv('SystemRoot'),
+            'windir' => (string) getenv('windir'),
             'APP_ENV' => 'testing',
         ]);
 
@@ -116,7 +121,15 @@ class StagedProject
                 continue;
             }
 
-            symlink("$realVendor/$entry", "$vendor/$entry");
+            $source = "$realVendor/$entry";
+            $target = "$vendor/$entry";
+
+            // Windows refuse symlink() sans privilège administrateur ni mode développeur activé :
+            // repli sur une copie complète (plus lent, mais ne dépend d'aucune configuration
+            // système préalable côté machine qui lance les tests).
+            if (!@symlink($source, $target)) {
+                is_dir($source) ? self::copyDirectory($source, $target) : copy($source, $target);
+            }
         }
     }
 

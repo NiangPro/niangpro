@@ -38,6 +38,38 @@ jobs:
       - name: Tests
         run: composer test
 
+  cross-platform:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Une seule version PHP ici (la matrice ci-dessus couvre déjà 8.1 à 8.4, mais uniquement
+        # sur Linux) : ce job vérifie que le framework tourne réellement sur Windows et macOS,
+        # pas seulement que rien dans le code n'y fait explicitement obstacle.
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite
+          coverage: none
+
+      - name: Installer les dépendances
+        run: composer install --prefer-dist --no-progress
+
+      - name: Style de code (PSR-12)
+        run: composer lint
+
+      - name: Analyse statique (PHPStan)
+        run: composer analyse
+
+      - name: Tests
+        run: composer test
+
   mysql:
     name: Migrations — MySQL
     runs-on: ubuntu-latest

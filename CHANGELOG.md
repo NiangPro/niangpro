@@ -7,6 +7,44 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ## [Non publié]
 
+### Fixed
+
+- **Compatibilité multi-OS (Windows, macOS, Linux)** (P0 #15, NiangPro 2.0 — vingt-et-unième
+  jalon ; CI/CD de la roadmap, §58) : audit du code (recherche d'appels shell, de symlinks, de
+  chemins codés en dur) avant toute correction — pas de suppositions.
+  - **Vrai bug trouvé : `DB::createConnection()` ne reconnaissait un chemin `DB_DATABASE`
+    absolu qu'à la convention Unix** (`str_starts_with($path, '/')`). Un chemin Windows absolu
+    (`C:\...`, `C:/...`, UNC `\\serveur\partage`) aurait été pris pour un chemin relatif et
+    préfixé de `base_path()`, cassant la connexion SQLite. `DB::isAbsolutePath()` reconnaît
+    désormais les trois conventions (6 tests, `tests/Unit/Database/DBIsAbsolutePathTest.php`,
+    testée par réflexion — méthode privée, sur le modèle de `Psr7Bridge::requireClass`).
+  - **Aucun `.gitattributes`** : sans lui, un checkout Windows avec `core.autocrlf=true`
+    (réglage très courant) convertit `bin/niang` en CRLF, et son shebang
+    (`#!/usr/bin/env php`) échoue sous WSL/Git Bash (`env: 'php\r': No such file or directory`).
+    Fins de ligne forcées en LF pour le texte (`* text=auto eol=lf`), CRLF explicite pour les
+    `.bat` (convention `cmd.exe`).
+  - **`bin/niang.bat`** ajouté : sous CMD/PowerShell natif (hors WSL/Git Bash, où
+    `./bin/niang` fonctionne déjà tel quel), le shebang n'est pas interprété — ce wrapper relaie
+    vers `php bin/niang`, copié automatiquement par `niang new`/`ProjectScaffolder` comme
+    n'importe quel autre fichier de `bin/` (aucune modification de code nécessaire de ce côté).
+  - **`StagedProject::linkVendor()` (harnais de test, `ThemeInstallationTest`) utilisait
+    `symlink()` sans repli.** Sur Windows sans privilège administrateur ni mode développeur
+    activé, `symlink()` échoue silencieusement (avertissement PHP) — repli sur une copie
+    complète du paquet concerné dans ce cas (plus lent, mais ne dépend d'aucune configuration
+    système préalable). `StagedProject::php()`/`phpunit()` transmettent aussi désormais
+    `SystemRoot`/`windir` au sous-process : leur absence peut faire échouer PHP au démarrage
+    sur Windows avec un environnement aussi restreint (fonctions socket notamment) — sans
+    effet sur Unix, où ils sont simplement absents de `getenv()`.
+  - **Vérification** : `composer test && composer lint && composer analyse` déjà vérifiés en CI
+    sur Linux (`ubuntu-latest`) pour chaque version PHP supportée (8.1 à 8.4) — nouveau job
+    `cross-platform` qui les vérifie aussi réellement sur `windows-latest` et `macos-latest`
+    (PHP 8.4), plutôt que de supposer la portabilité. **Honnêteté sur ce qui est mesuré** :
+    aucune machine Windows n'était disponible pour vérifier ces correctifs en local avant de
+    les pousser — la CI GitHub Actions est ici la première vérification réelle sur cet OS,
+    pas une relecture de code seule. Le smoke test de packaging (`packaging-smoke`, seizième
+    jalon) reste Linux uniquement : adapter ses scripts bash (`curl`, `pkill`, jobs en arrière-plan)
+    à PowerShell est un chantier séparé, hors du périmètre retenu ici.
+
 ## [1.4.0] — 2026-09-22
 
 ### Added

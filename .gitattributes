@@ -1,0 +1,14 @@
+# Fins de ligne forcées en LF pour tout le texte : sans ça, un checkout Windows avec
+# core.autocrlf=true convertit bin/niang en CRLF, et son shebang (#!/usr/bin/env php)
+# échoue sous WSL/Git Bash ("env: 'php\r': No such file or directory") — bug réel, pas
+# théorique. `text=auto` détecte les fichiers binaires (images, etc.) et les laisse intacts.
+* text=auto eol=lf
+
+# Scripts shell : jamais de CRLF, exécutables préservés quel que soit git config core.fileMode.
+bin/niang text eol=lf
+*.sh text eol=lf
+
+# À l'inverse : cmd.exe attend des fins de ligne CRLF pour un .bat, même si eol=lf ci-dessus
+# ne s'appliquerait de toute façon qu'au checkout sur une machine Unix — explicite plutôt
+# qu'implicite.
+*.bat text eol=crlf
