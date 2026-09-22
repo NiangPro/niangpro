@@ -2257,9 +2257,11 @@ type de site construire et installe un thème visiteur complet.
 ```
 
 Un thème est un dossier de `resources/scaffold/themes/<slug>/` : ajouter un dossier l'ajoute au catalogue.
-Restent à faire pour rejoindre la vision ci-dessus : les starters `api`, `auth` et `saas`, et la
-publication de thèmes sous forme de paquets Composer. Voir le CHANGELOG (« Thèmes de site à la création
-d'un projet ») pour les décisions prises.
+Depuis le dix-septième jalon, un thème peut aussi être publié comme paquet Composer tiers
+(`extra.niangpro-theme` dans son `composer.json`) et installé avec `niang theme:add vendor/paquet` — voir
+le README, section « Publier votre thème comme paquet Composer ». Restent à faire pour rejoindre la
+vision ci-dessus : les starters `api`, `auth` et `saas`. Voir le CHANGELOG (« Thèmes de site à la création
+d'un projet », « Extensibilité des thèmes en paquets Composer séparés ») pour les décisions prises.
 
 ---
 

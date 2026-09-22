@@ -9,6 +9,35 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Extensibilité des thèmes en paquets Composer séparés** (P0 #15, NiangPro 2.0 — dix-septième
+  jalon ; complète les « Starter Kits » de la roadmap, §63, voir aussi Plugins/packages, §47) :
+  jusqu'ici, un thème n'existait qu'en dossier local de `resources/scaffold/themes/<slug>/` —
+  rien ne permettait d'en partager un sans copier-coller ses fichiers dans chaque projet.
+  - **Conception : convention légère plutôt qu'un plugin Composer.** Deux options envisagées :
+    (a) une convention `extra.niangpro-theme` dans le `composer.json` d'un paquet tiers,
+    pointant vers un dossier interne qui reproduit l'arborescence d'un thème — une commande
+    copie ce dossier dans le projet courant ; (b) un vrai plugin Composer avec ses propres
+    classes d'installateur, packages de type `niangpro-theme`, écouteurs d'événements Composer.
+    (b) ajouterait une dépendance de développement (`composer-plugin-api`) et une couche de
+    complexité (cycle de vie d'un plugin, compatibilité entre versions de Composer) qu'un thème
+    — « juste un dossier », déjà le principe assumé du dixième jalon — ne justifie pas : (a)
+    couvre la quasi-totalité des cas réels sans rien ajouter au *runtime* de l'application.
+    Choix : (a).
+  - **`Niang\Core\Console\ThemePackageInstaller`** (logique pure et testable, aucun process
+    composer lancé par cette classe) : lit `extra.niangpro-theme` du `composer.json` d'un paquet
+    déjà présent dans `vendor/`, copie le dossier qu'elle désigne vers
+    `resources/scaffold/themes/<slug>/` — `<slug>` est le nom de ce dossier tel que le paquet
+    l'a lui-même nommé, jamais redemandé séparément. `ProjectScaffolder` n'a besoin d'aucune
+    modification pour le proposer ensuite : un thème est déjà « juste un dossier ».
+  - **`niang theme:add vendor/paquet`** (Commander, l'I/O : `composer require --dev` — inutile
+    en production, seulement à la création de projets — puis `ThemePackageInstaller::install()`).
+    Documenté dans le README, section « Publier votre thème comme paquet Composer ».
+  - 6 nouveaux tests (`tests/Unit/Console/ThemePackageInstallerTest.php`), fixture locale (pas un
+    vrai téléchargement Packagist) : un thème installé apparaît dans
+    `ProjectScaffolder::catalog()`, son dossier est copié tel quel, paquet non installé ou sans
+    la clé `extra.niangpro-theme` rejeté, dossier de thème déclaré mais absent rejeté, slug
+    réservé (`minimal`) rejeté.
+
 - **Un vrai smoke test de packaging en CI** (P0 #15, NiangPro 2.0 — seizième jalon ; CI/CD de la
   roadmap, §58) : jusqu'ici, la CI vérifiait le code (tests, lint, analyse statique) mais jamais
   l'expérience d'installation elle-même — ce qu'aucun test unitaire ne peut couvrir par

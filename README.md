@@ -928,6 +928,7 @@ Grammar — corrigé pour passer par `Schema`/`Blueprint` comme n'importe quelle
 ./bin/niang new mon-app              # crée un nouveau projet (pose la question du type de site)
 ./bin/niang new mon-app --type=blog  # idem sans question : vitrine, ecommerce, blog, portfolio, landing, minimal
 ./bin/niang np:install               # installe le raccourci global `np` (macOS/Linux)
+./bin/niang theme:add vendor/theme-x # installe un thème publié comme paquet Composer (extra.niangpro-theme)
 ```
 
 ### Raccourci `np` (optionnel)
@@ -1109,6 +1110,35 @@ il apparaît dans la question posée à la création d'un projet. Un `theme.json
 `label` est le libellé du catalogue, `order` sa position, `remove` les chemins du projet supprimés avant la copie et
 `next_steps` les commandes suggérées ensuite. `resources/scaffold/shared/` (design system, composants, pages d'erreur,
 contact) est copié dans tous les thèmes.
+
+### Publier votre thème comme paquet Composer
+
+Pour partager un thème sans copier-coller de fichiers, publiez-le comme paquet Composer avec une clé
+`extra.niangpro-theme` dans son `composer.json`, pointant vers le dossier qui reproduit l'arborescence d'un
+thème (déjà nommé comme le slug voulu — c'est son nom de dossier qui devient le slug) :
+
+```json
+{
+    "name": "votre-pseudo/theme-agence",
+    "extra": {
+        "niangpro-theme": "resources/theme/agence"
+    }
+}
+```
+
+Puis, dans un projet NiangPro :
+
+```bash
+./bin/niang theme:add votre-pseudo/theme-agence
+```
+
+installe le paquet (`composer require --dev` — inutile en production, seulement à la création de projets) et copie
+son dossier de thème dans `resources/scaffold/themes/agence/`, où il apparaît dans le catalogue exactement comme un
+thème livré avec le framework — `ProjectScaffolder` n'a besoin d'aucune modification, un thème restant « juste un
+dossier ». *(Choix : une convention légère plutôt qu'un plugin Composer avec ses propres classes d'installateur —
+un plugin ajouterait une dépendance de développement et de la complexité que la philosophie du projet ne justifie
+pas ici ; la convention légère couvre déjà la quasi-totalité des cas, un thème n'ayant besoin d'aucune installation
+au-delà d'une simple copie de dossier.)*
 
 ## Dépôt public
 

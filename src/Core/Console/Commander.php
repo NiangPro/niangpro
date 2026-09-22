@@ -59,6 +59,7 @@ class Commander
             'make:event' => $this->makeEvent($arg),
             'make:command' => $this->makeCommand($arg),
             'make:test' => $this->makeTest($arg),
+            'theme:add' => $this->themeAdd($arg),
             default => $this->runCustomCommand($command, array_slice($argv, 2)) ? null : $this->help(),
         };
     }
@@ -1083,6 +1084,39 @@ class Commander
         return new ProjectScaffolder($this->basePath . '/resources/scaffold');
     }
 
+    /**
+     * Installe un thème publié comme paquet Composer tiers : `composer require --dev` (le paquet
+     * n'a besoin d'exister qu'au moment de créer des projets, jamais en production) puis copie son
+     * dossier de thème (extra.niangpro-theme de son composer.json) dans resources/scaffold/themes/
+     * — ProjectScaffolder n'a besoin d'aucune modification pour le proposer ensuite : un thème est
+     * déjà « juste un dossier ». Voir Niang\Core\Console\ThemePackageInstaller pour la logique pure.
+     */
+    private function themeAdd(?string $package): void
+    {
+        if (!$package) {
+            echo "Usage : niang theme:add vendor/paquet\n";
+            return;
+        }
+
+        echo "composer require --dev $package\n";
+        passthru('composer require --dev ' . escapeshellarg($package) . ' --working-dir=' . escapeshellarg($this->basePath), $exitCode);
+
+        if ($exitCode !== 0) {
+            echo "Échec de composer require --dev $package (code $exitCode).\n";
+            exit(1);
+        }
+
+        try {
+            $slug = (new ThemePackageInstaller($this->basePath))->install($package);
+        } catch (\InvalidArgumentException $e) {
+            echo 'Erreur : ' . $e->getMessage() . "\n";
+            exit(1);
+        }
+
+        echo "Thème « $slug » installé dans resources/scaffold/themes/$slug\n";
+        echo "Visible dans `niang new --type=$slug` et `NIANG_SITE_TYPE=$slug composer create-project ...`.\n";
+    }
+
     /** Installe un raccourci global `np` (macOS/Linux) qui trouve bin/niang en remontant depuis le dossier courant. */
     private function npInstall(): void
     {
@@ -1210,6 +1244,7 @@ class Commander
           make:event <Nom>         Génère un événement dans app/Events
           make:command <Nom>       Génère une commande custom dans app/Console/Commands
           make:test <Nom>          Génère un test dans tests/Unit
+          theme:add <vendor/paquet> Installe un thème publié comme paquet Composer (extra.niangpro-theme)
 
         TEXT;
     }
