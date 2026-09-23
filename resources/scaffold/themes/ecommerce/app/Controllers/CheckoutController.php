@@ -58,7 +58,7 @@ class CheckoutController extends Controller
 
         $reference = null;
 
-        $created = $this->atomically(function () use ($request, $lines, &$reference): bool {
+        $created = DB::transaction(function () use ($request, $lines, &$reference): bool {
             // Relit le stock au moment d'acheter : il a pu baisser depuis l'ajout au panier.
             foreach ($lines as $line) {
                 $fresh = Product::find($line['product']['id']);
@@ -122,14 +122,5 @@ class CheckoutController extends Controller
         }
 
         return $this->view('shop/confirmation', ['order' => $order, 'items' => Order::items($order['id'])]);
-    }
-
-    /**
-     * Exécute $callback en transaction — ou directement si une transaction est déjà ouverte
-     * (DB::transaction() n'imbrique pas : c'est le cas, par exemple, sous RefreshDatabase dans les tests).
-     */
-    private function atomically(\Closure $callback): mixed
-    {
-        return DB::connection()->inTransaction() ? $callback() : DB::transaction($callback);
     }
 }

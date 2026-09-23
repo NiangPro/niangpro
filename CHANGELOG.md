@@ -50,6 +50,33 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
     légitime (`table.colonne`) continue de fonctionner. `join()` n'avait par ailleurs aucun test
     du tout avant ce commit.
 
+### Fixed
+
+- **`DB::transaction()` ne s'imbriquait pas** (audit de fiabilité/concurrence ; `Niang\Core\
+  Database\DB`) : PDO ne permet qu'une seule transaction active à la fois — un second
+  `beginTransaction()` levait `PDOException("There is already an active transaction")`. **Bug
+  réel reproduit en écrivant ce jalon, pas hypothétique** : ajouter `use RefreshDatabase;` (qui
+  ouvre sa propre transaction dans `setUp()`) à `tests/Feature/PostsTest.php` a immédiatement
+  fait planter un test authentifié sur `POST /posts`, dont le contrôleur appelle
+  `DB::transaction()`. Le thème `ecommerce` avait déjà contourné le problème localement avec un
+  `CheckoutController::atomically()` ad hoc (`DB::connection()->inTransaction() ? $callback() :
+  DB::transaction($callback)`) — un simple bypass qui, hors tests, aurait silencieusement privé
+  d'annulation automatique toute transaction réellement imbriquée en production.
+  - Imbrication réelle via `SAVEPOINT` (SQLite, MySQL/InnoDB et PostgreSQL le supportent tous
+    trois) : un compteur de profondeur ouvre une vraie transaction PDO au niveau 0, un
+    `SAVEPOINT` nommé à chaque niveau suivant. `commit()`/`rollBack()` ne valident/annulent la
+    transaction PDO qu'au retour au niveau 0 ; entre-temps, `ROLLBACK TO SAVEPOINT` n'annule que
+    les écritures de son propre niveau, jamais celles de la transaction englobante — une vraie
+    imbrication, pas seulement l'absence de crash. Nouvel `DB::inTransaction()` public.
+  - `CheckoutController::atomically()` (thème `ecommerce`) supprimé, devenu inutile :
+    `DB::transaction()` appelé directement, comme partout ailleurs.
+  - 6 nouveaux tests (`tests/Database/TransactionTest.php`, contre une vraie connexion PDO —
+    SQLite en local, MySQL et PostgreSQL en CI) : commit, rollback automatique sur exception,
+    imbrication qui ne plante pas, une transaction interne en échec n'annule que ses propres
+    écritures (pas celles d'avant/après dans la transaction externe), `inTransaction()`, et la
+    reproduction exacte du bug (imbrication sous une transaction ouverte à la
+    `RefreshDatabase`). Aucun test direct n'existait sur ces méthodes avant ce commit.
+
 ## [1.5.0] — 2026-09-22
 
 ### Fixed

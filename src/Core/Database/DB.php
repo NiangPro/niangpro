@@ -14,6 +14,9 @@ class DB
     private static array $connections = [];
     private static int $queryCount = 0;
 
+    /** Profondeur d'imbrication de transaction courante (0 = aucune) — voir beginTransaction(). */
+    private static int $transactionLevel = 0;
+
     /** Nombre de requêtes exécutées depuis le dernier resetQueryCount() — utilisé pour prouver
      *  qu'un correctif N+1 réduit vraiment le nombre de requêtes (voir tests/Database). */
     public static function queryCount(): int
@@ -175,19 +178,52 @@ class DB
         return self::connection($connection)->lastInsertId();
     }
 
+    /**
+     * Imbrication réelle via SAVEPOINT (SQLite, MySQL/InnoDB et PostgreSQL la supportent tous) :
+     * PDO ne permet qu'une seule transaction active à la fois — sans ça, un second
+     * beginTransaction() (ex: DB::transaction() appelé depuis du code métier alors que
+     * RefreshDatabase a déjà ouvert la transaction du test) lève PDOException("There is already
+     * an active transaction") plutôt que de s'imbriquer proprement.
+     */
     public static function beginTransaction(): void
     {
-        self::connection('write')->beginTransaction();
+        $pdo = self::connection('write');
+
+        if (self::$transactionLevel === 0) {
+            $pdo->beginTransaction();
+        } else {
+            $pdo->exec('SAVEPOINT trans' . (self::$transactionLevel + 1));
+        }
+
+        self::$transactionLevel++;
     }
 
     public static function commit(): void
     {
-        self::connection('write')->commit();
+        if (self::$transactionLevel === 1) {
+            self::connection('write')->commit();
+        }
+
+        // Aux niveaux > 1 : rien à faire, le SAVEPOINT n'a de sens qu'en cas de rollback ; il
+        // fusionne implicitement dans la transaction englobante à son commit.
+        self::$transactionLevel = max(0, self::$transactionLevel - 1);
     }
 
     public static function rollBack(): void
     {
-        self::connection('write')->rollBack();
+        if (self::$transactionLevel === 1) {
+            self::connection('write')->rollBack();
+        } elseif (self::$transactionLevel > 1) {
+            self::connection('write')->exec('ROLLBACK TO SAVEPOINT trans' . self::$transactionLevel);
+        }
+
+        self::$transactionLevel = max(0, self::$transactionLevel - 1);
+    }
+
+    /** Une transaction (ou un niveau d'imbrication via SAVEPOINT) est-elle actuellement ouverte ? */
+    public static function inTransaction(): bool
+    {
+        return self::$transactionLevel > 0;
     }
 
     /** Exécute $callback dans une transaction ; rollback automatique si une exception est levée. */
