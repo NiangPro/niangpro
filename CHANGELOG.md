@@ -135,6 +135,25 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
     reproduction exacte du bug (imbrication sous une transaction ouverte à la
     `RefreshDatabase`). Aucun test direct n'existait sur ces méthodes avant ce commit.
 
+### Tests
+
+- **Couverture manquante sur `Cookie` et `RouteCache`** (audit de sécurité/fiabilité) : aucun
+  test, direct ou indirect, n'existait sur ces deux classes (`Cookie` signe pourtant des valeurs
+  en HMAC-SHA256 — utilisé par exemple pour les messages flash ; `RouteCache` sert le cache de
+  routes de production). Aucun bug trouvé dans l'une ou l'autre en les lisant attentivement — mais
+  « lu attentivement » n'est pas « vérifié » : ce commit écrit les tests plutôt que de se contenter
+  de la relecture.
+  - `tests/Unit/CookieTest.php` (6 tests) : `sign()` exercée par réflexion pour placer une valeur
+    validement signée dans `$_COOKIE` (`set()` appelle `setcookie()`, dont l'effet n'est visible
+    que sur la requête HTTP suivante, jamais dans `$_COOKIE` du process courant) — round-trip,
+    valeur tronquée, signature altérée, valeur altérée, cookie absent, valeur malformée sans
+    séparateur.
+  - `tests/Unit/RouteCacheTest.php` (5 tests) : vérifie concrètement ce que la docblock de la
+    classe affirme déjà (« les routes à closure ne sont pas sérialisables : elles sont exclues du
+    cache ») en appelant réellement `store()` avec un mélange de routes closures et non-closures,
+    plutôt que de le supposer — `var_export()` ne pourrait de toute façon pas représenter une
+    Closure, ce n'est un filet de sécurité réel que si le filtrage a lieu AVANT cet appel.
+
 ## [1.5.0] — 2026-09-22
 
 ### Fixed
