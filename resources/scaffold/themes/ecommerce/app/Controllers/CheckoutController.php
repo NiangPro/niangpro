@@ -59,9 +59,16 @@ class CheckoutController extends Controller
         $reference = null;
 
         $created = DB::transaction(function () use ($request, $lines, &$reference): bool {
-            // Relit le stock au moment d'acheter : il a pu baisser depuis l'ajout au panier.
+            // Relit le stock au moment d'acheter : il a pu baisser depuis l'ajout au panier. Une
+            // seule requête (whereIn) pour tous les articles du panier plutôt qu'un Product::find()
+            // par ligne (N+1 — audit de performance, mesuré avant/après sur le Router et le
+            // Container : ici pas besoin de mesurer, le nombre de requêtes divisé par la taille du
+            // panier parle de lui-même).
+            $productIds = array_column(array_column($lines, 'product'), 'id');
+            $freshProducts = array_column(Product::query()->whereIn('id', $productIds)->get(), null, 'id');
+
             foreach ($lines as $line) {
-                $fresh = Product::find($line['product']['id']);
+                $fresh = $freshProducts[$line['product']['id']] ?? null;
 
                 if (!$fresh || (int) $fresh['stock'] < $line['quantity']) {
                     return false;

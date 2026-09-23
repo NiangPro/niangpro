@@ -68,6 +68,21 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Fixed
 
+- **N+1 dans `CheckoutController::store()` (thème `ecommerce`)** (audit de performance) : la
+  revalidation du stock au moment de payer faisait un `Product::find()` par ligne du panier —
+  mesuré : un panier de 3 articles distincts coûtait 2 requêtes `SELECT` de plus qu'un panier à un
+  seul article, pour cette seule étape. **Benchmarks du Router et du Container mesurés
+  séparément** (scripts jetables, non committés) plutôt que devinés : le Router était déjà corrigé
+  et vérifié (quinzième jalon, ~52-98x plus rapide selon le cas) ; le Container (résolution d'un
+  graphe de dépendances réaliste, profondeur 3, 6 classes, 5000 itérations) mesure 0,0186
+  ms/résolution — ~0,09 ms de surcoût total pour 5 résolutions/requête, négligeable : **aucun
+  cache de métadonnées de constructeur ajouté**, la mesure ne le justifie pas. Fix : une seule
+  requête (`whereIn`) pour tous les articles du panier, indexée par id plutôt qu'un `find()` par
+  ligne. Nouveau test (`CheckoutQueryCountTest.php`, thème `ecommerce`) qui compare le nombre de
+  requêtes d'un panier à 1 article contre un panier à 3 — **vérifié qu'il échoue bien avec
+  l'ancien code avant de confirmer qu'il passe avec le correctif**, pas seulement écrit puis
+  supposé correct.
+
 - **`RateLimiter::attempt()` pouvait perdre des incréments sous accès concurrent** (audit de
   fiabilité/concurrence ; `Niang\Core\RateLimiter`) : lecture-puis-écriture sans verrou couvrant
   tout le cycle — deux requêtes concurrentes (le scénario naturel d'une attaque par force brute
