@@ -7,6 +7,35 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ## [Non publié]
 
+### Security
+
+- **Injection SQL via un nom de colonne/table dynamique** (`Niang\Core\Database\QueryBuilder`,
+  audit de sécurité ; Sécurité de la roadmap, §9) : un nom de colonne ne peut jamais être lié
+  comme valeur (`?`) — SQL ne le permet pas — il était donc interpolé tel quel dans `where()`,
+  `orWhere()`, `whereIn()`, `whereNull()`/`whereNotNull()`, `whereBetween()`/`whereNotBetween()`,
+  `whereDate()`, `whereColumn()`, `join()`, `having()`, `orderBy()` et `groupBy()`, sans aucune
+  validation. Un schéma d'usage courant — trier une liste selon un critère choisi par
+  l'utilisateur (`orderBy($request->input('tri'))`) — était donc une injection SQL triviale.
+  **Vérifié concrètement, pas seulement relu** : aucun contrôleur ni thème livré ne transmet
+  aujourd'hui une entrée utilisateur non validée à ces méthodes (`ShopController::catalog`, le
+  seul endroit où un tri dynamique existe, résout déjà `$column`/`$direction` via une liste
+  blanche statique avant tout appel à `orderBy()`) — mais le `QueryBuilder` lui-même n'offrait
+  aucun filet de sécurité si un code applicatif futur oubliait cette précaution. `orderBy()`
+  validait encore moins son second paramètre : `$direction` n'était filtré par aucune liste
+  blanche (seulement `strtoupper()`), une deuxième injection possible sans même avoir besoin
+  d'empiler une requête (une expression SQL valable dans une clause `ORDER BY` suffit).
+  - `QueryBuilder::assertIdentifier()` (privée) valide chaque nom de colonne/table contre un
+    identifiant simple ou qualifié (`table.colonne`) ; `orderBy()` valide en plus `$direction`
+    contre une liste blanche (`asc`/`desc`). `havingRaw()` et `select()` restent volontairement
+    des échappatoires pour du SQL fourni par le développeur (agrégats, expressions) — jamais
+    par une entrée utilisateur, la distinction déjà assumée par la présence de `havingRaw()`
+    à côté de `having()`.
+  - 33 nouveaux tests (`tests/Unit/Database/QueryBuilderTest.php`, 6 à 39), avec des tentatives
+    d'injection réelles en données de test (sous-requête, commentaire SQL, point-virgule,
+    guillemet) sur chaque position vulnérable, plus la confirmation qu'un identifiant qualifié
+    légitime (`table.colonne`) continue de fonctionner. `join()` n'avait par ailleurs aucun test
+    du tout avant ce commit.
+
 ## [1.5.0] — 2026-09-22
 
 ### Fixed
