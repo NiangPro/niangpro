@@ -43,8 +43,8 @@ $router->post('/contact', [ContactController::class, 'store'], [VerifyCsrfToken:
 // Démo v0.3.0 : migrations, Query Builder, relations, transactions
 $router->get('/posts', [PostController::class, 'index']);
 $router->get('/blog', [PostController::class, 'page']);
-$router->post('/posts', [PostController::class, 'store'], [Authenticate::class]);
-$router->delete('/posts/{id}', [PostController::class, 'destroy'], [Authenticate::class])
+$router->post('/posts', [PostController::class, 'store'], [Authenticate::class, VerifyCsrfToken::class]);
+$router->delete('/posts/{id}', [PostController::class, 'destroy'], [Authenticate::class, VerifyCsrfToken::class])
     ->where(['id' => '[0-9]+']); // v0.6.0 : contrainte regex — /posts/abc ne matche plus cette route
 
 // Démo v0.4.0 : auth, middlewares auth/guest, rate limiting

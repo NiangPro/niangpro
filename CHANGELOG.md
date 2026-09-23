@@ -9,6 +9,20 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Security
 
+- **CSRF manquant sur `POST /posts` et `DELETE /posts/{id}`** (audit de sécurité ; Sécurité de
+  la roadmap, §9) : ces deux routes n'avaient que `Authenticate::class` — jamais
+  `VerifyCsrfToken::class`, contrairement à toutes les autres routes d'écriture du projet
+  (`/contact`, `/register`, `/login`, `/reset-password`...) et de tous les thèmes livrés (vérifié
+  systématiquement : aucune autre route POST/PUT/PATCH/DELETE, racine ou thème, n'a la même
+  lacune). Un utilisateur connecté visitant une page malveillante pouvait se voir créer un
+  article à son insu via un simple formulaire auto-soumis. Fix : `VerifyCsrfToken::class` ajouté
+  après `Authenticate::class` sur les deux routes (cet ordre précis pour qu'un visiteur non
+  connecté reçoive une redirection `/login` normale plutôt qu'un 419 avant même la vérification
+  d'authentification). 3 nouveaux tests de régression (`tests/Feature/PostsTest.php`,
+  `tests/Feature/AuthorizationTest.php`) : requête authentifiée sans jeton rejetée (419), avec
+  jeton acceptée, suppression authentifiée sans jeton rejetée — le test de suppression existant
+  (qui ne fournissait pas de jeton) a été corrigé pour en fournir un, plutôt que supprimé.
+
 - **Injection SQL via un nom de colonne/table dynamique** (`Niang\Core\Database\QueryBuilder`,
   audit de sécurité ; Sécurité de la roadmap, §9) : un nom de colonne ne peut jamais être lié
   comme valeur (`?`) — SQL ne le permet pas — il était donc interpolé tel quel dans `where()`,

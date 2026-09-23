@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Post;
 use App\Models\User;
 use Niang\Core\Auth;
+use Niang\Core\Csrf;
 use Niang\Core\Hash;
 use Niang\Core\Testing\RefreshDatabase;
 use Niang\Core\Testing\TestCase;
@@ -38,8 +39,24 @@ class AuthorizationTest extends TestCase
 
         $postId = Post::create(['title' => 'Article', 'body' => 'Contenu']);
 
-        $this->delete("/posts/$postId")->assertJson(['deleted' => true]);
+        $this->delete("/posts/$postId", ['_token' => Csrf::token()])->assertJson(['deleted' => true]);
 
         $this->assertNull(Post::find($postId));
+    }
+
+    public function test_an_authenticated_delete_without_a_csrf_token_is_rejected(): void
+    {
+        $userId = User::create([
+            'name' => 'Awa',
+            'email' => 'awa@example.test',
+            'password' => Hash::make('motdepasse123'),
+        ]);
+        Auth::login(['id' => $userId]);
+
+        $postId = Post::create(['title' => 'Article', 'body' => 'Contenu']);
+
+        $this->delete("/posts/$postId")->assertStatus(419);
+
+        $this->assertNotNull(Post::find($postId));
     }
 }
