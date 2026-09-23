@@ -68,6 +68,18 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Fixed
 
+- **`Queue::work()` pouvait exécuter le même job deux fois** (audit de fiabilité/concurrence ;
+  `Niang\Core\Queue`) : le fichier `.job` était lu, exécuté, **puis** supprimé — sans jamais
+  vérifier que cette suppression réussissait. Deux process `queue:work` lancés en parallèle (un
+  schéma de production courant pour paralléliser le traitement d'une file) pouvaient tous les
+  deux lire le même fichier avant qu'aucun des deux n'ait eu le temps de le supprimer, et donc
+  exécuter le même job deux fois. Fix : réclamation atomique par `rename()` (atomique sur un même
+  système de fichiers POSIX) avant exécution — si un autre worker a déjà renommé le fichier, le
+  `rename()` échoue et ce worker passe au suivant sans l'exécuter. `Queue::write()` gagne aussi
+  `LOCK_EX` (déjà utilisé par `Cache::put()`/`RateLimiter`, jusqu'ici absent ici), par cohérence
+  et défense en profondeur. Nouveau test (`tests/Unit/QueueTest.php`) qui simule la course en
+  renommant le fichier comme le ferait un autre worker, avant d'appeler `Queue::work()`.
+
 - **`DB::transaction()` ne s'imbriquait pas** (audit de fiabilité/concurrence ; `Niang\Core\
   Database\DB`) : PDO ne permet qu'une seule transaction active à la fois — un second
   `beginTransaction()` levait `PDOException("There is already an active transaction")`. **Bug

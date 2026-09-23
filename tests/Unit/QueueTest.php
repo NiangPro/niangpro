@@ -100,6 +100,26 @@ class QueueTest extends TestCase
         $this->assertFalse(Queue::retry('does-not-exist'));
     }
 
+    /**
+     * Bug réel (pas hypothétique) : l'ancien code lisait le fichier, l'exécutait, PUIS le
+     * supprimait — sans jamais vérifier que cette suppression réussissait. Deux process
+     * `queue:work` lancés en parallèle (un schéma de production courant pour paralléliser le
+     * traitement) pouvaient tous les deux lire et exécuter le MÊME job avant qu'aucun des deux
+     * n'ait eu le temps de le supprimer. Simulé ici en renommant le fichier comme le ferait un
+     * autre worker qui l'aurait déjà réclamé entre le glob() et la tentative de réclamation.
+     */
+    public function test_a_job_already_claimed_by_another_worker_is_not_processed_again(): void
+    {
+        $id = Queue::push(new QueueTestSucceedingJob());
+        $dir = base_path('storage/framework/queue');
+
+        rename("$dir/$id.job", "$dir/$id.job.processing");
+
+        $this->assertSame(0, Queue::work());
+        $this->assertSame(0, Queue::pending());
+        $this->assertFileExists("$dir/$id.job.processing");
+    }
+
     public function test_flush_deletes_all_failed_jobs(): void
     {
         Queue::push(new QueueTestFailingJob());

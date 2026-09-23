@@ -42,18 +42,32 @@ class Queue
                 continue;
             }
 
-            unlink($file); // retiré avant exécution : au plus une fois par tentative, pas de re-traitement en boucle si ça plante
+            // Réclame le fichier avant de l'exécuter, de façon atomique (rename() sur un même
+            // système de fichiers l'est) : si un autre worker (`queue:work` lancé en parallèle,
+            // un schéma de production courant pour paralléliser le traitement) a lu le même
+            // fichier entre-temps, son propre rename() échoue et il passe au suivant plutôt que
+            // d'exécuter deux fois le même job — l'ancien code supprimait le fichier APRÈS
+            // l'avoir lu, sans jamais vérifier que la suppression avait réussi ni que personne
+            // d'autre ne l'avait déjà traité.
+            $claimed = "$file.processing";
+
+            if (!@rename($file, $claimed)) {
+                continue;
+            }
 
             $job = @unserialize($envelope['job']);
 
             if (!$job instanceof Job) {
+                @unlink($claimed);
                 continue;
             }
 
             try {
                 $job->handle();
                 $processed++;
+                @unlink($claimed);
             } catch (\Throwable $e) {
+                @unlink($claimed);
                 self::handleFailure($envelope, $job, $e);
             }
         }
@@ -179,7 +193,7 @@ class Queue
             mkdir($dir, 0755, true);
         }
 
-        file_put_contents("$dir/{$envelope['id']}.job", serialize($envelope));
+        file_put_contents("$dir/{$envelope['id']}.job", serialize($envelope), LOCK_EX);
     }
 
     private static function dir(): string
