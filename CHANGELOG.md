@@ -26,6 +26,15 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
   via `Niang\Core\Console\ThemeSetup`) et `notes` (lignes affichées à la fin). Boutique et blog
   déclarent `"setup": ["migrate", "db:seed"]` : base prête et compte administrateur de test créé
   dès `niang new` ou `composer create-project`, sans étape manuelle.
+- Helper `field(string $name, string $label, array $options = [])` : raccourci positionnel pour
+  `component('components/field', ['name' => ..., 'label' => ..., ...$options])`, qui revenait dans
+  presque toutes les vues de formulaire (`name`/`label` obligatoires à répéter en tableau
+  associatif à chaque champ — le principal bruit visuel des vues de connexion, inscription,
+  contact et checkout). `$options` accepte les mêmes clés que le composant (`type`, `rows`,
+  `value`, `autocomplete`, `required`) ; `resources/views/components/field.php` reste le seul
+  endroit qui décide du HTML produit. Adopté dans les vues du socle partagé (`contact.php`) et des
+  thèmes boutique/blog (`auth/login.php`, `auth/register.php`, `auth/forgot-password.php`,
+  `auth/reset-password.php`, `shop/checkout.php`).
 
 ### Security
 

@@ -68,6 +68,28 @@ if (!function_exists('component')) {
     }
 }
 
+if (!function_exists('field')) {
+    /**
+     * Raccourci pour component('components/field', [...]) : les deux clés 'name' et 'label' sont
+     * obligatoires à chaque appel et reviennent dans presque toutes les vues de formulaire — les
+     * répéter en tableau associatif à chaque champ est le principal bruit visuel d'un formulaire.
+     *
+     *   <?= field('email', 'Adresse email', ['type' => 'email', 'autocomplete' => 'email']) ?>
+     *
+     * plutôt que :
+     *
+     *   <?= component('components/field', ['name' => 'email', 'label' => 'Adresse email', 'type' => 'email', 'autocomplete' => 'email']) ?>
+     *
+     * $options accepte les mêmes clés que le composant (type, rows, value, autocomplete, required) —
+     * ce n'est qu'un raccourci d'appel, pas un nouveau mécanisme : resources/views/components/field.php
+     * reste le seul endroit qui décide du HTML produit.
+     */
+    function field(string $name, string $label, array $options = []): string
+    {
+        return component('components/field', ['name' => $name, 'label' => $label, ...$options]);
+    }
+}
+
 if (!function_exists('e')) {
     /** Échappement HTML explicite : <?= e($valeur) ?> plutôt que htmlspecialchars() partout. */
     function e(mixed $value): string

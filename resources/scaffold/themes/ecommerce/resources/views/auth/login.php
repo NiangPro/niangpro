@@ -8,8 +8,8 @@
         </div>
         <form class="card" method="POST" action="/login" novalidate>
             <?= csrf_field() ?>
-            <?= component('components/field', ['name' => 'email', 'label' => 'Adresse email', 'type' => 'email', 'autocomplete' => 'email']) ?>
-            <?= component('components/field', ['name' => 'password', 'label' => 'Mot de passe', 'type' => 'password', 'autocomplete' => 'current-password']) ?>
+            <?= field('email', 'Adresse email', ['type' => 'email', 'autocomplete' => 'email']) ?>
+            <?= field('password', 'Mot de passe', ['type' => 'password', 'autocomplete' => 'current-password']) ?>
             <button class="btn btn--primary btn--block btn--lg" type="submit">Se connecter</button>
         </form>
         <p class="text-center muted" style="margin-top: var(--space-5)">Pas encore de compte ? <a href="/register">Créer un compte</a></p>

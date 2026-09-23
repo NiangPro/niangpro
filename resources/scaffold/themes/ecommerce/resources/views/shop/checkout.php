@@ -18,15 +18,15 @@ layout('layouts.app', ['title' => 'Commande', 'active' => '/panier']);
             <form class="card" method="POST" action="/commande" novalidate>
                 <?= csrf_field() ?>
                 <h2>Livraison</h2>
-                <?= component('components/field', ['name' => 'name', 'label' => 'Nom complet', 'autocomplete' => 'name', 'value' => $customer['name'] ?? '']) ?>
+                <?= field('name', 'Nom complet', ['autocomplete' => 'name', 'value' => $customer['name'] ?? '']) ?>
                 <div class="field-row">
-                    <?= component('components/field', ['name' => 'email', 'label' => 'Adresse email', 'type' => 'email', 'autocomplete' => 'email', 'value' => $customer['email'] ?? '']) ?>
-                    <?= component('components/field', ['name' => 'phone', 'label' => 'Téléphone (facultatif)', 'type' => 'tel', 'autocomplete' => 'tel', 'required' => false]) ?>
+                    <?= field('email', 'Adresse email', ['type' => 'email', 'autocomplete' => 'email', 'value' => $customer['email'] ?? '']) ?>
+                    <?= field('phone', 'Téléphone (facultatif)', ['type' => 'tel', 'autocomplete' => 'tel', 'required' => false]) ?>
                 </div>
-                <?= component('components/field', ['name' => 'address', 'label' => 'Adresse', 'autocomplete' => 'street-address']) ?>
+                <?= field('address', 'Adresse', ['autocomplete' => 'street-address']) ?>
                 <div class="field-row">
-                    <?= component('components/field', ['name' => 'postal_code', 'label' => 'Code postal', 'autocomplete' => 'postal-code']) ?>
-                    <?= component('components/field', ['name' => 'city', 'label' => 'Ville', 'autocomplete' => 'address-level2']) ?>
+                    <?= field('postal_code', 'Code postal', ['autocomplete' => 'postal-code']) ?>
+                    <?= field('city', 'Ville', ['autocomplete' => 'address-level2']) ?>
                 </div>
 
                 <h2 style="margin-top: var(--space-6)">Paiement</h2>

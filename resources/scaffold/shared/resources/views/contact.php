@@ -24,9 +24,9 @@ $details = [
     <div class="container" style="display:grid; gap:var(--space-7); grid-template-columns:repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); align-items:start">
         <form class="card" method="POST" action="<?= e(route('contact')) ?>" novalidate>
             <?= csrf_field() ?>
-            <?= component('components/field', ['name' => 'name', 'label' => 'Nom', 'autocomplete' => 'name']) ?>
-            <?= component('components/field', ['name' => 'email', 'label' => 'Adresse email', 'type' => 'email', 'autocomplete' => 'email']) ?>
-            <?= component('components/field', ['name' => 'message', 'label' => 'Votre message', 'rows' => 6]) ?>
+            <?= field('name', 'Nom', ['autocomplete' => 'name']) ?>
+            <?= field('email', 'Adresse email', ['type' => 'email', 'autocomplete' => 'email']) ?>
+            <?= field('message', 'Votre message', ['rows' => 6]) ?>
             <button class="btn btn--primary btn--block" type="submit">Envoyer le message</button>
         </form>
 

@@ -8,10 +8,10 @@
         </div>
         <form class="card" method="POST" action="/register" novalidate>
             <?= csrf_field() ?>
-            <?= component('components/field', ['name' => 'name', 'label' => 'Nom', 'autocomplete' => 'name']) ?>
-            <?= component('components/field', ['name' => 'email', 'label' => 'Adresse email', 'type' => 'email', 'autocomplete' => 'email']) ?>
-            <?= component('components/field', ['name' => 'password', 'label' => 'Mot de passe (8 caractères minimum)', 'type' => 'password', 'autocomplete' => 'new-password']) ?>
-            <?= component('components/field', ['name' => 'password_confirmation', 'label' => 'Confirmer le mot de passe', 'type' => 'password', 'autocomplete' => 'new-password']) ?>
+            <?= field('name', 'Nom', ['autocomplete' => 'name']) ?>
+            <?= field('email', 'Adresse email', ['type' => 'email', 'autocomplete' => 'email']) ?>
+            <?= field('password', 'Mot de passe (8 caractères minimum)', ['type' => 'password', 'autocomplete' => 'new-password']) ?>
+            <?= field('password_confirmation', 'Confirmer le mot de passe', ['type' => 'password', 'autocomplete' => 'new-password']) ?>
             <button class="btn btn--primary btn--block btn--lg" type="submit">Créer mon compte</button>
         </form>
         <p class="text-center muted" style="margin-top: var(--space-5)">Déjà inscrit ? <a href="/login">Se connecter</a></p>

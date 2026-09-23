@@ -11,7 +11,7 @@
         <?php endif; ?>
         <form class="card" method="POST" action="/forgot-password" novalidate>
             <?= csrf_field() ?>
-            <?= component('components/field', ['name' => 'email', 'label' => 'Adresse email', 'type' => 'email', 'autocomplete' => 'email']) ?>
+            <?= field('email', 'Adresse email', ['type' => 'email', 'autocomplete' => 'email']) ?>
             <button class="btn btn--primary btn--block btn--lg" type="submit">Envoyer le lien</button>
         </form>
         <p class="text-center muted" style="margin-top: var(--space-5)"><a href="/login">Retour à la connexion</a></p>

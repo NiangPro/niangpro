@@ -10,8 +10,8 @@
         <?php endif; ?>
         <form class="card" method="POST" action="<?= e($action) ?>" novalidate>
             <?= csrf_field() ?>
-            <?= component('components/field', ['name' => 'password', 'label' => 'Nouveau mot de passe', 'type' => 'password', 'autocomplete' => 'new-password']) ?>
-            <?= component('components/field', ['name' => 'password_confirmation', 'label' => 'Confirmer le mot de passe', 'type' => 'password', 'autocomplete' => 'new-password']) ?>
+            <?= field('password', 'Nouveau mot de passe', ['type' => 'password', 'autocomplete' => 'new-password']) ?>
+            <?= field('password_confirmation', 'Confirmer le mot de passe', ['type' => 'password', 'autocomplete' => 'new-password']) ?>
             <button class="btn btn--primary btn--block btn--lg" type="submit">Réinitialiser</button>
         </form>
     </div>
