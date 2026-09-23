@@ -5,23 +5,42 @@ namespace Niang\Core;
 /** Compteur simple sur fichier (pas de dépendance à Redis/Memcached). */
 class RateLimiter
 {
+    /**
+     * Lecture-puis-écriture protégée par un verrou couvrant tout le cycle (flock() sur le
+     * descripteur ouvert, pas seulement au moment d'écrire) : sans ça, deux requêtes concurrentes
+     * lisent le même compteur avant qu'aucune n'ait écrit sa mise à jour, et la seconde écriture
+     * écrase la première — un incrément silencieusement perdu. Exactement le scénario qu'une
+     * attaque par force brute par connexions parallèles (plutôt que séquentielles) exploiterait
+     * pour affaiblir cette protection, l'un des usages principaux de ce compteur (voir
+     * ThrottleRequests sur /login, /register, /forgot-password).
+     */
     public static function attempt(string $key, int $maxAttempts, int $decaySeconds): bool
     {
-        $data = self::read($key);
+        $handle = fopen(self::path($key), 'c+');
+        flock($handle, LOCK_EX);
+
+        $content = stream_get_contents($handle);
+        $data = $content !== '' ? json_decode($content, true) : null;
         $now = time();
 
-        if ($data === null || $data['resetAt'] <= $now) {
+        if (!is_array($data) || $data['resetAt'] <= $now) {
             $data = ['count' => 0, 'resetAt' => $now + $decaySeconds];
         }
 
-        if ($data['count'] >= $maxAttempts) {
-            self::write($key, $data);
-            return false;
+        $allowed = $data['count'] < $maxAttempts;
+
+        if ($allowed) {
+            $data['count']++;
         }
 
-        $data['count']++;
-        self::write($key, $data);
-        return true;
+        ftruncate($handle, 0);
+        rewind($handle);
+        fwrite($handle, json_encode($data));
+        fflush($handle);
+        flock($handle, LOCK_UN);
+        fclose($handle);
+
+        return $allowed;
     }
 
     public static function availableIn(string $key): int
@@ -52,10 +71,5 @@ class RateLimiter
 
         $content = file_get_contents($path);
         return $content ? json_decode($content, true) : null;
-    }
-
-    private static function write(string $key, array $data): void
-    {
-        file_put_contents(self::path($key), json_encode($data), LOCK_EX);
     }
 }

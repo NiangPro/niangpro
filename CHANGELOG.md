@@ -68,6 +68,21 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Fixed
 
+- **`RateLimiter::attempt()` pouvait perdre des incréments sous accès concurrent** (audit de
+  fiabilité/concurrence ; `Niang\Core\RateLimiter`) : lecture-puis-écriture sans verrou couvrant
+  tout le cycle — deux requêtes concurrentes (le scénario naturel d'une attaque par force brute
+  par connexions parallèles plutôt que séquentielles, contre `/login` notamment) pouvaient lire
+  le même compteur avant qu'aucune n'ait écrit sa mise à jour ; la seconde écriture écrasait la
+  première, un incrément silencieusement perdu — affaiblissant directement la protection que ce
+  compteur est censé fournir. **Aucun test n'existait sur cette classe avant ce commit.** Fix :
+  `flock()` tenu sur tout le cycle lecture-modification-écriture (un seul descripteur ouvert en
+  mode `c+`), pas seulement au moment d'écrire ; la méthode `write()` désormais inutilisée a été
+  supprimée plutôt que laissée en code mort. 6 nouveaux tests (`tests/Unit/RateLimiterTest.php`),
+  dont une régression qui simule la concurrence avec de **vrais process séparés** via
+  `pcntl_fork()` (10 process concurrents sur la même clé, comptage final vérifié exact) —
+  ignorée proprement là où `pcntl` est indisponible (Windows notamment) plutôt que de prétendre
+  à une couverture qu'elle n'a pas ; les tests fonctionnels restent couverts partout.
+
 - **`Queue::work()` pouvait exécuter le même job deux fois** (audit de fiabilité/concurrence ;
   `Niang\Core\Queue`) : le fichier `.job` était lu, exécuté, **puis** supprimé — sans jamais
   vérifier que cette suppression réussissait. Deux process `queue:work` lancés en parallèle (un
