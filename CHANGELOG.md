@@ -9,6 +9,22 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Security
 
+- **CORS : `allowed_origins: ['*']` combiné à `supports_credentials: true` reflétait n'importe
+  quelle origine** (`Niang\Core\Cors`, audit de sécurité) : `config/cors.php` déconseille déjà
+  cette combinaison en commentaire (« supports_credentials=true seulement avec des origines
+  explicites » — les navigateurs rejettent `Access-Control-Allow-Origin: '*'` combiné aux
+  identifiants) mais rien ne l'empêchait réellement : `Cors::originAllowed()` traitait `'*'`
+  comme une autorisation universelle, puis reflétait l'origine exacte de la requête (jamais le
+  littéral `'*'`, pour satisfaire la contrainte du navigateur) — pour n'importe quel site.
+  **Un test existant affirmait ce comportement comme voulu** (`test_credentials_always_reflect_
+  the_exact_origin_never_a_wildcard`), sans reconnaître qu'il vidait CORS de son sens pour toute
+  origine tierce dès que les identifiants (cookies, `Authorization`) étaient activés. Corrigé —
+  pas supprimé, avec l'explication ci-dessus dans son commit. Fix : `'*'` ne correspond plus à
+  aucune origine dès que `supports_credentials` est actif ; seules les origines explicitement
+  listées le sont, exactement ce que le commentaire du fichier de config demandait déjà. 2
+  nouveaux tests (`tests/Unit/CorsTest.php`) : la combinaison dangereuse ne reflète plus aucune
+  origine, la combinaison sûre (origine explicite + identifiants) continue de fonctionner.
+
 - **CSRF manquant sur `POST /posts` et `DELETE /posts/{id}`** (audit de sécurité ; Sécurité de
   la roadmap, §9) : ces deux routes n'avaient que `Authenticate::class` — jamais
   `VerifyCsrfToken::class`, contrairement à toutes les autres routes d'écriture du projet

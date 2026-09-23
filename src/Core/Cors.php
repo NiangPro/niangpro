@@ -56,6 +56,20 @@ class Cors
     private static function originAllowed(string $origin): bool
     {
         $allowed = Config::get('cors.allowed_origins', []);
-        return in_array('*', $allowed, true) || in_array($origin, $allowed, true);
+
+        if (in_array($origin, $allowed, true)) {
+            return true;
+        }
+
+        if (!in_array('*', $allowed, true)) {
+            return false;
+        }
+
+        // '*' n'autorise jamais une origine reflétée avec des identifiants (cookies, en-tête
+        // Authorization) : ce serait équivalent à désactiver CORS pour n'importe quel site tout
+        // en gardant les identifiants de l'utilisateur actif. config/cors.php déconseille déjà
+        // cette combinaison en commentaire ("supports_credentials=true seulement avec des
+        // origines explicites") ; sans cette garde, rien ne l'empêchait réellement.
+        return !(bool) Config::get('cors.supports_credentials', false);
     }
 }

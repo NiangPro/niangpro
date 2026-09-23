@@ -48,12 +48,32 @@ class CorsTest extends TestCase
         $this->assertArrayNotHasKey('Access-Control-Allow-Credentials', $headers);
     }
 
-    public function test_credentials_always_reflect_the_exact_origin_never_a_wildcard(): void
+    /**
+     * Corrigé (pas supprimé) : ce test affirmait auparavant que allowed_origins ['*'] +
+     * supports_credentials true devait REFLÉTER n'importe quelle origine — exactement le trou de
+     * sécurité que config/cors.php déconseille déjà en commentaire ("supports_credentials=true
+     * seulement avec des origines explicites") sans jamais l'empêcher réellement : n'importe quel
+     * site tiers pouvait alors faire des requêtes avec les identifiants (cookies, Authorization)
+     * de l'utilisateur, la protection CORS étant vidée de son sens pour toute origine tierce.
+     */
+    public function test_wildcard_with_credentials_matches_no_origin_at_all(): void
     {
-        // Les navigateurs rejettent Access-Control-Allow-Origin: '*' dès que les credentials sont
-        // activés : même avec allowed_origins ['*'], l'origine exacte doit être reflétée.
         $this->setCorsConfig([
             'allowed_origins' => ['*'],
+            'allowed_methods' => ['GET'],
+            'allowed_headers' => ['Content-Type'],
+            'supports_credentials' => true,
+        ]);
+
+        $this->assertSame([], Cors::headersFor($this->requestFrom('https://a.example.com')));
+        $this->assertSame([], Cors::headersFor($this->requestFrom('https://n-importe-quel-site.example')));
+    }
+
+    /** La combinaison sûre et documentée : une origine explicite avec les identifiants activés. */
+    public function test_an_explicit_origin_with_credentials_is_reflected_exactly(): void
+    {
+        $this->setCorsConfig([
+            'allowed_origins' => ['https://a.example.com'],
             'allowed_methods' => ['GET'],
             'allowed_headers' => ['Content-Type'],
             'supports_credentials' => true,
@@ -63,6 +83,8 @@ class CorsTest extends TestCase
 
         $this->assertSame('https://a.example.com', $headers['Access-Control-Allow-Origin']);
         $this->assertSame('true', $headers['Access-Control-Allow-Credentials']);
+
+        $this->assertSame([], Cors::headersFor($this->requestFrom('https://evil.example.com')));
     }
 
     public function test_origin_outside_the_allow_list_gets_no_headers(): void
