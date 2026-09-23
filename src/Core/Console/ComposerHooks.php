@@ -71,8 +71,28 @@ class ComposerHooks
         $io->write('');
         $io->write('<info>Thème « ' . self::escape($scaffolder->catalog()[$type]) . ' » installé.</info>');
 
-        foreach ($scaffolder->nextSteps($type) as $step) {
+        $setup = $scaffolder->setup($type);
+        $done = [];
+
+        if ($setup) {
+            $io->write('Préparation du projet (' . self::escape(implode(', ', $setup)) . ')...');
+            $done = (new ThemeSetup($projectRoot))->run($setup, static function (string $text) use ($io): void {
+                $io->write(self::escape(rtrim($text, "\n")));
+            });
+        }
+
+        foreach ($scaffolder->remainingSteps($type, $done) as $step) {
             $io->write('  ' . self::escape($step));
+        }
+
+        $notes = $scaffolder->notes($type);
+
+        if ($notes) {
+            $io->write('');
+
+            foreach ($notes as $note) {
+                $io->write(self::escape($note));
+            }
         }
     }
 

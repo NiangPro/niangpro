@@ -51,8 +51,10 @@ sauf si vous choisissez explicitement le type avec la variable d'environnement `
 NIANG_SITE_TYPE=blog composer create-project niangpro/framework mon-app --no-interaction
 ```
 
-Visitez http://127.0.0.1:8000 (les types `ecommerce` et `blog` demandent d'abord `./bin/niang migrate` puis
-`./bin/niang db:seed` : le terminal affiche les étapes de votre thème).
+Visitez http://127.0.0.1:8000. Pour les types `ecommerce` et `blog`, la base est migrée et alimentée
+automatiquement à la création (`setup` du `theme.json`), avec un compte administrateur de test :
+`admin@example.com` / `admin1234`. Connectez-vous avec ce compte sur `/login` : vous arrivez sur le tableau
+de bord `/admin` (mot de passe à changer dans `/admin/parametres` avant toute mise en ligne).
 
 Pour contribuer au framework lui-même (cloner ce dépôt directement) :
 
@@ -1149,6 +1151,18 @@ il apparaît dans la question posée à la création d'un projet. Un `theme.json
 `label` est le libellé du catalogue, `order` sa position, `remove` les chemins du projet supprimés avant la copie et
 `next_steps` les commandes suggérées ensuite. `resources/scaffold/shared/` (design system, composants, pages d'erreur,
 contact) est copié dans tous les thèmes.
+
+Trois clés de plus servent aux thèmes qui ont une base de données :
+
+- `modules` : briques de `resources/scaffold/modules/` installées avec le thème (après `shared/`, avant le thème, qui
+  peut en remplacer n'importe quel fichier). Le module `admin` apporte l'espace d'administration : rôle
+  `users.role`, compte de test (`database/seeders/AdminUserSeeder.php`, à appeler depuis votre `DatabaseSeeder`),
+  middleware `EnsureUserIsAdmin`, layout `admin.layouts.app` et page Paramètres. Le thème fournit
+  `app/Support/AdminMenu.php` (les sections de la barre latérale) et ses propres pages ; voir les thèmes `ecommerce` et
+  `blog`.
+- `setup` : commandes `niang` lancées automatiquement dans le nouveau projet (ex. `["migrate", "db:seed"]`) ; celles
+  qui réussissent disparaissent de `next_steps`.
+- `notes` : lignes affichées à la fin de la création (ex. les identifiants du compte de test).
 
 ### Publier votre thème comme paquet Composer
 

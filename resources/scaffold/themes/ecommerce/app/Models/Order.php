@@ -38,6 +38,9 @@ class Order extends Model
         ];
     }
 
+    /** Statuts possibles, dans l'ordre du parcours d'une commande. */
+    public const STATUSES = ['pending', 'paid', 'shipped', 'cancelled'];
+
     /** Libellé lisible d'un statut. */
     public static function statusLabel(string $status): string
     {
@@ -47,6 +50,18 @@ class Order extends Model
             'shipped' => 'Expédiée',
             'cancelled' => 'Annulée',
             default => ucfirst($status),
+        };
+    }
+
+    /** Couleur du badge de statut dans l'administration. */
+    public static function statusTone(string $status): string
+    {
+        return match ($status) {
+            'pending' => 'amber',
+            'paid' => 'teal',
+            'shipped' => 'green',
+            'cancelled' => 'rose',
+            default => 'sky',
         };
     }
 }

@@ -14,6 +14,9 @@ use Niang\Core\Database\Model;
  */
 class Product extends Model
 {
+    /** En dessous de ce stock (inclus), le produit est signalé dans l'administration. */
+    public const LOW_STOCK = 5;
+
     public static function findBySlug(string $slug): ?array
     {
         return static::query()->where('slug', $slug)->first();

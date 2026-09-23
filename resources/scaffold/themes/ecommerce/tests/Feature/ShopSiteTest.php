@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Order;
 use App\Models\Product;
 use Niang\Core\Csrf;
+use Niang\Core\Database\DB;
 use Niang\Core\Database\Seeder;
 use Niang\Core\Session;
 use Niang\Core\Testing\RefreshDatabase;
@@ -26,6 +27,11 @@ class ShopSiteTest extends TestCase
         /** @var Seeder $seeder */
         $seeder = require base_path('database/seeders/DatabaseSeeder.php');
         $seeder->run();
+
+        // Les commandes de démonstration (DEMO-*, pour le tableau de bord) gêneraient les assertions
+        // sur LA commande passée par chaque test : ShopAdminTest, lui, les garde.
+        DB::statement('DELETE FROM order_items');
+        DB::statement('DELETE FROM orders');
     }
 
     private function productId(string $slug): int

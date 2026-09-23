@@ -72,7 +72,7 @@ class AuthController extends Controller
                 ->with('old', ['email' => $data['email']]);
         }
 
-        return $this->redirect('/');
+        return $this->redirect(User::homePath(Auth::user()));
     }
 
     public function logout(): Response

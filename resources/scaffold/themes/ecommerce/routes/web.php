@@ -3,6 +3,11 @@
 /** @var \Niang\Core\Router $router */
 
 use App\Controllers\AccountController;
+use App\Controllers\Admin\CustomerController as AdminCustomerController;
+use App\Controllers\Admin\DashboardController as AdminDashboardController;
+use App\Controllers\Admin\OrderController as AdminOrderController;
+use App\Controllers\Admin\ProductController as AdminProductController;
+use App\Controllers\Admin\SettingsController as AdminSettingsController;
 use App\Controllers\AuthController;
 use App\Controllers\CartController;
 use App\Controllers\CheckoutController;
@@ -10,6 +15,7 @@ use App\Controllers\ContactController;
 use App\Controllers\HealthController;
 use App\Controllers\ShopController;
 use App\Middleware\Authenticate;
+use App\Middleware\EnsureUserIsAdmin;
 use App\Middleware\RedirectIfAuthenticated;
 use App\Middleware\ThrottleRequests;
 use App\Middleware\ValidateSignature;
@@ -61,3 +67,32 @@ $router->get('/mentions-legales', [ShopController::class, 'legal']);
 // Contact : validé par App\Requests\ContactRequest, protégé contre le CSRF et le spam.
 $router->get('/contact', [ContactController::class, 'index'])->name('contact');
 $router->post('/contact', [ContactController::class, 'store'], [VerifyCsrfToken::class, ThrottleRequests::class]);
+
+// Administration : réservée aux comptes « admin » (EnsureUserIsAdmin), qui y arrivent directement
+// après connexion. Compte de test créé par `niang db:seed` : voir database/seeders/AdminUserSeeder.php.
+$router->group(['prefix' => '/admin', 'middleware' => [EnsureUserIsAdmin::class]], function ($router) {
+    $id = ['id' => '[0-9]+'];
+
+    $router->get('/', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
+
+    $router->get('/commandes', [AdminOrderController::class, 'index'])->name('admin.orders');
+    $router->get('/commandes/{id}', [AdminOrderController::class, 'show'])->where($id);
+    $router->post('/commandes/{id}/statut', [AdminOrderController::class, 'updateStatus'], [VerifyCsrfToken::class])->where($id);
+
+    $router->get('/clients', [AdminCustomerController::class, 'index'])->name('admin.customers');
+
+    $router->get('/produits', [AdminProductController::class, 'index'])->name('admin.products');
+    $router->get('/produits/nouveau', [AdminProductController::class, 'create']);
+    $router->post('/produits', [AdminProductController::class, 'store'], [VerifyCsrfToken::class]);
+    $router->get('/produits/{id}/modifier', [AdminProductController::class, 'edit'])->where($id);
+    $router->post('/produits/{id}', [AdminProductController::class, 'update'], [VerifyCsrfToken::class])->where($id);
+    $router->post('/produits/{id}/supprimer', [AdminProductController::class, 'destroy'], [VerifyCsrfToken::class])->where($id);
+
+    $router->get('/categories', [AdminProductController::class, 'categories'])->name('admin.categories');
+    $router->get('/stock', [AdminProductController::class, 'stock'])->name('admin.stock');
+    $router->post('/stock/{id}', [AdminProductController::class, 'updateStock'], [VerifyCsrfToken::class])->where($id);
+
+    $router->get('/parametres', [AdminSettingsController::class, 'index'])->name('admin.settings');
+    $router->post('/parametres/profil', [AdminSettingsController::class, 'updateProfile'], [VerifyCsrfToken::class]);
+    $router->post('/parametres/mot-de-passe', [AdminSettingsController::class, 'updatePassword'], [VerifyCsrfToken::class]);
+});

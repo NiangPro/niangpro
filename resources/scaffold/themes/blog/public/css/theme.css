@@ -34,3 +34,16 @@
 .article-body blockquote { font-size: var(--step-1); }
 .tags--cloud { gap: var(--space-3); }
 .tags--cloud .tag { padding: 0.4em 1em; font-size: var(--step--1); }
+
+/* ---------- Accès à l'administration (visible par un administrateur connecté) ---------- */
+
+.icon-btn {
+    display: grid;
+    place-items: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 50%;
+    color: var(--text);
+    transition: background-color 0.15s;
+}
+.icon-btn:hover { background: var(--accent-soft); }

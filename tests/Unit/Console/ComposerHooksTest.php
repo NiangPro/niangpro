@@ -29,6 +29,7 @@ class ComposerHooksTest extends TestCase
             'label' => 'Site vitrine',
             'order' => 10,
             'next_steps' => ['./bin/niang serve'],
+            'notes' => ['Compte admin de test : admin@example.com'],
         ]));
         $this->writeFile($scaffold, 'themes/vitrine/routes/web.php', 'routes du thème');
 
@@ -134,6 +135,7 @@ class ComposerHooksTest extends TestCase
         $this->assertSame('routes du thème', $this->routes());
         $this->assertStringContainsString('Thème « Site vitrine » installé', implode("\n", $event->io->written));
         $this->assertStringContainsString('./bin/niang serve', implode("\n", $event->io->written));
+        $this->assertStringContainsString('Compte admin de test : admin@example.com', implode("\n", $event->io->written));
     }
 
     public function test_an_interactive_answer_installs_the_chosen_theme(): void

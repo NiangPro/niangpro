@@ -1,9 +1,15 @@
 {
     "label": "Boutique en ligne",
     "order": 20,
+    "modules": ["admin"],
+    "setup": ["migrate", "db:seed"],
     "next_steps": [
         "./bin/niang migrate",
         "./bin/niang db:seed",
         "./bin/niang serve"
+    ],
+    "notes": [
+        "Compte administrateur de test : admin@example.com / admin1234 (créé par `./bin/niang db:seed`).",
+        "Connectez-vous sur /login : vous arrivez sur le tableau de bord /admin. Changez ce mot de passe dans /admin/parametres."
     ]
 }

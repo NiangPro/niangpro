@@ -1005,6 +1005,16 @@ class Commander
         foreach ($nextSteps as $step) {
             echo "  $step\n";
         }
+
+        $notes = $this->scaffolder()->notes($type);
+
+        if ($notes) {
+            echo "\n";
+
+            foreach ($notes as $note) {
+                echo "$note\n";
+            }
+        }
     }
 
     /**
@@ -1060,7 +1070,8 @@ class Commander
     }
 
     /**
-     * Installe le thème dans le projet $target et retourne les commandes à suggérer ensuite.
+     * Installe le thème dans le projet $target, exécute ses commandes de setup (base de données,
+     * compte administrateur de test...) et retourne les commandes qu'il reste à suggérer.
      *
      * @return list<string>
      */
@@ -1075,7 +1086,17 @@ class Commander
 
         echo "Thème « {$scaffolder->catalog()[$type]} » installé.\n";
 
-        return $scaffolder->nextSteps($type);
+        $setup = $scaffolder->setup($type);
+        $done = [];
+
+        if ($setup) {
+            echo 'Préparation du projet (' . implode(', ', $setup) . ")...\n";
+            $done = (new ThemeSetup($target))->run($setup, static function (string $text): void {
+                echo $text;
+            });
+        }
+
+        return $scaffolder->remainingSteps($type, $done);
     }
 
     /** Les thèmes sont lus dans le projet courant : ils sont copiés avec le squelette, et extensibles sur place. */

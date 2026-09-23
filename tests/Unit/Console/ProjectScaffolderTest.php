@@ -231,6 +231,71 @@ class ProjectScaffolderTest extends TestCase
         $this->assertSame([], $this->scaffolder()->nextSteps('inconnu'));
     }
 
+    public function test_notes_come_from_the_manifest(): void
+    {
+        $this->theme('blog', ['notes' => ['Compte admin : admin@example.com']]);
+        $this->theme('vitrine');
+
+        $this->assertSame(['Compte admin : admin@example.com'], $this->scaffolder()->notes('blog'));
+        $this->assertSame([], $this->scaffolder()->notes('vitrine'));
+        $this->assertSame([], $this->scaffolder()->notes('minimal'));
+    }
+
+    public function test_setup_commands_come_from_the_manifest_and_leave_the_remaining_steps(): void
+    {
+        $this->theme('blog', [
+            'setup' => ['migrate', 'db:seed'],
+            'next_steps' => ['./bin/niang migrate', './bin/niang db:seed', './bin/niang serve'],
+        ]);
+
+        $this->assertSame(['migrate', 'db:seed'], $this->scaffolder()->setup('blog'));
+        $this->assertSame(['./bin/niang serve'], $this->scaffolder()->remainingSteps('blog', ['migrate', 'db:seed']));
+        $this->assertSame(['./bin/niang db:seed', './bin/niang serve'], $this->scaffolder()->remainingSteps('blog', ['migrate']));
+        $this->assertSame([], $this->scaffolder()->setup('minimal'));
+    }
+
+    public function test_a_setup_command_that_is_not_a_plain_niang_command_is_refused(): void
+    {
+        $this->theme('blog', ['setup' => ['migrate; rm -rf /']]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Commande de setup invalide');
+
+        $this->scaffolder()->setup('blog');
+    }
+
+    public function test_declared_modules_are_installed_between_shared_and_the_theme(): void
+    {
+        $this->theme('blog', ['modules' => ['admin']]);
+        $this->theme('vitrine');
+        $this->writeFile($this->scaffold, 'shared/resources/views/admin/layout.php', 'layout partagé');
+        $this->writeFile($this->scaffold, 'modules/admin/resources/views/admin/layout.php', 'layout du module');
+        $this->writeFile($this->scaffold, 'modules/admin/public/css/admin.css', 'css du module');
+        $this->writeFile($this->scaffold, 'modules/admin/app/Support/AdminMenu.php', 'menu du module');
+        $this->writeFile($this->scaffold, 'themes/blog/app/Support/AdminMenu.php', 'menu du blog');
+
+        $this->scaffolder()->install('blog', $this->target);
+
+        $this->assertSame('layout du module', file_get_contents($this->target . '/resources/views/admin/layout.php'));
+        $this->assertSame('css du module', file_get_contents($this->target . '/public/css/admin.css'));
+        $this->assertSame('menu du blog', file_get_contents($this->target . '/app/Support/AdminMenu.php'));
+        $this->assertArrayNotHasKey('admin', $this->scaffolder()->catalog(), 'Un module n\'est pas un type de site.');
+
+        $other = $this->makeTempDirectory();
+        $this->scaffolder()->install('vitrine', $other);
+        $this->assertFileDoesNotExist($other . '/public/css/admin.css');
+    }
+
+    public function test_an_unknown_module_is_reported(): void
+    {
+        $this->theme('blog', ['modules' => ['inexistant']]);
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('inexistant');
+
+        $this->scaffolder()->install('blog', $this->target);
+    }
+
     public function test_an_invalid_manifest_is_reported_with_the_file_name(): void
     {
         $this->writeFile($this->scaffold, 'themes/casse/theme.json', '{ pas du json');

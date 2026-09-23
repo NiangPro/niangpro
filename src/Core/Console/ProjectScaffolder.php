@@ -16,11 +16,20 @@ namespace Niang\Core\Console;
  * catalog(), sans rien enregistrer nulle part. resources/scaffold/shared/ suit la même
  * arborescence et fournit ce que tous les thèmes ont en commun (design system, composants).
  *
+ * Un module (resources/scaffold/modules/<nom>/, même arborescence) est une brique réutilisée par
+ * plusieurs thèmes sans être elle-même un type de site : l'espace d'administration, par exemple, est
+ * commun à la boutique et au blog. Il est copié après shared/ et avant le thème, qui peut donc en
+ * remplacer n'importe quel fichier.
+ *
  * theme.json (tous les champs sont facultatifs) :
  *   label       libellé affiché dans le catalogue (défaut : le slug)
  *   order       position dans le catalogue, croissante (défaut : 100)
+ *   modules     modules de resources/scaffold/modules/ à installer avec le thème
  *   remove      chemins du projet cible à supprimer avant la copie (démo remplacée par le thème)
+ *   setup       commandes niang lancées automatiquement à la création du projet (ex : migrate,
+ *               db:seed) — voir ThemeSetup ; celles qui réussissent disparaissent de next_steps
  *   next_steps  commandes à suggérer à l'utilisateur une fois le thème installé
+ *   notes       informations à afficher après ces commandes (ex : identifiants du compte admin de test)
  */
 class ProjectScaffolder
 {
@@ -100,7 +109,11 @@ class ProjectScaffolder
             throw new \InvalidArgumentException("Dossier cible introuvable : $targetPath");
         }
 
-        $sources = [$this->scaffoldPath . '/shared', $this->themeDir($type)];
+        $sources = [
+            $this->scaffoldPath . '/shared',
+            ...array_map($this->moduleDir(...), $this->modules($type)),
+            $this->themeDir($type),
+        ];
 
         foreach ($sources as $source) {
             foreach ($this->manifest($source)['remove'] ?? [] as $relative) {
@@ -125,6 +138,81 @@ class ProjectScaffolder
         }
 
         return array_values(array_map('strval', $this->manifest($this->themeDir($type))['next_steps'] ?? []));
+    }
+
+    /**
+     * Commandes `niang` à exécuter automatiquement dans le projet créé (clé `setup`).
+     *
+     * @return list<string>
+     *
+     * @throws \InvalidArgumentException si une commande n'a pas la forme « nom[:action] [argument] »
+     */
+    public function setup(string $type): array
+    {
+        if (!$this->has($type) || $type === self::DEFAULT_TYPE) {
+            return [];
+        }
+
+        $commands = array_values(array_map('strval', $this->manifest($this->themeDir($type))['setup'] ?? []));
+
+        foreach ($commands as $command) {
+            if (!preg_match('/^[a-z][a-z-]*(:[a-z-]+)?( [A-Za-z0-9_-]+)?$/', $command)) {
+                throw new \InvalidArgumentException("Commande de setup invalide dans le theme.json de « $type » : « $command ».");
+            }
+        }
+
+        return $commands;
+    }
+
+    /**
+     * nextSteps() sans les commandes déjà exécutées par setup (« ./bin/niang migrate » disparaît
+     * si « migrate » a réussi).
+     *
+     * @param list<string> $done commandes de setup réussies
+     * @return list<string>
+     */
+    public function remainingSteps(string $type, array $done): array
+    {
+        $doneSteps = array_map(static fn (string $command): string => "./bin/niang $command", $done);
+
+        return array_values(array_diff($this->nextSteps($type), $doneSteps));
+    }
+
+    /**
+     * Informations à afficher une fois le thème installé, après les commandes de nextSteps().
+     *
+     * @return list<string>
+     */
+    public function notes(string $type): array
+    {
+        if (!$this->has($type) || $type === self::DEFAULT_TYPE) {
+            return [];
+        }
+
+        return array_values(array_map('strval', $this->manifest($this->themeDir($type))['notes'] ?? []));
+    }
+
+    /**
+     * @return list<string>
+     *
+     * @throws \InvalidArgumentException si un module déclaré n'existe pas
+     */
+    private function modules(string $type): array
+    {
+        $modules = array_values(array_map('strval', $this->manifest($this->themeDir($type))['modules'] ?? []));
+
+        foreach ($modules as $module) {
+            if (!preg_match('/^[a-z0-9][a-z0-9_-]*$/', $module) || !is_dir($this->moduleDir($module))) {
+                throw new \InvalidArgumentException("Module inconnu dans le theme.json de « $type » : « $module ».");
+            }
+        }
+
+        return $modules;
+    }
+
+    private function moduleDir(string $module): string
+    {
+        return $this->scaffoldPath . '/modules/' . $module;
     }
 
     private function themeDir(string $type): string

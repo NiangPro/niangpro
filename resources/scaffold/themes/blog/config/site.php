@@ -43,6 +43,7 @@ return [
             'links' => [
                 ['label' => 'À propos', 'href' => '/a-propos'],
                 ['label' => 'Contact', 'href' => '/contact'],
+                ['label' => 'Espace rédaction', 'href' => '/login'],
             ],
         ],
     ],

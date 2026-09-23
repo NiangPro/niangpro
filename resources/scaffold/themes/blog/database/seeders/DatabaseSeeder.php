@@ -6,8 +6,9 @@ use Niang\Core\Database\DB;
 use Niang\Core\Database\Seeder;
 
 /**
- * Articles de démonstration (contenu fictif) : à remplacer par les vôtres. Relancer
- * `niang db:seed` ne crée pas de doublons : un article dont le slug existe déjà est ignoré.
+ * Compte administrateur de test (AdminUserSeeder) et articles de démonstration (contenu fictif),
+ * à remplacer par les vôtres. Relancer `niang db:seed` ne crée pas de doublons : un compte ou un
+ * article déjà présent (même email, même slug) est ignoré.
  *
  * Le corps est du texte simple : paragraphes séparés par une ligne vide, « ## » pour un
  * intertitre, « > » pour une citation, « - » pour une liste (voir App\Support\PostFormat).
@@ -15,6 +16,8 @@ use Niang\Core\Database\Seeder;
 return new class extends Seeder {
     public function run(): void
     {
+        (require __DIR__ . '/AdminUserSeeder.php')->run();
+
         $tagIds = [];
 
         foreach (['design', 'produit', 'accessibilite', 'html', 'performance', 'redaction', 'php'] as $name) {

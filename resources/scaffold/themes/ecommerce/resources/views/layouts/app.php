@@ -8,6 +8,7 @@
  * @var string|null $active
  */
 
+use App\Models\User;
 use App\Support\Cart;
 use Niang\Core\Auth;
 
@@ -15,7 +16,10 @@ $count = Cart::count();
 $accountHref = Auth::check() ? '/compte/commandes' : '/login';
 $accountLabel = Auth::check() ? 'Mon compte et mes commandes' : 'Se connecter';
 
-$actions = '<a class="icon-btn" href="' . e($accountHref) . '" aria-label="' . e($accountLabel) . '">'
+$actions = (User::isAdmin(Auth::user())
+        ? '<a class="icon-btn" href="/admin" aria-label="Administration">' . component('components/icon', ['name' => 'grid']) . '</a>'
+        : '')
+    . '<a class="icon-btn" href="' . e($accountHref) . '" aria-label="' . e($accountLabel) . '">'
     . component('components/icon', ['name' => 'user']) . '</a>'
     . '<a class="icon-btn" href="/panier" aria-label="Panier, ' . $count . ' article' . ($count > 1 ? 's' : '') . '">'
     . component('components/icon', ['name' => 'bag'])

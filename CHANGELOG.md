@@ -7,6 +7,26 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ## [Non publié]
 
+### Added
+
+- **Espace d'administration pour les thèmes boutique et blog** : nouveau module
+  `resources/scaffold/modules/admin/` (déclaré par `"modules": ["admin"]` dans `theme.json`,
+  installé entre `shared/` et le thème). Colonne `users.role`, compte administrateur de test créé
+  à la création du projet (`admin@example.com` / `admin1234`, réglable avec `ADMIN_EMAIL` et
+  `ADMIN_PASSWORD`), middleware `EnsureUserIsAdmin`, layout avec barre latérale, thème clair/sombre
+  et graphiques SVG générés côté serveur (aucune dépendance JS). Un administrateur qui se connecte
+  arrive sur `/admin` (`User::homePath()`), les autres comptes restent sur `/`.
+  - Boutique : tableau de bord (chiffre d'affaires, commandes, panier moyen, ventes sur 14 jours,
+    meilleures ventes, stock faible), commandes (filtres, détail, statut), produits (CRUD), stock,
+    catégories, clients, paramètres. Le seeder ajoute des clients et commandes `DEMO-*`.
+  - Blog : tableau de bord (publications par mois, catégories, tags), articles (CRUD avec tags),
+    catégories, tags, utilisateurs (création, rôles), paramètres. Le blog gagne `/login` et la
+    récupération de mot de passe (« Espace rédaction »).
+- `theme.json` accepte `setup` (commandes `niang` lancées automatiquement à la création du projet,
+  via `Niang\Core\Console\ThemeSetup`) et `notes` (lignes affichées à la fin). Boutique et blog
+  déclarent `"setup": ["migrate", "db:seed"]` : base prête et compte administrateur de test créé
+  dès `niang new` ou `composer create-project`, sans étape manuelle.
+
 ### Security
 
 - **CORS : `allowed_origins: ['*']` combiné à `supports_credentials: true` reflétait n'importe
