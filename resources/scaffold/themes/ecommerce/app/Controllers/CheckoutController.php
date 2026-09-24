@@ -79,7 +79,9 @@ class CheckoutController extends Controller
             $shipping = Cart::shipping($subtotal);
             $reference = 'CMD-' . strtoupper(bin2hex(random_bytes(4)));
 
-            $orderId = Order::create([
+            // forceCreate : validated() ne contient que les coordonnées validées par CheckoutRequest ;
+            // montants, statut et user_id viennent du serveur, jamais du formulaire.
+            $orderId = Order::forceCreate([
                 ...$request->validated(),
                 'user_id' => Auth::id(),
                 'reference' => $reference,
@@ -90,7 +92,7 @@ class CheckoutController extends Controller
             ]);
 
             foreach ($lines as $line) {
-                OrderItem::create([
+                OrderItem::forceCreate([
                     'order_id' => $orderId,
                     'product_id' => $line['product']['id'],
                     'name' => $line['product']['name'],

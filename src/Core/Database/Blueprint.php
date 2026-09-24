@@ -90,6 +90,13 @@ class Blueprint
         return $this->addColumn($name, 'foreignId');
     }
 
+    /** Colonne deleted_at (nullable) pour un Model avec $softDeletes = true. */
+    public function softDeletes(): static
+    {
+        $this->addColumn('deleted_at', 'timestamp')->nullable();
+        return $this;
+    }
+
     public function timestamps(): static
     {
         $this->addColumn('created_at', 'timestamp')->default(new Expression('CURRENT_TIMESTAMP'));

@@ -25,7 +25,7 @@ return new class extends Seeder {
             return;
         }
 
-        User::create([
+        User::forceCreate([
             'name' => 'Administrateur',
             'email' => $email,
             'password' => Hash::make((string) env('ADMIN_PASSWORD', self::DEFAULT_PASSWORD)),

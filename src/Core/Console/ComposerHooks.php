@@ -2,6 +2,8 @@
 
 namespace Niang\Core\Console;
 
+use Niang\Core\AppKey;
+
 /**
  * Hook `post-create-project-cmd` de composer.json : `composer create-project niangpro/framework
  * mon-app` se contente de copier les fichiers du paquet (il n'exécute jamais `niang new`), donc
@@ -34,6 +36,8 @@ class ComposerHooks
     public static function handle(object $event, string $projectRoot, bool $stdinIsTty, ProjectScaffolder $scaffolder): void
     {
         $io = $event->getIO();
+
+        self::createEnvFile($projectRoot, $io);
 
         try {
             $type = (new SiteTypePrompt($scaffolder))->resolve(
@@ -94,6 +98,25 @@ class ComposerHooks
                 $io->write(self::escape($note));
             }
         }
+    }
+
+    /**
+     * .env à partir de .env.example, avec une APP_KEY propre à ce projet — sans quoi les URLs signées
+     * (réinitialisation de mot de passe), les jetons API et les cookies n'auraient aucun secret.
+     * Un .env déjà présent n'est jamais écrasé.
+     */
+    private static function createEnvFile(string $projectRoot, object $io): void
+    {
+        $env = $projectRoot . '/.env';
+        $example = $projectRoot . '/.env.example';
+
+        if (file_exists($env) || !file_exists($example)) {
+            return;
+        }
+
+        copy($example, $env);
+        AppKey::writeTo($env);
+        $io->write('<info>.env créé, avec une APP_KEY propre à ce projet.</info>');
     }
 
     /** Un « < » dans un libellé de thème ne doit pas être interprété comme une balise de mise en forme Composer. */

@@ -37,7 +37,9 @@ class UserController extends Controller
             ['name' => 'nom', 'password' => 'mot de passe', 'role' => 'rôle']
         );
 
-        User::create([
+        // forceCreate : `role` et `email_verified_at` sont hors de $fillable ; ici un administrateur
+        // les attribue, après validation (role: in:admin,user).
+        User::forceCreate([
             'name' => $data['name'],
             'email' => $data['email'],
             'password' => Hash::make($data['password']),
@@ -57,7 +59,7 @@ class UserController extends Controller
             return $this->redirect('/admin/utilisateurs')->with('error', 'Vous ne pouvez pas modifier votre propre rôle.');
         }
 
-        User::update($user['id'], ['role' => $data['role']]);
+        User::forceUpdate($user['id'], ['role' => $data['role']]); // décision d'un admin, validée ci-dessus
 
         return $this->redirect('/admin/utilisateurs')->with('success', $data['role'] === 'admin'
             ? "{$user['name']} a maintenant accès à l'administration."

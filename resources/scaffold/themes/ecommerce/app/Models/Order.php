@@ -10,6 +10,12 @@ use Niang\Core\Database\Model;
  */
 class Order extends Model
 {
+    /**
+     * Seules les coordonnées saisies par le client : montants, statut, référence et user_id sont
+     * calculés par le serveur (CheckoutController, via forceCreate).
+     */
+    protected static array $fillable = ['name', 'email', 'phone', 'address', 'postal_code', 'city'];
+
     public static function items(int|string $orderId): array
     {
         return static::hasMany($orderId, OrderItem::class, 'order_id');

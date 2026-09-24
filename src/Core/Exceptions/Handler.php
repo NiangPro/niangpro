@@ -6,6 +6,7 @@ use Niang\Core\Auth;
 use Niang\Core\Env;
 use Niang\Core\Http\Request;
 use Niang\Core\Http\Response;
+use Niang\Core\Lang;
 use Niang\Core\Log;
 use Niang\Core\Validation\ValidationException;
 use Niang\Core\View;
@@ -31,7 +32,7 @@ class Handler
         self::report($e);
 
         if ($e instanceof \PDOException) {
-            return self::renderStatus($request, 500, 'Erreur de base de données.', $e, $startedAt);
+            return self::renderStatus($request, 500, Lang::get('http.database_error'), $e, $startedAt);
         }
 
         return self::renderStatus($request, 500, 'Une erreur est survenue.', $e, $startedAt);
@@ -40,7 +41,7 @@ class Handler
     private static function renderValidation(ValidationException $e, Request $request): Response
     {
         if ($request->wantsJson()) {
-            return Response::json(['message' => 'La validation a échoué.', 'errors' => $e->errors], 422);
+            return Response::json(['message' => $e->getMessage(), 'errors' => $e->errors], 422);
         }
 
         $back = $request->header('Referer', '/');
