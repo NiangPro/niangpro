@@ -164,6 +164,9 @@ class Commander
         class {$name} extends Model
         {
             // protected static string \$table = 'ma_table';
+
+            /** Colonnes modifiables via create()/update() — à compléter (sinon create() lève une exception). */
+            protected static array \$fillable = [];
         }
 
         PHP;

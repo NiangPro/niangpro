@@ -100,7 +100,8 @@ class AuthController extends Controller
             $token = bin2hex(random_bytes(32));
 
             PasswordResetToken::deleteForEmail($data['email']);
-            PasswordResetToken::create([
+            // forceCreate : le hash du jeton est calculé ici, jamais fourni par le visiteur.
+            PasswordResetToken::forceCreate([
                 'email' => $data['email'],
                 'token_hash' => Hash::make($token),
             ]);
@@ -172,7 +173,7 @@ class AuthController extends Controller
         $user = User::find($id);
 
         if ($user !== null && $user['email_verified_at'] === null) {
-            User::update($id, ['email_verified_at' => date('Y-m-d H:i:s')]);
+            User::forceUpdate($id, ['email_verified_at' => date('Y-m-d H:i:s')]);
         }
 
         return $this->redirect('/login')->with('success', 'Email confirmé, merci !');

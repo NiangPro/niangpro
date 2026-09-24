@@ -14,6 +14,11 @@ use Niang\Core\Database\Model;
  */
 class Product extends Model
 {
+    /** Les champs du formulaire d'administration des produits. */
+    protected static array $fillable = [
+        'name', 'slug', 'category', 'description', 'price_cents', 'old_price_cents', 'image', 'stock', 'featured',
+        'created_at', 'updated_at',
+    ];
     /** En dessous de ce stock (inclus), le produit est signalé dans l'administration. */
     public const LOW_STOCK = 5;
 

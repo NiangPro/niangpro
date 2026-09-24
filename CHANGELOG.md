@@ -9,6 +9,23 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Protection contre l'affectation de masse (`$fillable`)** : `Model::create()`/`update()`
+  écrivaient toutes les clés reçues — `Post::create($request->all())` laissait un visiteur écrire
+  n'importe quelle colonne (`role`, `user_id`...).
+  - `protected static array $fillable` : `create()`/`update()` ne gardent que ces colonnes (les autres
+    sont ignorées, `_token` compris). Sans `$fillable`, `MassAssignmentException` plutôt qu'un
+    comportement silencieux ; idem si aucune colonne fournie n'est modifiable (au lieu d'une erreur
+    SQL obscure sur un INSERT vide).
+  - `forceCreate()`/`forceUpdate()` pour le code de confiance ; `Factory` les utilise.
+  - Tous les modèles livrés déclarent leurs colonnes (`User` : `name`, `email`, `password` — ni `role`
+    ni `email_verified_at`) ; les écritures serveur de colonnes sensibles passent par `force*()`
+    (vérification d'email, jeton de réinitialisation, rôle attribué par un admin, montants et statut
+    d'une commande, seeders). Le thème blog fournit son propre `app/Models/Post.php`, dont `$fillable`
+    couvre les colonnes ajoutées par sa migration. `niang make:model` génère `$fillable`.
+  - Vérifié sur un projet boutique créé par `composer create-project` : une inscription qui ajoute
+    `role=admin` et `email_verified_at` au formulaire crée un compte `user` non vérifié (403 sur
+    `/admin`).
+
 - **Envoi d'emails réel : driver SMTP** (roadmap §28) : jusqu'ici `Mail` n'avait que les drivers
   `log` et `array` — la réinitialisation de mot de passe et la vérification d'email étaient codées
   mais aucun email ne partait réellement.

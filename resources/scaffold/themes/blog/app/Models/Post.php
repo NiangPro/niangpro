@@ -4,9 +4,13 @@ namespace App\Models;
 
 use Niang\Core\Database\Model;
 
+/**
+ * Remplace app/Models/Post.php du squelette à l'installation du thème blog : mêmes relations, mais
+ * $fillable couvre aussi les colonnes ajoutées par la migration du blog (slug, chapeau, catégorie...).
+ */
 class Post extends Model
 {
-    protected static array $fillable = ['title', 'body'];
+    protected static array $fillable = ['title', 'slug', 'excerpt', 'body', 'category', 'author', 'created_at', 'updated_at'];
 
     public static function comments(int|string $postId): array
     {

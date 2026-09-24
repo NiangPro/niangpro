@@ -132,6 +132,9 @@ Attachez-le à une route : `$router->get('/ping', $action, [LogRequest::class]);
 class User extends Model
 {
     // protected static string $table = 'users';
+
+    // Colonnes qu'un formulaire peut remplir via create()/update() — les autres sont ignorées.
+    protected static array $fillable = ['name', 'email', 'password'];
 }
 
 User::all();
@@ -142,6 +145,16 @@ User::create(['name' => 'Awa']);
 User::update(1, ['name' => 'Fatou']);
 User::destroy(1);
 ```
+
+**Protection contre l'affectation de masse** : `create()` et `update()` ne gardent que les colonnes
+de `$fillable`. `User::create($request->all())` ne peut donc pas écrire `role` ou
+`email_verified_at`, même si un visiteur ajoute ces champs au formulaire. Un modèle sans `$fillable`
+fait lever une `MassAssignmentException` à `create()`/`update()` plutôt que de tout accepter (ou tout
+jeter) en silence — `niang make:model` génère la propriété, à compléter. Pour du code de confiance qui
+écrit une colonne sensible (seeder, rôle attribué par un administrateur, date de vérification
+d'email) : `User::forceCreate([...])` et `User::forceUpdate($id, [...])`. Les factories passent par
+`forceCreate()`.
+
 
 Configurez la connexion dans `.env` (`DB_CONNECTION=sqlite` par défaut, ou `mysql`/`pgsql`).
 

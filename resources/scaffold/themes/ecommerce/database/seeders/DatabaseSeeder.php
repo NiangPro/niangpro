@@ -69,7 +69,7 @@ return new class extends Seeder {
 
         foreach ([['Awa Diop', 'awa.diop@example.test'], ['Moussa Ndiaye', 'moussa.ndiaye@example.test'], ['Claire Martin', 'claire.martin@example.test']] as [$name, $email]) {
             $existing = User::query()->where('email', $email)->first();
-            $customers[] = $existing ? $existing : User::find(User::create([
+            $customers[] = $existing ? $existing : User::find(User::forceCreate([
                 'name' => $name,
                 'email' => $email,
                 // Mot de passe aléatoire jamais communiqué : ces comptes ne servent qu'à la démonstration.
@@ -111,7 +111,7 @@ return new class extends Seeder {
             }
 
             $shipping = Cart::shipping($subtotal);
-            $orderId = Order::create([
+            $orderId = Order::forceCreate([
                 'user_id' => $customer['id'] ?? null,
                 'reference' => 'DEMO-' . (1001 + $i),
                 'name' => $customer['name'] ?? $guest[0],
@@ -128,7 +128,7 @@ return new class extends Seeder {
             ]);
 
             foreach ($items as [$product, $quantity]) {
-                OrderItem::create([
+                OrderItem::forceCreate([
                     'order_id' => $orderId,
                     'product_id' => $product['id'],
                     'name' => $product['name'],

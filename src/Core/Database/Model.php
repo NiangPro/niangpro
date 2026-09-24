@@ -2,10 +2,24 @@
 
 namespace Niang\Core\Database;
 
+use Niang\Core\Exceptions\MassAssignmentException;
+
 abstract class Model
 {
     protected static string $table = '';
     protected static string $primaryKey = 'id';
+
+    /**
+     * Colonnes qu'un formulaire peut légitimement remplir via create()/update(). Les autres clés
+     * sont ignorées : Post::create($request->all()) ne peut pas écrire `role`, `user_id` ou
+     * `is_admin` même si un visiteur les ajoute à la requête. Laissé vide, create()/update() lèvent
+     * une MassAssignmentException plutôt que de tout accepter (ou de tout jeter) en silence.
+     * Pour du code de confiance qui écrit des colonnes sensibles (seeder, rôle attribué par un
+     * admin, date de vérification d'email...) : forceCreate()/forceUpdate().
+     *
+     * @var list<string>
+     */
+    protected static array $fillable = [];
 
     public static function table(): string
     {
@@ -42,14 +56,59 @@ abstract class Model
         return static::query()->where($column, $value)->get();
     }
 
+    /** Insère les colonnes de $fillable présentes dans $data (les autres sont ignorées) et retourne l'id. */
     public static function create(array $data): string
+    {
+        return static::forceCreate(static::onlyFillable($data));
+    }
+
+    /** Met à jour les colonnes de $fillable présentes dans $data (les autres sont ignorées). */
+    public static function update(int|string $id, array $data): bool
+    {
+        return static::forceUpdate($id, static::onlyFillable($data));
+    }
+
+    /** Comme create(), sans filtre $fillable — jamais avec des données venues directement de la requête. */
+    public static function forceCreate(array $data): string
     {
         return static::query()->insert($data);
     }
 
-    public static function update(int|string $id, array $data): bool
+    /** Comme update(), sans filtre $fillable — jamais avec des données venues directement de la requête. */
+    public static function forceUpdate(int|string $id, array $data): bool
     {
         return static::query()->where(static::$primaryKey, $id)->update($data);
+    }
+
+    /** @return list<string> */
+    public static function fillable(): array
+    {
+        return static::$fillable;
+    }
+
+    protected static function onlyFillable(array $data): array
+    {
+        if (static::$fillable === []) {
+            throw new MassAssignmentException(sprintf(
+                '%s::create()/update() : déclarez les colonnes modifiables dans `protected static array $fillable = [...]`, '
+                . 'ou utilisez forceCreate()/forceUpdate() pour du code de confiance.',
+                static::class
+            ));
+        }
+
+        $filtered = array_intersect_key($data, array_flip(static::$fillable));
+
+        if ($filtered === [] && $data !== []) {
+            // Rien d'écrivable : un INSERT/UPDATE vide échouerait plus loin avec une erreur SQL obscure.
+            throw new MassAssignmentException(sprintf(
+                '%s : aucune des colonnes fournies (%s) ne figure dans $fillable (%s).',
+                static::class,
+                implode(', ', array_keys($data)),
+                implode(', ', static::$fillable)
+            ));
+        }
+
+        return $filtered;
     }
 
     public static function destroy(int|string $id): bool

@@ -37,7 +37,7 @@ class EnsureEmailIsVerifiedTest extends TestCase
     public function test_lets_a_user_with_a_verified_email_through(): void
     {
         $userId = User::create(['name' => 'Awa', 'email' => 'awa@example.test', 'password' => Hash::make('secret1234')]);
-        User::update($userId, ['email_verified_at' => date('Y-m-d H:i:s')]);
+        User::forceUpdate($userId, ['email_verified_at' => date('Y-m-d H:i:s')]);
         Auth::login(User::find($userId));
 
         $response = (new EnsureEmailIsVerified())->handle(new Request('GET', '/'), fn (Request $r) => Response::html('ok'));
