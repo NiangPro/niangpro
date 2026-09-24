@@ -2,9 +2,12 @@
 
 namespace Tests\Unit;
 
+use Niang\Core\Exceptions\ConfigurationException;
+use Niang\Core\Exceptions\MailException;
 use Niang\Core\Mail;
 use Niang\Core\Mailable;
 use PHPUnit\Framework\TestCase;
+use Tests\Support\FakeSmtpServer;
 
 class MailTest extends TestCase
 {
@@ -52,6 +55,58 @@ class MailTest extends TestCase
         Mail::to('a@example.com')->send(new MailTestWelcomeMailable());
 
         $this->assertSame([], Mail::sent());
+    }
+
+    /** @param array<string, string> $env */
+    private function withEnv(array $env, \Closure $callback): void
+    {
+        $previous = [];
+        foreach ($env as $key => $value) {
+            $previous[$key] = getenv($key);
+            putenv("$key=$value");
+        }
+
+        try {
+            $callback();
+        } finally {
+            foreach ($previous as $key => $value) {
+                $value === false ? putenv($key) : putenv("$key=$value");
+            }
+        }
+    }
+
+    public function test_smtp_mailer_sends_through_the_configured_server(): void
+    {
+        $server = new FakeSmtpServer();
+
+        $this->withEnv([
+            'MAIL_MAILER' => 'smtp',
+            'MAIL_HOST' => '127.0.0.1',
+            'MAIL_PORT' => (string) $server->port,
+            'MAIL_ENCRYPTION' => 'none',
+            'MAIL_FROM_ADDRESS' => 'contact@niangpro.test',
+            'MAIL_FROM_NAME' => 'NiangPro',
+        ], fn () => Mail::to('awa@example.com')->send(new MailTestWelcomeMailable()));
+
+        $transcript = $server->transcript();
+        $this->assertStringContainsString("RCPT TO:<awa@example.com>\r\n", $transcript);
+        $this->assertStringContainsString("Subject: Bienvenue\r\n", $transcript);
+        $this->assertStringContainsString('From: NiangPro <contact@niangpro.test>', $transcript);
+    }
+
+    public function test_smtp_mailer_without_host_fails_loudly(): void
+    {
+        $this->expectException(MailException::class);
+        $this->expectExceptionMessage('MAIL_HOST');
+
+        $this->withEnv(['MAIL_MAILER' => 'smtp', 'MAIL_HOST' => '', 'MAIL_FROM_ADDRESS' => ''], fn () => Mail::to('a@example.com')->send(new MailTestWelcomeMailable()));
+    }
+
+    public function test_an_unknown_mailer_fails_instead_of_silently_logging(): void
+    {
+        $this->expectException(ConfigurationException::class);
+
+        $this->withEnv(['MAIL_MAILER' => 'smpt'], fn () => Mail::to('a@example.com')->send(new MailTestWelcomeMailable()));
     }
 }
 

@@ -9,6 +9,28 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Envoi d'emails réel : driver SMTP** (roadmap §28) : jusqu'ici `Mail` n'avait que les drivers
+  `log` et `array` — la réinitialisation de mot de passe et la vérification d'email étaient codées
+  mais aucun email ne partait réellement.
+  - **`Niang\Core\SmtpTransport`**, client SMTP écrit à la main (RFC 5321), sans extension ni
+    dépendance : `stream_socket_client`, STARTTLS (`MAIL_ENCRYPTION=tls`, défaut) ou TLS implicite
+    (`ssl`), `AUTH PLAIN`/`LOGIN`, message RFC 5322 en quoted-printable, sujets et noms d'expéditeur
+    non ASCII encodés (RFC 2047), *dot-stuffing*, texte seul ou texte + HTML
+    (`multipart/alternative`) via le nouveau `Mailable::html()` (facultatif, `null` par défaut).
+  - **Sécurité** : pas de repli en clair si le serveur ne propose pas STARTTLS ; identifiants jamais
+    envoyés sur une connexion non chiffrée (sauf `localhost`) ; certificat du serveur vérifié ;
+    adresses et sujet contrôlés contre l'injection d'en-têtes ; le mot de passe n'apparaît jamais
+    dans une `MailException`.
+  - **`MAIL_MAILER` inconnu → `ConfigurationException`** au lieu d'un repli silencieux sur `log`
+    (une faute de frappe en production faisait disparaître les emails sans bruit).
+  - `niang doctor` vérifie la configuration SMTP (`MAIL_HOST`, `MAIL_FROM_ADDRESS`, `openssl`) et
+    avertit si `MAIL_MAILER` vaut `log`/`array` avec `APP_ENV=production`.
+  - Tests contre un vrai serveur dans un process séparé (`tests/Support/fake-smtp-server.php` :
+    vraie socket, vrai TLS avec certificat auto-signé généré au vol) — 16 tests `SmtpTransportTest`,
+    3 dans `MailTest`, 4 dans `CommanderDoctorTest`. Vérifié aussi contre une implémentation
+    indépendante (aiosmtpd, Python) : STARTTLS + AUTH, message relu sans défaut par le parseur
+    `email` de Python.
+
 - **Espace d'administration pour les thèmes boutique et blog** : nouveau module
   `resources/scaffold/modules/admin/` (déclaré par `"modules": ["admin"]` dans `theme.json`,
   installé entre `shared/` et le thème). Colonne `users.role`, compte administrateur de test créé

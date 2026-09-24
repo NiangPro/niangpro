@@ -914,7 +914,45 @@ class Commander
             $results[] = ['warn', 'APP_DEBUG=true en production — désactivez-le avant déploiement'];
         }
 
+        array_push($results, ...$this->mailChecks());
         return $results;
+    }
+
+    /**
+     * Configuration mail, sans se connecter au serveur (doctor vérifie l'environnement statique ;
+     * un vrai envoi reste le seul test complet).
+     *
+     * @return list<array{0: 'ok'|'fail'|'warn', 1: string}>
+     */
+    private function mailChecks(): array
+    {
+        $mailer = (string) Env::get('MAIL_MAILER', 'log');
+
+        if ($mailer === 'smtp') {
+            $missing = array_values(array_filter(['MAIL_HOST', 'MAIL_FROM_ADDRESS'], fn (string $key) => (string) Env::get($key, '') === ''));
+            $encryption = strtolower((string) Env::get('MAIL_ENCRYPTION', 'tls'));
+
+            return [
+                $this->doctorCheck(
+                    $missing === [],
+                    'Mail SMTP configuré (' . Env::get('MAIL_HOST') . ')',
+                    'MAIL_MAILER=smtp mais ' . implode(' et ', $missing) . ' vide(s) dans .env'
+                ),
+                $this->doctorCheck(
+                    $encryption === 'none' || extension_loaded('openssl'),
+                    "Chiffrement SMTP : $encryption",
+                    "Extension openssl manquante (MAIL_ENCRYPTION=$encryption)"
+                ),
+            ];
+        }
+
+        if (!in_array($mailer, ['log', 'array'], true)) {
+            return [$this->doctorCheck(false, '', "MAIL_MAILER inconnu : « $mailer » (attendu : smtp, log ou array)")];
+        }
+
+        return Env::get('APP_ENV') === 'production'
+            ? [['warn', "MAIL_MAILER=$mailer en production — aucun email ne sera réellement envoyé (utilisez smtp)"]]
+            : [];
     }
 
     /** @return array{0: 'ok'|'fail', 1: string} */

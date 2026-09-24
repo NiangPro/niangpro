@@ -94,4 +94,56 @@ class CommanderDoctorTest extends TestCase
 
         $this->assertNull($this->statusFor($checks, 'APP_DEBUG=true en production'));
     }
+
+    /** @param array<string, string|null> $env null = variable retirée */
+    private function checksWithEnv(array $env): array
+    {
+        $previous = [];
+
+        foreach ($env as $key => $value) {
+            $previous[$key] = getenv($key);
+            $value === null ? putenv($key) : putenv("$key=$value");
+        }
+
+        try {
+            return $this->checks();
+        } finally {
+            foreach ($previous as $key => $value) {
+                $value === false ? putenv($key) : putenv("$key=$value");
+            }
+        }
+    }
+
+    public function test_fails_when_smtp_is_selected_without_host_or_sender(): void
+    {
+        $checks = $this->checksWithEnv(['MAIL_MAILER' => 'smtp', 'MAIL_HOST' => '', 'MAIL_FROM_ADDRESS' => '']);
+
+        $this->assertSame('fail', $this->statusFor($checks, 'MAIL_HOST et MAIL_FROM_ADDRESS vide(s)'));
+    }
+
+    public function test_reports_a_complete_smtp_configuration_as_ok(): void
+    {
+        $checks = $this->checksWithEnv([
+            'MAIL_MAILER' => 'smtp',
+            'MAIL_HOST' => 'smtp.example.test',
+            'MAIL_FROM_ADDRESS' => 'contact@example.test',
+            'MAIL_ENCRYPTION' => 'tls',
+        ]);
+
+        $this->assertSame('ok', $this->statusFor($checks, 'Mail SMTP configuré (smtp.example.test)'));
+        $this->assertSame('ok', $this->statusFor($checks, 'Chiffrement SMTP : tls'));
+    }
+
+    public function test_fails_on_an_unknown_mailer(): void
+    {
+        $this->assertSame('fail', $this->statusFor($this->checksWithEnv(['MAIL_MAILER' => 'smpt']), 'MAIL_MAILER inconnu'));
+    }
+
+    public function test_warns_when_mails_are_only_logged_in_production(): void
+    {
+        $checks = $this->checksWithEnv(['MAIL_MAILER' => 'log', 'APP_ENV' => 'production']);
+
+        $this->assertSame('warn', $this->statusFor($checks, 'MAIL_MAILER=log en production'));
+        $this->assertNull($this->statusFor($this->checksWithEnv(['MAIL_MAILER' => 'log', 'APP_ENV' => 'local']), 'MAIL_MAILER=log'));
+    }
 }

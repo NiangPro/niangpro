@@ -777,9 +777,9 @@ Les chemins contenant `..` sont rejetés (`InvalidArgumentException`) : sans ça
 
 ## Emails
 
-Deux drivers, pilotés par `MAIL_MAILER` dans `.env` (`log` par défaut) — pas d'envoi SMTP réel :
-ça demanderait soit une extension, soit un client écrit à la main non vérifiable dans cet
-environnement, et une absence assumée vaut mieux qu'une implémentation non testée :
+Trois drivers, pilotés par `MAIL_MAILER` dans `.env` (`log` par défaut) : `smtp` pour un envoi
+réel, `log` en développement, `array` en test. Une valeur inconnue lève une erreur plutôt que de
+retomber silencieusement sur `log`.
 
 ```php
 class WelcomeMailable extends Mailable
@@ -787,10 +787,47 @@ class WelcomeMailable extends Mailable
     public function __construct(private string $name) {}
     public function subject(): string { return 'Bienvenue'; }
     public function body(): string { return "Bonjour {$this->name} !"; }
+    // Facultatif : avec une version HTML, l'email part en texte + HTML (multipart/alternative).
+    public function html(): ?string { return '<p>Bonjour <b>' . e($this->name) . '</b> !</p>'; }
 }
 
 Mail::to('awa@example.com')->send(new WelcomeMailable('Awa'));
 ```
+
+### SMTP (production)
+
+Un client SMTP écrit à la main (`Niang\Core\SmtpTransport`), sans extension ni dépendance —
+STARTTLS ou TLS implicite, `AUTH PLAIN`/`LOGIN`, sujets et noms accentués encodés :
+
+```dotenv
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.example.com
+MAIL_PORT=587
+MAIL_ENCRYPTION=tls
+MAIL_USERNAME=contact@example.com
+MAIL_PASSWORD=secret
+MAIL_FROM_ADDRESS=contact@example.com
+MAIL_FROM_NAME="Mon site"
+MAIL_TIMEOUT=10
+```
+
+`MAIL_ENCRYPTION` vaut `tls` (STARTTLS, port 587, le défaut), `ssl` (TLS implicite, port 465) ou
+`none` (serveur local uniquement). Pas de commentaire en fin de ligne dans `.env` : il ferait partie
+de la valeur.
+
+Deux garde-fous : avec `MAIL_ENCRYPTION=tls`, un serveur qui ne propose pas STARTTLS fait échouer
+l'envoi (jamais de repli en clair), et `MAIL_USERNAME`/`MAIL_PASSWORD` ne partent jamais sur une
+connexion non chiffrée, sauf vers `localhost` (Mailpit, MailHog...). Le certificat du serveur est
+vérifié. Une erreur (serveur injoignable, identifiants refusés, destinataire rejeté) lève une
+`Niang\Core\Exceptions\MailException` qui cite la réponse du serveur — jamais le mot de passe.
+`niang doctor` signale une configuration SMTP incomplète, et avertit si `MAIL_MAILER` vaut `log`
+ou `array` en production. En développement, [Mailpit](https://mailpit.axllent.org/) avec
+`MAIL_HOST=127.0.0.1`, `MAIL_PORT=1025` et `MAIL_ENCRYPTION=none` affiche les emails dans le navigateur.
+
+L'envoi est synchrone : pour ne pas faire attendre la requête, envoyez depuis un job
+(`Queue::push()`) ou un écouteur `ShouldQueue`.
+
+### Développement et tests
 
 `MAIL_MAILER=log` (défaut) écrit le contenu complet dans `storage/logs/` — pratique en développement
 pour lire un lien de vérification sans boîte mail réelle (ne le gardez pas en production si vos
