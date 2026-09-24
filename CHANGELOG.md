@@ -9,6 +9,22 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Planificateur de tâches** (roadmap §41) : `queue:work` devait déjà être lancé par cron, sans
+  aucun outil pour déclarer des tâches récurrentes.
+  - `routes/schedule.php` (reçoit `$schedule`) : `command()` (process séparé — un plantage ou un
+    `exit()` n'interrompt pas les autres tâches), `call()` (closure, application et Service Providers
+    démarrés), `job()` (poussé sur la file). Fréquences de `everyMinute()` à `monthlyOn()`,
+    `weekdays()`/`weekends()`, `cron()` brut ; `withoutOverlapping()` (verrou `flock`, libéré même si
+    le process meurt ou si la tâche lève une exception).
+  - `Niang\Core\Scheduling\CronExpression` : 5 champs, listes, intervalles, pas, dimanche = 0 ou 7,
+    règle « jour du mois OU jour de la semaine » de cron, prochaine exécution (29 février compris ;
+    une date impossible échoue au lieu de boucler).
+  - `niang schedule:run` (une ligne cron par minute ; code 1 si une tâche échoue, échecs journalisés)
+    et `niang schedule:list`.
+  - 20 tests. Vérifié en vrai sur une copie du projet : deux `schedule:run` simultanés (la tâche lente
+    `withoutOverlapping` est sautée par le second), une commande qui sort en code 3 (signalée, les
+    tâches suivantes continuent), un job mis en file puis traité par `queue:work`, une closure.
+
 - **Sessions, cache et limitation de débit en base de données** (roadmap §23-24) : tout était sur
   le disque local (sessions PHP natives, `storage/framework/`) — impossible de tourner sur plusieurs
   serveurs web derrière un répartiteur de charge.

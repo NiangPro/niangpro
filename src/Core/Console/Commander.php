@@ -3,6 +3,7 @@
 namespace Niang\Core\Console;
 
 use Niang\Core\AppKey;
+use Niang\Core\Application;
 use Niang\Core\Cache;
 use Niang\Core\Config;
 use Niang\Core\ConfigCache;
@@ -11,9 +12,11 @@ use Niang\Core\Database\Migrator;
 use Niang\Core\Database\Seeder;
 use Niang\Core\Env;
 use Niang\Core\HealthCheck;
+use Niang\Core\Log;
 use Niang\Core\Queue;
 use Niang\Core\RouteCache;
 use Niang\Core\Router;
+use Niang\Core\Scheduling\Schedule;
 
 class Commander
 {
@@ -66,6 +69,8 @@ class Commander
             'make:command' => $this->makeCommand($arg),
             'make:test' => $this->makeTest($arg),
             'theme:add' => $this->themeAdd($arg),
+            'schedule:run' => $this->scheduleRun(),
+            'schedule:list' => $this->scheduleList(),
             default => $this->runCustomCommand($command, array_slice($argv, 2)) ? null : $this->help(),
         };
     }
@@ -745,6 +750,84 @@ class Commander
     {
         $count = Queue::work();
         echo $count > 0 ? "$count job(s) traité(s).\n" : "Aucun job en attente.\n";
+    }
+
+    /** routes/schedule.php, ou un planning vide si le fichier n'existe pas (projet antérieur). */
+    private function loadSchedule(?\Closure $output = null): Schedule
+    {
+        $schedule = new Schedule($this->basePath, $output);
+        $file = $this->basePath . '/routes/schedule.php';
+
+        if (file_exists($file)) {
+            (static function (Schedule $schedule, string $file): void {
+                require $file;
+            })($schedule, $file);
+        }
+
+        return $schedule;
+    }
+
+    /** Appelée chaque minute par cron : lance les tâches dues à cette minute, l'une après l'autre. */
+    private function scheduleRun(): void
+    {
+        // Comme pour une requête HTTP : config, container et Service Providers démarrés, pour que
+        // les closures planifiées disposent des mêmes services (écouteurs d'événements...).
+        new Application($this->basePath);
+
+        $now = new \DateTimeImmutable();
+        $schedule = $this->loadSchedule(static function (string $output): void {
+            echo rtrim($output) . "\n";
+        });
+        $due = $schedule->dueTasks($now);
+
+        if ($due === []) {
+            echo "Aucune tâche à lancer à {$now->format('H:i')}.\n";
+            return;
+        }
+
+        $failures = 0;
+
+        foreach ($due as $task) {
+            echo "[{$now->format('Y-m-d H:i')}] {$task->description()}\n";
+
+            try {
+                $code = $task->run($this->basePath . '/storage/framework/schedule');
+            } catch (\Throwable $e) {
+                $code = 1;
+                echo '  Erreur : ' . $e->getMessage() . "\n";
+                Log::error('Tâche planifiée « {task} » en échec : {message}', ['task' => $task->description(), 'message' => $e->getMessage()]);
+            }
+
+            if ($code === null) {
+                echo "  Sautée : l'exécution précédente tourne encore (withoutOverlapping).\n";
+            } elseif ($code !== 0) {
+                $failures++;
+                echo "  Échec (code $code).\n";
+                Log::error('Tâche planifiée « {task} » terminée avec le code {code}', ['task' => $task->description(), 'code' => $code]);
+            }
+        }
+
+        if ($failures > 0) {
+            exit(1);
+        }
+    }
+
+    private function scheduleList(): void
+    {
+        $tasks = $this->loadSchedule()->tasks();
+
+        if ($tasks === []) {
+            echo "Aucune tâche planifiée (voir routes/schedule.php).\n";
+            return;
+        }
+
+        $now = new \DateTimeImmutable();
+
+        printf("%-16s %-18s %s\n", 'CRON', 'PROCHAINE', 'TÂCHE');
+
+        foreach ($tasks as $task) {
+            printf("%-16s %-18s %s\n", $task->expression(), $task->nextRunAfter($now)->format('Y-m-d H:i'), $task->description());
+        }
     }
 
     private function queueFailed(): void
@@ -1432,6 +1515,8 @@ class Commander
           make:event <Nom>         Génère un événement dans app/Events
           make:command <Nom>       Génère une commande custom dans app/Console/Commands
           make:test <Nom>          Génère un test dans tests/Unit
+          schedule:run             Lance les tâches planifiées dues (routes/schedule.php) — à appeler chaque minute par cron
+          schedule:list            Liste les tâches planifiées et leur prochaine exécution
           theme:add <vendor/paquet> Installe un thème publié comme paquet Composer (extra.niangpro-theme)
 
         TEXT;
