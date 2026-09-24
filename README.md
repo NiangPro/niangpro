@@ -934,24 +934,28 @@ Grammar — corrigé pour passer par `Schema`/`Blueprint` comme n'importe quelle
 ./bin/niang optimize                 # cache les routes + rappels de prod
 ./bin/niang new mon-app              # crée un nouveau projet (pose la question du type de site)
 ./bin/niang new mon-app --type=blog  # idem sans question : vitrine, ecommerce, blog, portfolio, landing, minimal
-./bin/niang np:install               # installe le raccourci global `np` (macOS/Linux)
+./bin/niang np:install               # installe le raccourci global `np` (macOS, Linux, Windows)
 ./bin/niang theme:add vendor/theme-x # installe un thème publié comme paquet Composer (extra.niangpro-theme)
 ```
 
 ### Raccourci `np` (optionnel)
 
 Pour taper `np serve` au lieu de `./bin/niang serve`, installez une fois le raccourci global
-(macOS/Linux) :
+(macOS, Linux et Windows) :
 
 ```bash
-./bin/niang np:install
+./bin/niang np:install        # macOS / Linux
+php bin/niang np:install      # Windows (cmd ou PowerShell)
 ```
 
-La commande dépose un script `np` dans un dossier déjà présent dans votre `PATH` (auto-détecté, par
-exemple `~/.local/bin`, `/opt/homebrew/bin` ou `/usr/local/bin`) qui remonte l'arborescence depuis le
-dossier courant pour retrouver `bin/niang`. Résultat : `np` fonctionne dans **n'importe quel** projet
-NiangPro sur la machine, même depuis un sous-dossier, sans rien reconfigurer par projet. Si aucun
-dossier de votre `PATH` n'est accessible en écriture, la commande vous indique comment en créer un.
+La commande dépose un script `np` (sur Windows, `np.cmd`, utilisable depuis cmd comme depuis
+PowerShell) dans un dossier déjà présent dans votre `PATH` (auto-détecté, par exemple
+`~/.local/bin`, `/opt/homebrew/bin` ou `/usr/local/bin` ; sur Windows, le dossier `bin` global de
+Composer). Ce script remonte l'arborescence depuis le dossier courant pour retrouver `bin/niang`.
+Résultat : `np` fonctionne dans **n'importe quel** projet NiangPro sur la machine, même depuis un
+sous-dossier, sans rien reconfigurer par projet. Si aucun dossier de votre `PATH` n'est accessible
+en écriture, la commande installe `np` dans `~/.local/bin` (Windows : `%LOCALAPPDATA%\NiangPro\bin`)
+et affiche la ligne exacte à exécuter une fois pour l'ajouter au `PATH`.
 
 ## Configuration
 

@@ -36,6 +36,18 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
   thèmes boutique/blog (`auth/login.php`, `auth/register.php`, `auth/forgot-password.php`,
   `auth/reset-password.php`, `shop/checkout.php`).
 
+### Changed
+
+- **`np:install` fonctionne aussi sur Windows** : jusqu'ici, la commande affichait seulement un
+  alias PowerShell à créer à la main. Elle pose désormais un `np.cmd` (utilisable depuis cmd comme
+  depuis PowerShell) qui remonte l'arborescence pour trouver `bin/niang`, comme le script bash sur
+  macOS/Linux. Sur Windows, seuls des dossiers personnels sont retenus (le `bin` global de Composer,
+  ou `%LOCALAPPDATA%\NiangPro\bin`) : un terminal administrateur peut écrire dans
+  `C:\Windows\System32`, qui est dans le `PATH`, et ce n'est pas l'endroit où poser `np`. Sur
+  toutes les plateformes, quand aucun dossier du `PATH` n'est accessible en écriture, `np` est
+  maintenant installé quand même (`~/.local/bin` ou `%LOCALAPPDATA%\NiangPro\bin`), avec la
+  ligne exacte à exécuter pour ajouter ce dossier au `PATH`.
+
 ### Security
 
 - **CORS : `allowed_origins: ['*']` combiné à `supports_credentials: true` reflétait n'importe

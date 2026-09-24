@@ -1138,26 +1138,110 @@ class Commander
         echo "Visible dans `niang new --type=$slug` et `NIANG_SITE_TYPE=$slug composer create-project ...`.\n";
     }
 
-    /** Installe un raccourci global `np` (macOS/Linux) qui trouve bin/niang en remontant depuis le dossier courant. */
+    /**
+     * Installe un raccourci global `np` qui trouve bin/niang en remontant depuis le dossier courant :
+     * script bash sur macOS/Linux, np.cmd sur Windows (utilisable depuis cmd comme depuis PowerShell).
+     */
     private function npInstall(): void
     {
-        if (str_starts_with(PHP_OS_FAMILY, 'Windows')) {
-            echo "np:install n'est pas encore disponible sur Windows. Créez un alias PowerShell manuellement :\n";
-            echo "  Set-Alias np .\\bin\\niang\n";
-            return;
+        $windows = PHP_OS_FAMILY === 'Windows';
+        $fallback = $this->npFallbackDir($windows);
+        $dir = $this->findWritablePathDir($windows, $fallback);
+        $inPath = $dir !== null;
+
+        if (!$inPath) {
+            // Aucun dossier du PATH n'est accessible en écriture : on installe dans un dossier
+            // personnel, et on explique comment l'ajouter au PATH.
+            if ($fallback === null) {
+                echo "Impossible de déterminer votre dossier personnel (" . ($windows ? 'LOCALAPPDATA' : 'HOME') . " non défini).\n";
+                exit(1);
+            }
+
+            if (!is_dir($fallback) && !@mkdir($fallback, 0755, true)) {
+                echo "Impossible de créer le dossier $fallback.\n";
+                exit(1);
+            }
+
+            $dir = $fallback;
         }
 
-        $dir = $this->findWritablePathDir();
+        $path = $dir . DIRECTORY_SEPARATOR . ($windows ? 'np.cmd' : 'np');
 
-        if (!$dir) {
-            echo "Aucun dossier de votre PATH n'est accessible en écriture.\n";
-            echo "Créez-en un et ajoutez-le à votre PATH, par exemple :\n";
-            echo "  mkdir -p ~/.local/bin && echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc\n";
-            echo "puis relancez : ./bin/niang np:install\n";
-            return;
+        if (@file_put_contents($path, $windows ? $this->npWindowsScript() : $this->npUnixScript()) === false) {
+            echo "Impossible d'écrire $path.\n";
+            exit(1);
         }
 
-        $script = <<<'BASH'
+        if (!$windows) {
+            chmod($path, 0755);
+        }
+
+        echo "Raccourci installé : $path\n";
+
+        if (!$inPath) {
+            echo "\nCe dossier n'est pas encore dans votre PATH. Ajoutez-le une fois pour toutes :\n";
+
+            if ($windows) {
+                echo "  (PowerShell) [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';$dir', 'User')\n";
+            } else {
+                $rc = match (basename((string) getenv('SHELL'))) {
+                    'zsh' => '~/.zshrc',
+                    'bash' => PHP_OS_FAMILY === 'Darwin' ? '~/.bash_profile' : '~/.bashrc',
+                    default => '~/.profile',
+                };
+                echo "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> $rc\n";
+            }
+
+            echo "puis ouvrez un nouveau terminal.\n\n";
+        }
+
+        echo "Utilisez `np serve`, `np migrate`, etc. depuis n'importe quel projet NiangPro.\n";
+    }
+
+    /** Dossier personnel où poser `np` quand aucun dossier du PATH n'est accessible en écriture. */
+    private function npFallbackDir(bool $windows): ?string
+    {
+        $base = getenv($windows ? 'LOCALAPPDATA' : 'HOME');
+
+        if (!$base) {
+            return null;
+        }
+
+        return $windows ? "$base\\NiangPro\\bin" : "$base/.local/bin";
+    }
+
+    /**
+     * Premier dossier du PATH existant et accessible en écriture, ou null si aucun.
+     * Sur Windows, on se limite à des dossiers personnels connus : un terminal administrateur peut
+     * écrire dans C:\Windows\System32, qui est dans le PATH, et ce n'est pas l'endroit où poser `np`.
+     */
+    private function findWritablePathDir(bool $windows, ?string $fallback): ?string
+    {
+        $normalize = static fn (string $dir): string => $windows
+            ? strtolower(rtrim(str_replace('/', '\\', $dir), '\\'))
+            : rtrim($dir, '/');
+
+        $pathDirs = array_map($normalize, array_filter(explode(PATH_SEPARATOR, (string) getenv('PATH'))));
+
+        if ($windows) {
+            $appData = getenv('APPDATA');
+            $candidates = array_filter([$fallback, $appData ? "$appData\\Composer\\vendor\\bin" : null]);
+        } else {
+            $candidates = [...array_filter([$fallback]), '/opt/homebrew/bin', '/usr/local/bin', ...explode(PATH_SEPARATOR, (string) getenv('PATH'))];
+        }
+
+        foreach ($candidates as $dir) {
+            if ($dir !== '' && is_dir($dir) && is_writable($dir) && in_array($normalize($dir), $pathDirs, true)) {
+                return $dir;
+            }
+        }
+
+        return null;
+    }
+
+    private function npUnixScript(): string
+    {
+        return <<<'BASH'
         #!/usr/bin/env bash
         # Raccourci pour ./bin/niang : cherche bin/niang en remontant depuis le dossier courant.
         dir="$PWD"
@@ -1172,28 +1256,34 @@ class Commander
         exit 1
 
         BASH;
-
-        $path = "$dir/np";
-        file_put_contents($path, $script);
-        chmod($path, 0755);
-
-        echo "Raccourci installé : $path\n";
-        echo "Utilisez `np serve`, `np migrate`, etc. depuis n'importe quel projet NiangPro.\n";
     }
 
-    /** Premier dossier du PATH existant et accessible en écriture, ou null si aucun. */
-    private function findWritablePathDir(): ?string
+    /**
+     * Équivalent Windows (batch) : cmd ne sait pas exécuter bin/niang directement (pas de shebang),
+     * d'où l'appel explicite à php. Fins de ligne CRLF : avec LF seul, cmd rate parfois les étiquettes
+     * visées par goto. Pas d'accents : cmd n'affiche pas l'UTF-8 par défaut.
+     */
+    private function npWindowsScript(): string
     {
-        $preferred = [getenv('HOME') . '/.local/bin', '/opt/homebrew/bin', '/usr/local/bin'];
-        $pathDirs = array_filter(explode(PATH_SEPARATOR, (string) getenv('PATH')));
-
-        foreach ([...$preferred, ...$pathDirs] as $dir) {
-            if (is_dir($dir) && is_writable($dir) && in_array($dir, $pathDirs, true)) {
-                return $dir;
-            }
-        }
-
-        return null;
+        return implode("\r\n", [
+            '@echo off',
+            'rem Raccourci pour bin\niang : cherche bin\niang en remontant depuis le dossier courant.',
+            'setlocal',
+            'set "dir=%CD%"',
+            ':search',
+            'if exist "%dir%\bin\niang" goto run',
+            'for %%I in ("%dir%\..") do set "parent=%%~fI"',
+            'if /i "%parent%"=="%dir%" goto missing',
+            'set "dir=%parent%"',
+            'goto search',
+            ':run',
+            'php "%dir%\bin\niang" %*',
+            'exit /b %ERRORLEVEL%',
+            ':missing',
+            'echo np : bin\niang introuvable (etes-vous dans un projet NiangPro ?) 1>&2',
+            'exit /b 1',
+            '',
+        ]);
     }
 
     private function copyDirectory(string $source, string $target, array $exclude): void
@@ -1255,7 +1345,7 @@ class Commander
           cache:clear              Vide le cache applicatif
           optimize                 Cache les routes + rappels de prod (opcache, autoload)
           new <nom>                Crée un nouveau projet et y installe un thème de site (--type=<slug> pour éviter la question)
-          np:install                Installe le raccourci global `np` (macOS/Linux)
+          np:install               Installe le raccourci global `np` (macOS, Linux, Windows)
           config:cache             Fige config/*.php (production uniquement)
           config:clear             Supprime le cache de configuration
           doctor                   Diagnostique l'environnement (PHP, extensions, .env, DB, storage...)
