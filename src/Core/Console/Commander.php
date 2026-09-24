@@ -1313,7 +1313,7 @@ class Commander
             // Aucun dossier du PATH n'est accessible en écriture : on installe dans un dossier
             // personnel, et on explique comment l'ajouter au PATH.
             if ($fallback === null) {
-                echo "Impossible de déterminer votre dossier personnel (" . ($windows ? 'LOCALAPPDATA' : 'HOME') . " non défini).\n";
+                echo 'Impossible de déterminer votre dossier personnel (' . ($windows ? 'LOCALAPPDATA' : 'HOME') . " non défini).\n";
                 exit(1);
             }
 
