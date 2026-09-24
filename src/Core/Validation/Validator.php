@@ -3,9 +3,16 @@
 namespace Niang\Core\Validation;
 
 use Niang\Core\Database\DB;
+use Niang\Core\Http\UploadedFile;
 
 final class Validator
 {
+    /**
+     * Types acceptés par la règle `image`. SVG en est volontairement exclu : c'est du XML qui peut
+     * contenir du JavaScript — à autoriser explicitement avec mimes:svg si vous en avez besoin.
+     */
+    private const IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif'];
+
     private array $errors = [];
 
     /**
@@ -108,6 +115,13 @@ final class Validator
             return;
         }
 
+        // Un upload arrivé en erreur (trop gros pour le serveur, partiel...) : sa vraie raison est
+        // plus utile que « le champ doit être une image », et aucune autre règle n'a de sens dessus.
+        if ($value instanceof UploadedFile && !$value->isValid()) {
+            $this->errors[$errorKey][] = $this->messages["$errorKey.file"] ?? $value->errorMessage();
+            return;
+        }
+
         foreach ($rules as $rule) {
             if ($rule === 'nullable') {
                 continue;
@@ -161,16 +175,26 @@ final class Validator
             'confirmed' => $value === ($this->data[$field . '_confirmation'] ?? null),
             'unique' => $this->isUnique($value, $params),
             'exists' => $this->exists($value, $params),
+            'file' => $value instanceof UploadedFile,
+            'image' => $value instanceof UploadedFile && in_array($value->mimeType(), self::IMAGE_MIME_TYPES, true),
+            'mimes' => $value instanceof UploadedFile && $this->hasExtension($value, $params),
+            'mimetypes' => $value instanceof UploadedFile && $this->hasMimeType($value, $params),
+            'dimensions' => $value instanceof UploadedFile && $this->hasDimensions($value, $params),
             default => true,
         };
 
         if (!$valid) {
-            $this->errors[$field][] = $this->message($field, $name, $param, $params);
+            $this->errors[$field][] = $this->message($field, $name, $param, $params, $value instanceof UploadedFile);
         }
     }
 
+    /** Nombre, longueur d'une chaîne, ou taille d'un fichier en kilo-octets (min:, max:, between:). */
     private function size(mixed $value): float
     {
+        if ($value instanceof UploadedFile) {
+            return $value->size() / 1024;
+        }
+
         return is_numeric($value) ? (float) $value : (float) mb_strlen((string) $value);
     }
 
@@ -245,7 +269,65 @@ final class Validator
         return DB::selectOne("SELECT 1 FROM $table WHERE $column = ?", [$value]) !== null;
     }
 
-    private function message(string $field, string $rule, ?string $param, array $params): string
+    /** mimes:jpg,png,pdf — comparé à l'extension déduite du contenu réel, jamais au nom envoyé. */
+    private function hasExtension(UploadedFile $file, array $params): bool
+    {
+        $extension = $file->extension();
+        $allowed = array_map(fn (string $ext) => strtolower(trim($ext)) === 'jpeg' ? 'jpg' : strtolower(trim($ext)), $params);
+
+        return $extension !== null && in_array($extension, $allowed, true);
+    }
+
+    /** mimetypes:image/jpeg,application/pdf — accepte aussi un joker de famille (image/*). */
+    private function hasMimeType(UploadedFile $file, array $params): bool
+    {
+        $mime = $file->mimeType();
+
+        foreach ($params as $allowed) {
+            $allowed = strtolower(trim($allowed));
+
+            if ($allowed === $mime || (str_ends_with($allowed, '/*') && str_starts_with($mime, substr($allowed, 0, -1)))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** dimensions:min_width=100,max_width=2000,min_height=100,max_height=2000 (en pixels, chaque borne facultative). */
+    private function hasDimensions(UploadedFile $file, array $params): bool
+    {
+        $size = @getimagesize($file->path());
+
+        if ($size === false) {
+            return false;
+        }
+
+        [$width, $height] = $size;
+
+        foreach ($params as $constraint) {
+            [$key, $limit] = array_pad(explode('=', $constraint, 2), 2, '0');
+            $limit = (int) $limit;
+
+            $ok = match (trim($key)) {
+                'min_width' => $width >= $limit,
+                'max_width' => $width <= $limit,
+                'min_height' => $height >= $limit,
+                'max_height' => $height <= $limit,
+                'width' => $width === $limit,
+                'height' => $height === $limit,
+                default => true,
+            };
+
+            if (!$ok) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function message(string $field, string $rule, ?string $param, array $params, bool $isFile = false): string
     {
         if (isset($this->messages["$field.$rule"])) {
             return $this->messages["$field.$rule"];
@@ -256,6 +338,14 @@ final class Validator
         }
 
         $label = $this->attributes[$field] ?? $field;
+
+        if ($isFile && in_array($rule, ['min', 'max', 'between'], true)) {
+            return match ($rule) {
+                'min' => "Le fichier $label doit peser au moins $param Ko.",
+                'max' => "Le fichier $label ne doit pas dépasser $param Ko.",
+                default => "Le fichier $label doit peser entre {$params[0]} et {$params[1]} Ko.",
+            };
+        }
 
         return match ($rule) {
             'required', 'required_if', 'required_with', 'required_without' => "Le champ $label est requis.",
@@ -279,6 +369,11 @@ final class Validator
             'confirmed' => "La confirmation du champ $label ne correspond pas.",
             'unique' => "Cette valeur du champ $label est déjà utilisée.",
             'exists' => "La valeur sélectionnée pour $label est invalide.",
+            'file' => "Le champ $label doit être un fichier.",
+            'image' => "Le fichier $label doit être une image (JPEG, PNG, GIF, WebP ou AVIF).",
+            'mimes' => "Le fichier $label doit être de type : $param.",
+            'mimetypes' => "Le fichier $label doit être de type : $param.",
+            'dimensions' => "Les dimensions de l'image $label ne sont pas valides ($param).",
             default => "Le champ $label est invalide.",
         };
     }

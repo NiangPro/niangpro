@@ -39,7 +39,7 @@ abstract class FormRequest extends Request
             throw new AuthorizationException('Action non autorisée.');
         }
 
-        $this->validated = Validator::make($this->all(), $this->rules(), $this->messages(), $this->attributes())->validate();
+        $this->validated = Validator::make($this->allWithFiles(), $this->rules(), $this->messages(), $this->attributes())->validate();
     }
 
     public function validated(): array

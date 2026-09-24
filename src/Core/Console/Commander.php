@@ -915,6 +915,13 @@ class Commander
         }
 
         array_push($results, ...$this->mailChecks());
+
+        // Sans fileinfo, UploadedFile ne peut pas lire le vrai type d'un fichier : les règles
+        // image/mimes/mimetypes refusent alors tout, par prudence.
+        if (!extension_loaded('fileinfo')) {
+            $results[] = ['warn', 'Extension fileinfo manquante — les uploads validés par image/mimes/mimetypes seront tous refusés'];
+        }
+
         return $results;
     }
 

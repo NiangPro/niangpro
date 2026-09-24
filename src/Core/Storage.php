@@ -53,6 +53,15 @@ class Storage
         return '/storage/' . self::normalize($path);
     }
 
+    /**
+     * Chemin absolu sur le disque (ex. pour déplacer un fichier envoyé sans le charger en mémoire,
+     * voir UploadedFile::storeAs()). Même protection contre « .. » que toutes les autres méthodes.
+     */
+    public static function path(string $path): string
+    {
+        return self::resolve($path);
+    }
+
     private static function resolve(string $path): string
     {
         return self::root() . '/' . self::normalize($path);

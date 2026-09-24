@@ -29,7 +29,7 @@ abstract class Controller
      */
     protected function validate(Request $request, array $rules, array $messages = [], array $attributes = []): array
     {
-        return Validator::make($request->all(), $rules, $messages, $attributes)->validate();
+        return Validator::make($request->allWithFiles(), $rules, $messages, $attributes)->validate();
     }
 
     /**

@@ -775,6 +775,53 @@ Storage::url('avatars/1.png');     // '/storage/avatars/1.png' — à router ver
 Les chemins contenant `..` sont rejetés (`InvalidArgumentException`) : sans ça, un chemin construit
 à partir d'une entrée utilisateur pourrait écrire ou lire en dehors de `storage/app/`.
 
+## Upload de fichiers
+
+`$request->file('champ')` retourne un `Niang\Core\Http\UploadedFile` (ou `null`). Le nom et le type
+envoyés par le navigateur ne sont jamais crus : le type réel est lu dans le contenu du fichier, et
+`store()` range le fichier dans `storage/app/` (hors de `public/`, donc jamais exécutable) sous un
+nom aléatoire suivi de l'extension réelle :
+
+```php
+public function updateAvatar(Request $request): Response
+{
+    $data = $this->validate($request, [
+        'avatar' => 'required|image|max:2048|dimensions:min_width=100,min_height=100',
+    ]);
+
+    $path = $data['avatar']->store('avatars');   // 'avatars/3f9c...e1.png'
+    User::update(Auth::id(), ['avatar' => $path]);
+
+    return $this->redirect('/profil');
+}
+```
+
+```html
+<form method="POST" action="/profil/avatar" enctype="multipart/form-data">
+    <?= csrf_field() ?>
+    <input type="file" name="avatar" accept="image/*">
+</form>
+```
+
+Règles de validation : `file`, `image` (JPEG, PNG, GIF, WebP, AVIF — SVG exclu, car il peut contenir
+du JavaScript ; autorisez-le explicitement avec `mimes:svg`), `mimes:jpg,png,pdf` (extension déduite du
+contenu), `mimetypes:application/pdf,image/*`, `dimensions:min_width=,max_width=,min_height=,max_height=,width=,height=`,
+et `min`/`max`/`between` **en kilo-octets** pour un fichier. Un upload arrivé en erreur (trop gros
+pour le serveur, partiel...) affiche sa vraie raison plutôt qu'un message générique ; un champ
+fichier laissé vide est traité comme absent (`required` échoue, `nullable` passe).
+
+Plusieurs fichiers (`name="photos[]"`) : `$request->files['photos']` est une liste, validée avec
+`'photos.*' => 'image'`. Autres méthodes : `hasFile()`, `clientName()` (affichage seulement),
+`mimeType()`, `extension()`, `size()`, `storeAs($dossier, $nom)`.
+
+La taille maximale réelle est aussi limitée par `upload_max_filesize` et `post_max_size` dans
+`php.ini` — au-delà de `post_max_size`, PHP vide la requête entière. En test :
+
+```php
+$this->post('/profil/avatar', ['avatar' => UploadedFile::fakeImage('moi.png', 200, 200)]);
+$this->post('/cv', ['cv' => UploadedFile::fake('cv.pdf', "%PDF-1.4 ...")]);
+```
+
 ## Emails
 
 Trois drivers, pilotés par `MAIL_MAILER` dans `.env` (`log` par défaut) : `smtp` pour un envoi

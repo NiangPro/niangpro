@@ -31,6 +31,26 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
     indépendante (aiosmtpd, Python) : STARTTLS + AUTH, message relu sans défaut par le parseur
     `email` de Python.
 
+- **Upload de fichiers** (roadmap §9 « Uploads » et §42) : `Request` ne lisait jamais `$_FILES`.
+  - **`Niang\Core\Http\UploadedFile`** : `$request->file('avatar')`, `hasFile()`,
+    `$request->files` (champs multiples `name="photos[]"` remis à l'endroit, champs laissés vides
+    ignorés). Type MIME **réel** lu dans le contenu (`finfo`), extension déduite de ce type — jamais
+    du nom envoyé ; `store($dossier)` range le fichier dans `storage/app/` sous un nom aléatoire
+    (40 caractères hexadécimaux) + l'extension réelle, en `0644`, via `move_uploaded_file()` ;
+    `storeAs()` refuse tout nom contenant un séparateur de chemin. Nouveau `Storage::path()`.
+  - **Règles de validation** `file`, `image` (JPEG/PNG/GIF/WebP/AVIF — SVG exclu par défaut, il peut
+    contenir du JavaScript), `mimes`, `mimetypes` (avec joker `image/*`), `dimensions` ;
+    `min`/`max`/`between` en kilo-octets pour un fichier. Un upload arrivé en erreur (taille serveur
+    dépassée, envoi partiel...) affiche sa vraie raison.
+  - `Controller::validate()` et `FormRequest` valident `$request->allWithFiles()` ; `all()` reste
+    sans fichiers, pour que l'ancienne saisie flashée (`old()`) n'en contienne jamais.
+  - Tests : `UploadedFile::fake()` et `UploadedFile::fakeImage()` (vrai PNG généré sans GD) —
+    `UploadedFileTest`, `ValidatorFileRulesTest`, `FileUploadTest` (pile HTTP complète, FormRequest,
+    422 JSON, flash). Vérifié aussi par de vrais envois multipart (`curl -F` sur `php -S`) :
+    `move_uploaded_file()` réel, nom `../../moi.PHP` stocké en `<aléatoire>.png`, PHP déguisé en
+    PNG refusé.
+  - `niang doctor` avertit si l'extension `fileinfo` manque.
+
 - **Espace d'administration pour les thèmes boutique et blog** : nouveau module
   `resources/scaffold/modules/admin/` (déclaré par `"modules": ["admin"]` dans `theme.json`,
   installé entre `shared/` et le thème). Colonne `users.role`, compte administrateur de test créé
