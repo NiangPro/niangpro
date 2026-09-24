@@ -9,6 +9,25 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Internationalisation des textes vus par les visiteurs** (roadmap §43) : messages de validation,
+  erreurs d'upload, pages d'erreur, messages 401/403/405/419/429 et pagination étaient écrits en
+  français en dur dans `src/Core` et les middlewares.
+  - `Niang\Core\Lang` et le helper `__()` : fichiers `lang/<langue>/<groupe>.php` à la racine du
+    projet (`validation`, `upload`, `http`, `pagination`), livrés en **français** (textes identiques
+    à avant, aucun message existant ne change) et en **anglais**. `APP_LOCALE` / `config('app.locale')`
+    (défaut `fr`), `APP_FALLBACK_LOCALE` (défaut `fr`), `Lang::setLocale()` pour une requête.
+    Variables `:attribute`, `:min`... (les plus longues remplacées d'abord, `:Attribute` en majuscule) ;
+    clé absente → langue de repli → la clé elle-même.
+  - Libellés de champs traduisibles (`validation.attributes`), y compris pour des noms à points
+    (`items.*.name`, `address.city`) via `Lang::section()`.
+  - `<html lang>` de `layouts/app.php` et les pages d'erreur suivent la langue.
+  - Tests : `LangTest`, `LocalizationTest` (404, 422 JSON et 419 en anglais via la pile HTTP) ;
+    vérifié aussi sur un vrai serveur avec `APP_LOCALE=en`. `StagedProject` copie `lang/` ;
+    `LocalizationTest` dépend des vues du squelette et est retiré à l'installation d'un thème
+    (`shared/theme.json`), comme `ErrorHandlingTest`.
+  - Hors périmètre : la CLI et les exceptions destinées au développeur restent en français ; les
+    textes propres aux thèmes (contenu des sites) aussi.
+
 - **Protection contre l'affectation de masse (`$fillable`)** : `Model::create()`/`update()`
   écrivaient toutes les clés reçues — `Post::create($request->all())` laissait un visiteur écrire
   n'importe quelle colonne (`role`, `user_id`...).

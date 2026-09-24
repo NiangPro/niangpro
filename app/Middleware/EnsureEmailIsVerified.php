@@ -24,11 +24,11 @@ class EnsureEmailIsVerified implements Middleware
         $user = Auth::user();
 
         if ($user === null) {
-            throw new AuthenticationException('Non authentifié.');
+            throw new AuthenticationException(__('http.unauthenticated'));
         }
 
         if ($user['email_verified_at'] === null) {
-            throw new HttpException(403, 'Adresse email non vérifiée.');
+            throw new HttpException(403, __('http.email_not_verified'));
         }
 
         return $next($request);

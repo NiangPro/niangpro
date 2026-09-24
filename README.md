@@ -437,6 +437,46 @@ $this->validate($request, ['email' => 'required|email'],
 Si la validation échoue : redirection automatique vers la page précédente avec les erreurs et l'ancienne
 saisie en flash (`errors('email')`, `old('email')`), ou réponse JSON 422 si la requête attend du JSON.
 
+## Langues (i18n)
+
+Les textes que voit un visiteur — messages de validation, erreurs d'upload, pages d'erreur,
+messages 401/403/419/429, pagination — viennent de `lang/<langue>/*.php`, livrés en français
+(défaut) et en anglais :
+
+```dotenv
+APP_LOCALE=en
+```
+
+```php
+__('validation.required', ['attribute' => 'email']);   // « The email field is required. »
+__('http.404');                                         // « Page not found. »
+Lang::setLocale('en');                                  // pour la requête en cours (ex. dans un middleware)
+```
+
+Les fichiers de `lang/` appartiennent à votre projet : modifiez un message directement, ajoutez
+une langue en copiant `lang/en/` vers `lang/es/`, ou donnez un libellé lisible à vos champs dans
+la section `attributes` de `validation.php` (`'email' => 'adresse email'`, `'items.*.name' => 'nom
+de l\'article'`). `:attribute`, `:min`... sont remplacés ; `:Attribute` met la première lettre en
+majuscule. Une clé absente de la langue courante est cherchée dans `APP_FALLBACK_LOCALE` (`fr`), puis
+affichée telle quelle.
+
+Pour choisir la langue par visiteur, un middleware suffit :
+
+```php
+class SetLocale implements Middleware
+{
+    public function handle(Request $request, \Closure $next): Response
+    {
+        $wanted = substr((string) $request->header('Accept-Language', 'fr'), 0, 2);
+        Lang::setLocale(in_array($wanted, ['fr', 'en'], true) ? $wanted : 'fr');
+
+        return $next($request);
+    }
+}
+```
+
+Les messages destinés au développeur (exceptions internes, CLI) restent en français.
+
 ## Gestion des erreurs
 
 Tout passe par un point d'entrée unique : `Niang\Core\Exceptions\Handler`. Le routeur, les

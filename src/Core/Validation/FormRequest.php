@@ -36,7 +36,7 @@ abstract class FormRequest extends Request
     public function validateResolved(): void
     {
         if (!$this->authorize()) {
-            throw new AuthorizationException('Action non autorisée.');
+            throw new AuthorizationException();
         }
 
         $this->validated = Validator::make($this->allWithFiles(), $this->rules(), $this->messages(), $this->attributes())->validate();

@@ -2,6 +2,7 @@
 
 namespace Niang\Core\Http;
 
+use Niang\Core\Lang;
 use Niang\Core\Storage;
 
 /**
@@ -131,17 +132,18 @@ final class UploadedFile
     /** Raison lisible d'un upload invalide, reprise telle quelle par le Validator. */
     public function errorMessage(): string
     {
-        return match ($this->error) {
-            UPLOAD_ERR_OK => $this->moved ? 'Le fichier a déjà été déplacé.' : "Le fichier n'a pas été reçu par un envoi HTTP.",
-            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'Le fichier dépasse la taille maximale autorisée par le serveur ('
-                . ini_get('upload_max_filesize') . ').',
-            UPLOAD_ERR_PARTIAL => "Le fichier n'a été reçu que partiellement.",
-            UPLOAD_ERR_NO_FILE => "Aucun fichier n'a été envoyé.",
-            UPLOAD_ERR_NO_TMP_DIR => 'Dossier temporaire manquant sur le serveur.',
-            UPLOAD_ERR_CANT_WRITE => "Le serveur n'a pas pu écrire le fichier sur le disque.",
-            UPLOAD_ERR_EXTENSION => 'Une extension PHP a interrompu l\'envoi du fichier.',
-            default => "Erreur inconnue lors de l'envoi du fichier.",
+        $key = match ($this->error) {
+            UPLOAD_ERR_OK => $this->moved ? 'moved' : 'not_uploaded',
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'too_large',
+            UPLOAD_ERR_PARTIAL => 'partial',
+            UPLOAD_ERR_NO_FILE => 'no_file',
+            UPLOAD_ERR_NO_TMP_DIR => 'no_tmp_dir',
+            UPLOAD_ERR_CANT_WRITE => 'cant_write',
+            UPLOAD_ERR_EXTENSION => 'extension',
+            default => 'unknown',
         };
+
+        return Lang::get("upload.$key", ['max' => (string) ini_get('upload_max_filesize')]);
     }
 
     /**

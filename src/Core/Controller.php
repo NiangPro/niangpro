@@ -39,7 +39,7 @@ abstract class Controller
     protected function authorize(string $ability, mixed ...$args): void
     {
         if (Gate::denies($ability, ...$args)) {
-            throw new AuthorizationException("Action non autorisée : $ability");
+            throw new AuthorizationException(Lang::get('http.forbidden_ability', ['ability' => $ability]));
         }
     }
 }

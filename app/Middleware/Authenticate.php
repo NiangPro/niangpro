@@ -14,7 +14,7 @@ class Authenticate implements Middleware
     {
         if (Auth::guest()) {
             if ($request->wantsJson()) {
-                throw new AuthenticationException('Non authentifié.');
+                throw new AuthenticationException(__('http.unauthenticated'));
             }
 
             return Response::redirect('/login');

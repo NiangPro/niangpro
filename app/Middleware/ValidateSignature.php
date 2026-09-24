@@ -15,7 +15,7 @@ class ValidateSignature implements Middleware
         $url = $request->query ? $request->uri . '?' . http_build_query($request->query) : $request->uri;
 
         if (!UrlSignature::validate($url)) {
-            abort(403, 'Lien invalide, expiré ou modifié.');
+            abort(403, __('http.invalid_signature'));
         }
 
         return $next($request);

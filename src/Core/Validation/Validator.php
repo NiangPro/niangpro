@@ -4,6 +4,7 @@ namespace Niang\Core\Validation;
 
 use Niang\Core\Database\DB;
 use Niang\Core\Http\UploadedFile;
+use Niang\Core\Lang;
 
 final class Validator
 {
@@ -337,44 +338,35 @@ final class Validator
             return $this->messages[$rule];
         }
 
-        $label = $this->attributes[$field] ?? $field;
+        // Libellé : celui passé au Validator, sinon celui de lang/<langue>/validation.php
+        // (section 'attributes'), sinon le nom du champ. Pour 'items.0.name', on cherche aussi 'items.*.name'.
+        $wildcard = (string) preg_replace('/\.\d+(?=\.|$)/', '.*', $field);
+        $label = $this->attributes[$field] ?? $this->attributes[$wildcard] ?? $this->translatedAttribute($field) ?? $this->translatedAttribute($wildcard) ?? $field;
 
-        if ($isFile && in_array($rule, ['min', 'max', 'between'], true)) {
-            return match ($rule) {
-                'min' => "Le fichier $label doit peser au moins $param Ko.",
-                'max' => "Le fichier $label ne doit pas dépasser $param Ko.",
-                default => "Le fichier $label doit peser entre {$params[0]} et {$params[1]} Ko.",
-            };
-        }
-
-        return match ($rule) {
-            'required', 'required_if', 'required_with', 'required_without' => "Le champ $label est requis.",
-            'string' => "Le champ $label doit être une chaîne de caractères.",
-            'numeric' => "Le champ $label doit être numérique.",
-            'integer' => "Le champ $label doit être un entier.",
-            'boolean' => "Le champ $label doit être vrai ou faux.",
-            'array' => "Le champ $label doit être un tableau.",
-            'email' => "Le champ $label doit être une adresse email valide.",
-            'url' => "Le champ $label doit être une URL valide.",
-            'date' => "Le champ $label doit être une date valide.",
-            'date_format' => "Le champ $label doit respecter le format $param.",
-            'min' => "Le champ $label doit contenir au moins $param caractères (ou valoir au moins $param).",
-            'max' => "Le champ $label ne doit pas dépasser $param caractères (ou $param).",
-            'between' => "Le champ $label doit être compris entre {$params[0]} et {$params[1]}.",
-            'in' => "Le champ $label doit être l'une des valeurs suivantes : $param.",
-            'not_in' => "Le champ $label ne doit pas être l'une des valeurs suivantes : $param.",
-            'same' => "Le champ $label doit être identique à {$params[0]}.",
-            'different' => "Le champ $label doit être différent de {$params[0]}.",
-            'regex' => "Le format du champ $label est invalide.",
-            'confirmed' => "La confirmation du champ $label ne correspond pas.",
-            'unique' => "Cette valeur du champ $label est déjà utilisée.",
-            'exists' => "La valeur sélectionnée pour $label est invalide.",
-            'file' => "Le champ $label doit être un fichier.",
-            'image' => "Le fichier $label doit être une image (JPEG, PNG, GIF, WebP ou AVIF).",
-            'mimes' => "Le fichier $label doit être de type : $param.",
-            'mimetypes' => "Le fichier $label doit être de type : $param.",
-            'dimensions' => "Les dimensions de l'image $label ne sont pas valides ($param).",
-            default => "Le champ $label est invalide.",
+        $key = match (true) {
+            $isFile && in_array($rule, ['min', 'max', 'between'], true) => "{$rule}_file",
+            in_array($rule, ['required', 'required_if', 'required_with', 'required_without'], true) => 'required',
+            Lang::has("validation.$rule") || Lang::has("validation.$rule", Lang::fallbackLocale()) => $rule,
+            default => 'invalid',
         };
+
+        $other = $params[0] ?? '';
+
+        return Lang::get("validation.$key", [
+            'attribute' => $label,
+            'format' => (string) $param,
+            'min' => in_array($rule, ['between'], true) ? ($params[0] ?? '') : (string) $param,
+            'max' => in_array($rule, ['between'], true) ? ($params[1] ?? '') : (string) $param,
+            'values' => (string) $param,
+            'other' => $this->attributes[$other] ?? $this->translatedAttribute($other) ?? $other,
+            'constraints' => (string) $param,
+        ]);
+    }
+
+    private function translatedAttribute(string $field): ?string
+    {
+        $label = Lang::section('validation.attributes')[$field] ?? null;
+
+        return is_string($label) ? $label : null;
     }
 }
