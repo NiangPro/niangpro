@@ -30,4 +30,10 @@ class PostgresGrammar extends Grammar
             default => throw new \InvalidArgumentException("Type de colonne inconnu : $type"),
         };
     }
+
+    /** PostgreSQL : TRUE/FALSE (un BOOLEAN n'accepte pas 1/0 comme valeur par défaut). */
+    protected function compileDefault(mixed $value): string
+    {
+        return is_bool($value) ? ($value ? 'TRUE' : 'FALSE') : parent::compileDefault($value);
+    }
 }

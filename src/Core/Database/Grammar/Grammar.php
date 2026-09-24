@@ -38,6 +38,11 @@ abstract class Grammar
         }
 
         if ($hasDefault) {
+            // boolean()->default(0) : PostgreSQL refuse un entier comme défaut d'une colonne BOOLEAN.
+            if ($type === 'boolean' && ($default === 0 || $default === 1)) {
+                $default = (bool) $default;
+            }
+
             $sql .= ' DEFAULT ' . $this->compileDefault($default);
         }
 

@@ -230,7 +230,11 @@ abstract class Model
         return $row;
     }
 
-    /** Conversion inverse avant écriture : tableau -> JSON, booléen -> 0/1. */
+    /**
+     * Conversion inverse avant écriture : tableau -> JSON ; bool -> vrai booléen PHP, lié en
+     * PDO::PARAM_BOOL (PostgreSQL refuse un entier dans une colonne BOOLEAN, SQLite et MySQL
+     * stockent 1/0).
+     */
     protected static function castForStorage(array $data): array
     {
         foreach (static::$casts as $column => $type) {
@@ -241,7 +245,7 @@ abstract class Model
             if (in_array($type, ['json', 'array'], true) && !is_string($data[$column])) {
                 $data[$column] = json_encode($data[$column], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
             } elseif (in_array($type, ['bool', 'boolean'], true)) {
-                $data[$column] = $data[$column] ? 1 : 0;
+                $data[$column] = (bool) $data[$column];
             }
         }
 
