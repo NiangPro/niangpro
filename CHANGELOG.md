@@ -92,6 +92,25 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Security
 
+- **Plus de clé de repli publique pour `APP_KEY`** : `Cookie`, `UrlSignature` et `ApiToken`
+  utilisaient `niangpro-insecure-default-key` quand `APP_KEY` était vide — et `composer
+  create-project` ne créait ni `.env` ni clé. Tout projet installé ainsi signait donc ses liens de
+  réinitialisation de mot de passe avec une clé connue de tous : n'importe qui pouvait en fabriquer
+  un valide pour n'importe quel compte.
+  - Nouvelle classe `Niang\Core\AppKey` : `get()` lève une `ConfigurationException` si la clé est
+    vide ; `derive()` (HKDF) pour les usages dérivés ; `writeTo()` partagé par `key:generate`,
+    `niang new` et le hook Composer.
+  - `composer create-project` crée désormais `.env` depuis `.env.example` avec une `APP_KEY` propre
+    au projet (jamais d'écrasement d'un `.env` existant). La CI de packaging vérifie cette clé ;
+    l'assertion « pas de `storage/` après installation », fausse depuis l'étape `setup` des thèmes
+    boutique et blog, est retirée.
+  - Les URLs signées et les jetons API existants restent valides (même clé, même HMAC).
+- **Cookies chiffrés** : `Cookie` ne faisait que signer (HMAC) une valeur lisible par le navigateur,
+  sans lier la signature au nom du cookie. Nouvelle classe `Niang\Core\Crypt` (AES-256-GCM, clé
+  dérivée d'`APP_KEY`, contexte authentifié) ; `Cookie::set()/get()` chiffrent la valeur, la lient au
+  nom du cookie et portent une expiration vérifiée côté serveur. Les cookies signés par l'ancien
+  format sont refusés (`get()` retourne la valeur par défaut). Vérifié par un vrai aller-retour HTTP.
+
 - **CORS : `allowed_origins: ['*']` combiné à `supports_credentials: true` reflétait n'importe
   quelle origine** (`Niang\Core\Cors`, audit de sécurité) : `config/cors.php` déconseille déjà
   cette combinaison en commentaire (« supports_credentials=true seulement avec des origines

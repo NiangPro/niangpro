@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use Niang\Core\Exceptions\ConfigurationException;
 use Niang\Core\UrlSignature;
 use PHPUnit\Framework\TestCase;
 
@@ -65,5 +66,29 @@ class UrlSignatureTest extends TestCase
     public function test_a_url_with_an_empty_signature_is_invalid(): void
     {
         $this->assertFalse(UrlSignature::validate('/reset-password?signature='));
+    }
+
+    public function test_without_app_key_urls_are_neither_signed_nor_accepted(): void
+    {
+        // Avant : une clé de repli publique (« niangpro-insecure-default-key ») était utilisée, et
+        // n'importe qui pouvait fabriquer un lien de réinitialisation de mot de passe valide.
+        $forged = '/reset-password/abc/awa@example.test?expires=' . (time() + 3600)
+            . '&signature=' . hash_hmac('sha256', '/reset-password/abc/awa@example.test?expires=' . (time() + 3600), 'niangpro-insecure-default-key');
+
+        $previous = getenv('APP_KEY');
+        putenv('APP_KEY');
+
+        try {
+            try {
+                UrlSignature::sign('/reset-password/abc/awa@example.test', 3600);
+                $this->fail('Signer sans APP_KEY doit échouer.');
+            } catch (ConfigurationException) {
+            }
+
+            $this->expectException(ConfigurationException::class);
+            UrlSignature::validate($forged);
+        } finally {
+            $previous === false ? putenv('APP_KEY') : putenv("APP_KEY=$previous");
+        }
     }
 }

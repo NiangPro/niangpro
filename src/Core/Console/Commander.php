@@ -2,6 +2,7 @@
 
 namespace Niang\Core\Console;
 
+use Niang\Core\AppKey;
 use Niang\Core\Cache;
 use Niang\Core\ConfigCache;
 use Niang\Core\Database\DB;
@@ -728,17 +729,7 @@ class Commander
 
     private function keyGenerate(): void
     {
-        $key = bin2hex(random_bytes(32));
-        $path = $this->basePath . '/.env';
-        $env = file_exists($path) ? file_get_contents($path) : '';
-
-        if (preg_match('/^APP_KEY=.*$/m', $env)) {
-            $env = preg_replace('/^APP_KEY=.*$/m', "APP_KEY=$key", $env);
-        } else {
-            $env .= (($env !== '' && !str_ends_with($env, "\n")) ? "\n" : '') . "APP_KEY=$key\n";
-        }
-
-        file_put_contents($path, $env);
+        AppKey::writeTo($this->basePath . '/.env');
         echo "Nouvelle clé générée dans .env\n";
     }
 
@@ -1034,12 +1025,7 @@ class Commander
         echo "Installation des dépendances...\n";
         passthru('composer install --working-dir=' . escapeshellarg($target) . ' --quiet');
 
-        $key = bin2hex(random_bytes(32));
-        $env = file_get_contents("$target/.env");
-        $env = preg_match('/^APP_KEY=.*$/m', $env)
-            ? preg_replace('/^APP_KEY=.*$/m', "APP_KEY=$key", $env)
-            : $env . "APP_KEY=$key\n";
-        file_put_contents("$target/.env", $env);
+        AppKey::writeTo("$target/.env");
 
         // Un thème décrit lui-même ses étapes (theme.json) : une boutique doit migrer et alimenter la
         // base, un site vitrine n'en a pas besoin. Le squelette minimal garde ses étapes historiques.

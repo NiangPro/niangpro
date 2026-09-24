@@ -12,7 +12,7 @@ use Niang\Core\Database\QueryBuilder;
  * jeton API doit être retrouvable à partir de sa seule valeur présentée par le client : la
  * recherche doit donc être indexée en base, ce qu'un hash salé façon Hash::make() ne permet pas
  * (deux hachages de la même valeur ne sont jamais égaux). HMAC-SHA256 avec APP_KEY comme clé —
- * même principe que Cookie::sign() et UrlSignature — est déterministe et permet donc cette
+ * même principe que UrlSignature — est déterministe et permet donc cette
  * recherche directe, tout en gardant le jeton en clair hors de la base. La haute entropie du
  * jeton (32 octets aléatoires, jamais choisi par un humain) rend un hash rapide suffisant, à la
  * différence d'un mot de passe.
@@ -55,7 +55,7 @@ class ApiToken
 
     private static function hash(string $plaintext): string
     {
-        return hash_hmac('sha256', $plaintext, Env::get('APP_KEY', 'niangpro-insecure-default-key'));
+        return hash_hmac('sha256', $plaintext, AppKey::get());
     }
 
     private static function query(): QueryBuilder

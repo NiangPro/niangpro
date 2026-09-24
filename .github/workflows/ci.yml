@@ -198,11 +198,12 @@ jobs:
 
       # Ni .env ni storage/ n'existent dans un checkout propre (tous deux hors du dépôt) : le
       # projet créé doit fonctionner tel quel, sans étape manuelle — voir le README, qui ne
-      # documente aucun `cp .env.example .env` pour ce chemin d'installation.
-      - name: Le projet créé n'a ni .env ni storage/ pré-existants (sinon le test ne prouve rien)
-        run: |
-          test ! -f /tmp/niang-demo/.env
-          test ! -d /tmp/niang-demo/storage
+      # documente aucun `cp .env.example .env` pour ce chemin d'installation. Le .env est créé par
+      # ComposerHooks avec une APP_KEY propre au projet (sans elle, les URLs signées et les cookies
+      # chiffrés refusent de fonctionner). storage/ n'est plus vérifié ici : un thème avec une étape
+      # "setup" (boutique, blog : migrate + db:seed) le crée légitimement pendant l'installation.
+      - name: Le projet créé a un .env avec sa propre APP_KEY
+        run: grep -Eq '^APP_KEY=[0-9a-f]{64}$' /tmp/niang-demo/.env
 
       # Idempotent et sans effet néfaste même pour un thème qui n'en a pas besoin (db:seed
       # affiche juste "Seeder introuvable" et sort en succès) : suit le même chemin que les

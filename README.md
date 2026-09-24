@@ -1073,6 +1073,15 @@ sûr uniquement parce qu'il est explicitement optionnel : ne l'activez qu'en pro
   (`config/session.php`), `Secure` détecté automatiquement selon HTTPS (ou forcé via
   `SESSION_SECURE_COOKIE` en `.env`).
 - **CSRF** : comparaison à temps constant (`hash_equals`), voir la section CSRF plus haut.
+- **`APP_KEY`** : générée automatiquement par `composer create-project` (dans un `.env` créé depuis
+  `.env.example`) et par `niang new` ; sinon `niang key:generate`. Elle signe les URLs, hache les
+  jetons API et chiffre les cookies — sans elle, ces trois fonctions lèvent une
+  `ConfigurationException` plutôt que d'utiliser une clé par défaut connue de tous.
+- **Cookies chiffrés** : `Cookie::set('panier', $valeur, $minutes)` / `Cookie::get('panier')` —
+  AES-256-GCM (`Niang\Core\Crypt`), illisibles et non modifiables par le navigateur, liés à leur
+  nom (impossible de recopier un cookie sous un autre nom) et expirés côté serveur. `Crypt::encrypt()`
+  / `Crypt::decrypt()` sont aussi utilisables directement (`decrypt()` retourne `null` pour une
+  valeur modifiée).
 - **Mots de passe** : Argon2id (ou bcrypt si indisponible), voir `Hash::make()`.
 - **SQL** : toutes les requêtes de l'ORM et du Query Builder passent par des requêtes préparées PDO.
 - **Régénération de session** : `Auth::login()`/`Auth::logout()` appellent `Session::regenerate()`
