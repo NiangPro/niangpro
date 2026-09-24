@@ -45,7 +45,9 @@ class ThemeInstallationTest extends TestCase
             [$code, $output] = $project->phpunit([]);
 
             $this->assertSame(0, $code, "La suite Feature du thème « $slug » échoue :\n$output");
-            $this->assertMatchesRegularExpression('/OK \((\d+) tests?/', $output);
+            // « OK (N tests...) », ou « OK, but some tests were skipped! » quand une plateforme saute
+            // des tests (Windows : pcntl absent, branches macOS/Linux...).
+            $this->assertMatchesRegularExpression('/^OK( \(\d+ tests?|, but some tests were skipped!)/m', $output);
 
             // Les démos remplacées ne doivent pas rester : le thème est livré avec SES tests.
             $this->assertFileDoesNotExist($project->path . '/tests/Feature/HomeTest.php');
