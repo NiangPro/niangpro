@@ -153,6 +153,20 @@ class DB
     }
 
     /**
+     * Comme statement(), mais retourne le nombre de lignes modifiées — pour une opération atomique
+     * dont le résultat dépend d'une condition (ex. « incrémenter seulement si < max »).
+     */
+    public static function affected(string $query, array $bindings = [], string $connection = 'write'): int
+    {
+        self::$queryCount++;
+        $statement = self::connection($connection)->prepare($query);
+        self::bindValues($statement, $bindings);
+        $statement->execute();
+
+        return $statement->rowCount();
+    }
+
+    /**
      * PDOStatement::execute($bindings) lie systématiquement tous les paramètres comme des chaînes,
      * quel que soit leur type PHP. Sans affinité de colonne pour absorber la conversion (typiquement
      * une expression agrégée dans une clause HAVING), SQLite compare alors un INTEGER à un TEXTE et

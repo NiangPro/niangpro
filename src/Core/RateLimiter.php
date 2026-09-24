@@ -2,7 +2,13 @@
 
 namespace Niang\Core;
 
-/** Compteur simple sur fichier (pas de dépendance à Redis/Memcached). */
+use Niang\Core\Database\DB;
+
+/**
+ * Compteur de tentatives, sans dépendance à Redis/Memcached. Suit CACHE_DRIVER : sur fichier
+ * (défaut), ou en base (table rate_limits) pour que la limite soit commune à tous les serveurs
+ * web — sinon « 10 tentatives de connexion par minute » devient 10 × le nombre de serveurs.
+ */
 class RateLimiter
 {
     /**
@@ -16,6 +22,10 @@ class RateLimiter
      */
     public static function attempt(string $key, int $maxAttempts, int $decaySeconds): bool
     {
+        if (Cache::driver() === 'database') {
+            return self::attemptInDatabase(sha1($key), $maxAttempts, $decaySeconds);
+        }
+
         $handle = fopen(self::path($key), 'c+');
         flock($handle, LOCK_EX);
 
@@ -45,8 +55,43 @@ class RateLimiter
 
     public static function availableIn(string $key): int
     {
+        if (Cache::driver() === 'database') {
+            $row = DB::selectOne('SELECT reset_at FROM rate_limits WHERE limit_key = ?', [sha1($key)], 'write');
+            return $row ? max(0, (int) $row['reset_at'] - time()) : 0;
+        }
+
         $data = self::read($key);
         return $data ? max(0, $data['resetAt'] - time()) : 0;
+    }
+
+    /**
+     * Même garantie que le verrou fichier, par la base : l'incrément conditionnel est une seule
+     * instruction UPDATE, atomique — deux requêtes parallèles (même sur deux serveurs) ne peuvent
+     * pas lire le même compteur puis écrire chacune « compteur + 1 ».
+     */
+    private static function attemptInDatabase(string $hash, int $maxAttempts, int $decaySeconds): bool
+    {
+        $now = time();
+
+        DB::statement('DELETE FROM rate_limits WHERE limit_key = ? AND reset_at <= ?', [$hash, $now]);
+
+        try {
+            DB::statement(
+                'INSERT INTO rate_limits (limit_key, attempts, reset_at) '
+                . 'SELECT ?, 0, ? FROM (SELECT 1 AS one) AS np_seed WHERE NOT EXISTS (SELECT 1 FROM rate_limits WHERE limit_key = ?)',
+                [$hash, $now + $decaySeconds, $hash]
+            );
+        } catch (\PDOException $e) {
+            // Deux premières tentatives simultanées : l'autre requête a créé la ligne entre-temps.
+            if (!str_starts_with((string) $e->getCode(), '23')) {
+                throw $e;
+            }
+        }
+
+        return DB::affected(
+            'UPDATE rate_limits SET attempts = attempts + 1 WHERE limit_key = ? AND attempts < ?',
+            [$hash, $maxAttempts]
+        ) === 1;
     }
 
     private static function path(string $key): string

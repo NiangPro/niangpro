@@ -808,7 +808,48 @@ Cache::put('clé', $valeur, 300);
 Cache::forget('clé');
 ```
 
-Fichier (`storage/framework/cache/`), pas de dépendance à Redis/Memcached.
+Fichier (`storage/framework/cache/`) par défaut, pas de dépendance à Redis/Memcached.
+
+### Plusieurs serveurs web (sessions, cache et limitation de débit partagés)
+
+Derrière un répartiteur de charge, chaque serveur a ses propres fichiers : un visiteur envoyé sur
+un autre serveur perd sa session (déconnecté, panier vide), le cache n'est pas partagé, et une
+limite « 10 tentatives de connexion par minute » devient 10 × le nombre de serveurs. Tout passe en
+base de données avec deux variables :
+
+```dotenv
+SESSION_DRIVER=database
+CACHE_DRIVER=database
+```
+
+puis `./bin/niang migrate` (tables `sessions`, `cache_entries`, `rate_limits`, livrées avec le
+framework ; `niang doctor` signale une table manquante). `CACHE_DRIVER` pilote aussi `RateLimiter`,
+dont l'incrément reste atomique (un seul `UPDATE` conditionnel). Aucun verrou par session en base :
+si deux requêtes simultanées du même visiteur modifient la session, la dernière écriture l'emporte.
+
+## Tâches planifiées
+
+Les tâches se déclarent dans `routes/schedule.php` ; une seule ligne cron les lance toutes :
+
+```php
+$schedule->command('queue:work')->everyMinute()->withoutOverlapping();
+$schedule->command('db:seed', ['Tags'])->dailyAt('03:00');
+$schedule->call(fn () => Cache::forget('stats'), 'vider les statistiques')->hourly();
+$schedule->job(new SendWeeklyReportJob())->weeklyOn(1, '08:00');   // 0 = dimanche
+```
+
+```bash
+* * * * * cd /chemin/vers/le/projet && php bin/niang schedule:run >> /dev/null 2>&1
+./bin/niang schedule:list   # tâches, expression cron, prochaine exécution
+```
+
+Fréquences : `everyMinute()`, `everyFiveMinutes()`/`Ten`/`Fifteen`/`Thirty`, `hourly()`,
+`hourlyAt(17)`, `daily()`, `dailyAt('03:00')`, `weekly()`, `weeklyOn()`, `monthly()`, `monthlyOn()`,
+`weekdays()`, `weekends()`, ou `cron('30 8 * * 1-5')`. Une commande tourne dans un process séparé (un
+plantage ou un `exit()` n'arrête pas les autres tâches) ; une closure, dans l'application démarrée ; un
+job est poussé sur la file. `withoutOverlapping()` saute une exécution tant que la précédente tourne.
+Une tâche en échec est journalisée et `schedule:run` sort avec le code 1. Sur plusieurs serveurs, ne
+placez la ligne cron que sur l'un d'eux.
 
 ## Jobs différés
 

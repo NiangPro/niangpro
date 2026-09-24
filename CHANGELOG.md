@@ -9,6 +9,23 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Sessions, cache et limitation de débit en base de données** (roadmap §23-24) : tout était sur
+  le disque local (sessions PHP natives, `storage/framework/`) — impossible de tourner sur plusieurs
+  serveurs web derrière un répartiteur de charge.
+  - `SESSION_DRIVER=database` : `Niang\Core\DatabaseSessionHandler` (`SessionHandlerInterface`,
+    contenu en base64 pour les colonnes texte PostgreSQL, `lifetime = 0` géré).
+  - `CACHE_DRIVER=database` : `Cache` (table `cache_entries`, `false`/`0` restent des valeurs
+    valides) et `RateLimiter` (table `rate_limits`, incrément atomique par `UPDATE ... WHERE
+    attempts < ?`). `DB::affected()` retourne le nombre de lignes modifiées.
+  - Migrations livrées (`sessions`, `cache_entries`, `rate_limits`), `config/cache.php`,
+    `session.driver` ; `file` reste le défaut. Pilote inconnu → `ConfigurationException`.
+  - `niang doctor` vérifie la présence des tables quand un pilote `database` est choisi.
+  - **La CLI charge maintenant `config/*.php`** comme l'application web : sans ça, `niang
+    cache:clear` aurait vidé les fichiers alors que `CACHE_DRIVER=database`.
+  - Tests : `DatabaseDriversTest` (SQLite, et 56/56 de la suite Database sur un vrai MySQL local).
+    Vérifié avec deux serveurs `php -S` partageant une base, chacun avec son propre dossier de
+    sessions : connecté sur A, le visiteur reste connecté sur B avec `database`, pas avec `file`.
+
 - **ORM : `$timestamps`, `$casts`, `$softDeletes`** (roadmap §17) :
   - **`updated_at` n'était jamais mis à jour** : `timestamps()` ne posait qu'une valeur par défaut à
     l'insertion. `create()` renseigne désormais `created_at`/`updated_at`, `update()` `updated_at`

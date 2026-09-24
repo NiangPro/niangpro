@@ -146,4 +146,19 @@ class CommanderDoctorTest extends TestCase
         $this->assertSame('warn', $this->statusFor($checks, 'MAIL_MAILER=log en production'));
         $this->assertNull($this->statusFor($this->checksWithEnv(['MAIL_MAILER' => 'log', 'APP_ENV' => 'local']), 'MAIL_MAILER=log'));
     }
+
+    public function test_database_drivers_require_their_tables(): void
+    {
+        $checks = $this->checksWithEnv(['SESSION_DRIVER' => 'database', 'CACHE_DRIVER' => 'database']);
+
+        foreach (['sessions', 'cache_entries', 'rate_limits'] as $table) {
+            $this->assertNotNull($this->statusFor($checks, "Table $table"), "vérification de $table attendue");
+        }
+    }
+
+    public function test_file_drivers_need_no_table_and_unknown_drivers_fail(): void
+    {
+        $this->assertNull($this->statusFor($this->checksWithEnv(['SESSION_DRIVER' => 'file', 'CACHE_DRIVER' => 'file']), 'Table sessions'));
+        $this->assertSame('fail', $this->statusFor($this->checksWithEnv(['CACHE_DRIVER' => 'redis']), 'CACHE_DRIVER inconnu'));
+    }
 }

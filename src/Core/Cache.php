@@ -2,7 +2,16 @@
 
 namespace Niang\Core;
 
-/** Cache fichier simple (pas de dépendance à Redis/Memcached), avec TTL optionnel. */
+use Niang\Core\Database\DB;
+use Niang\Core\Exceptions\ConfigurationException;
+
+/**
+ * Cache avec TTL optionnel, sans dépendance à Redis/Memcached. Deux pilotes (CACHE_DRIVER, voir
+ * config/cache.php) :
+ *  - 'file' (défaut) : un fichier sérialisé par clé dans storage/framework/cache/ ;
+ *  - 'database' : table cache_entries, partagée entre plusieurs serveurs web.
+ * La clé est hachée (sha1) dans les deux cas : n'importe quelle chaîne est utilisable.
+ */
 class Cache
 {
     public static function get(string $key, mixed $default = null): mixed
@@ -18,6 +27,21 @@ class Cache
 
     public static function put(string $key, mixed $value, ?int $ttlSeconds = null): void
     {
+        $expires = $ttlSeconds !== null ? time() + $ttlSeconds : null;
+
+        if (self::usesDatabase()) {
+            $hash = sha1($key);
+            DB::transaction(function () use ($hash, $value, $expires): void {
+                DB::statement('DELETE FROM cache_entries WHERE cache_key = ?', [$hash]);
+                DB::statement(
+                    'INSERT INTO cache_entries (cache_key, value, expiration) VALUES (?, ?, ?)',
+                    [$hash, base64_encode(serialize($value)), $expires]
+                );
+            });
+
+            return;
+        }
+
         $path = self::path($key);
         $dir = dirname($path);
 
@@ -25,8 +49,7 @@ class Cache
             mkdir($dir, 0755, true);
         }
 
-        $payload = ['value' => $value, 'expires' => $ttlSeconds !== null ? time() + $ttlSeconds : null];
-        file_put_contents($path, serialize($payload), LOCK_EX);
+        file_put_contents($path, serialize(['value' => $value, 'expires' => $expires]), LOCK_EX);
     }
 
     /** Retourne la valeur en cache, ou exécute $callback et met le résultat en cache. */
@@ -46,6 +69,11 @@ class Cache
 
     public static function forget(string $key): void
     {
+        if (self::usesDatabase()) {
+            DB::statement('DELETE FROM cache_entries WHERE cache_key = ?', [sha1($key)]);
+            return;
+        }
+
         $path = self::path($key);
 
         if (file_exists($path)) {
@@ -55,13 +83,59 @@ class Cache
 
     public static function flush(): void
     {
+        if (self::usesDatabase()) {
+            DB::statement('DELETE FROM cache_entries');
+            return;
+        }
+
         foreach (glob(base_path('storage/framework/cache') . '/*.cache') ?: [] as $file) {
             unlink($file);
         }
     }
 
+    /** @internal partagé avec RateLimiter : 'file' ou 'database'. */
+    public static function driver(): string
+    {
+        // Env en repli : la CLI (niang cache:clear, niang health) ne charge pas config/*.php.
+        $driver = (string) Config::get('cache.driver', Env::get('CACHE_DRIVER', 'file'));
+
+        if (!in_array($driver, ['file', 'database'], true)) {
+            throw new ConfigurationException("CACHE_DRIVER inconnu : « $driver » (attendu : file ou database).");
+        }
+
+        return $driver;
+    }
+
+    private static function usesDatabase(): bool
+    {
+        return self::driver() === 'database';
+    }
+
+    /** @return array{value: mixed, expires: ?int}|null */
     private static function read(string $key): ?array
     {
+        if (self::usesDatabase()) {
+            $row = DB::selectOne('SELECT value, expiration FROM cache_entries WHERE cache_key = ?', [sha1($key)], 'write');
+
+            if ($row === null) {
+                return null;
+            }
+
+            if ($row['expiration'] !== null && (int) $row['expiration'] < time()) {
+                self::forget($key);
+                return null;
+            }
+
+            $value = @unserialize((string) base64_decode((string) $row['value'], true));
+
+            // serialize(false) === 'b:0;' : false est une valeur légitime, pas un échec de lecture.
+            if ($value === false && base64_decode((string) $row['value'], true) !== serialize(false)) {
+                return null;
+            }
+
+            return ['value' => $value, 'expires' => $row['expiration'] !== null ? (int) $row['expiration'] : null];
+        }
+
         $path = self::path($key);
 
         if (!file_exists($path)) {

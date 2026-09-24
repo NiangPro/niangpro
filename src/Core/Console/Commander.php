@@ -4,6 +4,7 @@ namespace Niang\Core\Console;
 
 use Niang\Core\AppKey;
 use Niang\Core\Cache;
+use Niang\Core\Config;
 use Niang\Core\ConfigCache;
 use Niang\Core\Database\DB;
 use Niang\Core\Database\Migrator;
@@ -19,6 +20,10 @@ class Commander
     public function __construct(private string $basePath)
     {
         Env::load($basePath . '/.env');
+
+        // Comme Application : sans ça, les commandes liraient des valeurs par défaut au lieu de
+        // config/*.php (ex. cache:clear viderait les fichiers alors que CACHE_DRIVER=database).
+        Config::load($basePath);
     }
 
     public function run(array $argv): void
@@ -909,11 +914,49 @@ class Commander
         }
 
         array_push($results, ...$this->mailChecks());
+        array_push($results, ...$this->storageDriverChecks());
 
         // Sans fileinfo, UploadedFile ne peut pas lire le vrai type d'un fichier : les règles
         // image/mimes/mimetypes refusent alors tout, par prudence.
         if (!extension_loaded('fileinfo')) {
             $results[] = ['warn', 'Extension fileinfo manquante — les uploads validés par image/mimes/mimetypes seront tous refusés'];
+        }
+
+        return $results;
+    }
+
+    /**
+     * SESSION_DRIVER / CACHE_DRIVER=database sans les tables (migration non jouée) : la première
+     * requête échouerait en 500.
+     *
+     * @return list<array{0: 'ok'|'fail'|'warn', 1: string}>
+     */
+    private function storageDriverChecks(): array
+    {
+        $needed = [];
+
+        foreach (['session' => ['sessions'], 'cache' => ['cache_entries', 'rate_limits']] as $group => $tables) {
+            // La CLI ne charge pas config/*.php : même repli sur l'environnement que Cache::driver().
+            $driver = (string) Config::get("$group.driver", Env::get(strtoupper($group) . '_DRIVER', 'file'));
+
+            if (!in_array($driver, ['file', 'database'], true)) {
+                return [$this->doctorCheck(false, '', strtoupper($group) . "_DRIVER inconnu : « $driver » (attendu : file ou database)")];
+            }
+
+            if ($driver === 'database') {
+                array_push($needed, ...$tables);
+            }
+        }
+
+        $results = [];
+
+        foreach ($needed as $table) {
+            try {
+                DB::connection()->query("SELECT 1 FROM $table WHERE 1 = 0");
+                $results[] = $this->doctorCheck(true, "Table $table présente", '');
+            } catch (\Throwable) {
+                $results[] = $this->doctorCheck(false, '', "Table $table absente — lancez `./bin/niang migrate`");
+            }
         }
 
         return $results;
