@@ -55,7 +55,9 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.4'
-          extensions: pdo_sqlite
+          # fileinfo : lecture du vrai type MIME des fichiers envoyés (UploadedFile). Absente du
+          # php.ini par défaut sous Windows ; sans elle, les règles image/mimes refusent tout.
+          extensions: pdo_sqlite, fileinfo
           coverage: none
 
       - name: Installer les dépendances
@@ -186,13 +188,14 @@ jobs:
       # copie réelle du répertoire (symlink:false) plutôt qu'un lien qui masquerait des soucis de
       # packaging. "dev-main --stability=dev" est nécessaire : un paquet "path" n'a pas de version
       # stable tant qu'il n'est pas tagué, incompatible avec le "minimum-stability: stable" du
-      # projet sans ces deux options.
+      # projet sans ces deux options. "versions" force cette version : sur une pull request, le
+      # checkout est un HEAD détaché sans branche main, et Composer ne la devinerait pas.
       - name: composer create-project depuis le commit courant (pas Packagist)
         env:
           NIANG_SITE_TYPE: ${{ matrix.site_type }}
         run: >
           composer create-project
-          --repository '{"type":"path","url":".","options":{"symlink":false}}'
+          --repository '{"type":"path","url":".","options":{"symlink":false,"versions":{"niangpro/framework":"dev-main"}}}'
           niangpro/framework /tmp/niang-demo dev-main
           --no-interaction --prefer-dist --no-dev
 
