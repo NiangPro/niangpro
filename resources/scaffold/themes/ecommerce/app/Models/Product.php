@@ -19,6 +19,15 @@ class Product extends Model
         'name', 'slug', 'category', 'description', 'price_cents', 'old_price_cents', 'image', 'stock', 'featured',
         'created_at', 'updated_at',
     ];
+
+    /** Même type quel que soit le SGBD (MySQL renvoie les entiers sous forme de chaînes, SQLite non). */
+    protected static array $casts = [
+        'price_cents' => 'int',
+        'old_price_cents' => 'int',
+        'stock' => 'int',
+        'featured' => 'bool',
+    ];
+
     /** En dessous de ce stock (inclus), le produit est signalé dans l'administration. */
     public const LOW_STOCK = 5;
 

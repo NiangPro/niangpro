@@ -2,6 +2,7 @@
 
 namespace Niang\Core\Database;
 
+use Niang\Core\Exceptions\DatabaseException;
 use Niang\Core\Exceptions\MassAssignmentException;
 
 abstract class Model
@@ -21,6 +22,29 @@ abstract class Model
      */
     protected static array $fillable = [];
 
+    /**
+     * created_at / updated_at renseignés par create(), updated_at par update() — à la même horloge
+     * (PHP, date_default_timezone) plutôt que CURRENT_TIMESTAMP (UTC côté SQLite). Une valeur
+     * fournie explicitement l'emporte. À mettre à false pour une table sans ces colonnes.
+     */
+    protected static bool $timestamps = true;
+
+    /**
+     * Conversion des colonnes à la lecture (et à l'écriture pour json/bool) :
+     * ['featured' => 'bool', 'price_cents' => 'int', 'rating' => 'float', 'options' => 'json'].
+     * Types : int, float, bool, string, json (tableau PHP <-> texte JSON en base).
+     *
+     * @var array<string, string>
+     */
+    protected static array $casts = [];
+
+    /**
+     * Suppression douce : destroy() renseigne `deleted_at` au lieu de supprimer la ligne, et toutes
+     * les lectures (query(), all(), find(), where(), with(), relations) l'ignorent. Voir
+     * withTrashed(), onlyTrashed(), restore(), forceDestroy() — et $table->softDeletes() en migration.
+     */
+    protected static bool $softDeletes = false;
+
     public static function table(): string
     {
         if (static::$table !== '') {
@@ -31,9 +55,24 @@ abstract class Model
         return strtolower($class) . 's';
     }
 
+    /** Requête sur la table du modèle ; exclut les lignes supprimées en douceur si $softDeletes. */
     public static function query(): QueryBuilder
     {
-        return new QueryBuilder(static::table());
+        $query = static::withTrashed();
+
+        return static::$softDeletes ? $query->whereNull(static::table() . '.deleted_at') : $query;
+    }
+
+    /** Comme query(), lignes supprimées en douceur comprises. */
+    public static function withTrashed(): QueryBuilder
+    {
+        return (new QueryBuilder(static::table()))->forModel(static::class);
+    }
+
+    /** Uniquement les lignes supprimées en douceur (une corbeille). */
+    public static function onlyTrashed(): QueryBuilder
+    {
+        return static::withTrashed()->whereNotNull(static::table() . '.deleted_at');
     }
 
     public static function all(): array
@@ -71,13 +110,47 @@ abstract class Model
     /** Comme create(), sans filtre $fillable — jamais avec des données venues directement de la requête. */
     public static function forceCreate(array $data): string
     {
-        return static::query()->insert($data);
+        if (static::$timestamps) {
+            $now = date('Y-m-d H:i:s');
+            $data += ['created_at' => $now, 'updated_at' => $now];
+        }
+
+        return static::explainMissingTimestamps(fn () => static::withTrashed()->insert(static::castForStorage($data)));
     }
 
     /** Comme update(), sans filtre $fillable — jamais avec des données venues directement de la requête. */
     public static function forceUpdate(int|string $id, array $data): bool
     {
-        return static::query()->where(static::$primaryKey, $id)->update($data);
+        if (static::$timestamps) {
+            $data += ['updated_at' => date('Y-m-d H:i:s')];
+        }
+
+        return static::explainMissingTimestamps(
+            fn () => static::withTrashed()->where(static::$primaryKey, $id)->update(static::castForStorage($data))
+        );
+    }
+
+    /**
+     * Une table sans created_at/updated_at fait échouer l'écriture avec une erreur SQL qui ne dit pas
+     * pourquoi le framework a ajouté ces colonnes : on la complète avec la solution.
+     */
+    protected static function explainMissingTimestamps(\Closure $write): mixed
+    {
+        try {
+            return $write();
+        } catch (\PDOException $e) {
+            if (static::$timestamps && preg_match('/(created_at|updated_at)/', $e->getMessage()) === 1) {
+                throw new DatabaseException(sprintf(
+                    '%s : la table %s n\'a pas de colonne created_at/updated_at. Ajoutez $table->timestamps() à sa '
+                    . 'migration, ou déclarez `protected static bool $timestamps = false;` dans le modèle. (%s)',
+                    static::class,
+                    static::table(),
+                    $e->getMessage()
+                ), 0, $e);
+            }
+
+            throw $e;
+        }
     }
 
     /** @return list<string> */
@@ -111,9 +184,68 @@ abstract class Model
         return $filtered;
     }
 
+    /** Supprime la ligne — ou, avec $softDeletes, renseigne seulement deleted_at. */
     public static function destroy(int|string $id): bool
     {
-        return static::query()->where(static::$primaryKey, $id)->delete();
+        if (static::$softDeletes) {
+            return static::query()->where(static::$primaryKey, $id)->update(['deleted_at' => date('Y-m-d H:i:s')]);
+        }
+
+        return static::forceDestroy($id);
+    }
+
+    /** Supprime réellement la ligne, même avec $softDeletes. */
+    public static function forceDestroy(int|string $id): bool
+    {
+        return static::withTrashed()->where(static::$primaryKey, $id)->delete();
+    }
+
+    /** Remet en place une ligne supprimée en douceur. */
+    public static function restore(int|string $id): bool
+    {
+        return static::onlyTrashed()->where(static::$primaryKey, $id)->update(['deleted_at' => null]);
+    }
+
+    /**
+     * @internal applique $casts à une ligne lue en base — appelé par QueryBuilder::get() et par les
+     * relations qui lisent en SQL brut (belongsToMany).
+     */
+    public static function castRow(array $row): array
+    {
+        foreach (static::$casts as $column => $type) {
+            if (!array_key_exists($column, $row) || $row[$column] === null) {
+                continue;
+            }
+
+            $row[$column] = match ($type) {
+                'int', 'integer' => (int) $row[$column],
+                'float', 'double' => (float) $row[$column],
+                'bool', 'boolean' => (bool) $row[$column],
+                'string' => (string) $row[$column],
+                'json', 'array' => is_string($row[$column]) ? json_decode($row[$column], true) : $row[$column],
+                default => throw new \InvalidArgumentException(static::class . " : type de cast inconnu « $type » pour $column."),
+            };
+        }
+
+        return $row;
+    }
+
+    /** Conversion inverse avant écriture : tableau -> JSON, booléen -> 0/1. */
+    protected static function castForStorage(array $data): array
+    {
+        foreach (static::$casts as $column => $type) {
+            if (!array_key_exists($column, $data) || $data[$column] === null) {
+                continue;
+            }
+
+            if (in_array($type, ['json', 'array'], true) && !is_string($data[$column])) {
+                $data[$column] = json_encode($data[$column], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE);
+            } elseif (in_array($type, ['bool', 'boolean'], true)) {
+                $data[$column] = $data[$column] ? 1 : 0;
+            }
+        }
+
+        return $data;
     }
 
     public static function paginate(int $perPage = 15, int $page = 1): Paginator
@@ -207,13 +339,14 @@ abstract class Model
         $sql = "SELECT {$pivotTable}.{$foreignKey} as np_pivot_key, {$relatedTable}.* "
             . "FROM {$relatedTable} "
             . "INNER JOIN {$pivotTable} ON {$relatedTable}.{$relatedPrimaryKey} = {$pivotTable}.{$relatedKey} "
-            . "WHERE {$pivotTable}.{$foreignKey} IN ($placeholders)";
+            . "WHERE {$pivotTable}.{$foreignKey} IN ($placeholders)"
+            . ($related::$softDeletes ? " AND {$relatedTable}.deleted_at IS NULL" : '');
 
         $grouped = [];
         foreach (DB::select($sql, $ids) as $row) {
             $parentId = $row['np_pivot_key'];
             unset($row['np_pivot_key']);
-            $grouped[$parentId][] = $row;
+            $grouped[$parentId][] = $related::castRow($row);
         }
 
         foreach ($records as &$record) {
@@ -259,8 +392,9 @@ abstract class Model
 
         $sql = "SELECT {$relatedTable}.* FROM {$relatedTable} "
             . "INNER JOIN {$pivotTable} ON {$relatedTable}.{$relatedPrimaryKey} = {$pivotTable}.{$relatedKey} "
-            . "WHERE {$pivotTable}.{$foreignKey} = ?";
+            . "WHERE {$pivotTable}.{$foreignKey} = ?"
+            . ($related::$softDeletes ? " AND {$relatedTable}.deleted_at IS NULL" : '');
 
-        return DB::select($sql, [$id]);
+        return array_map([$related, 'castRow'], DB::select($sql, [$id]));
     }
 }

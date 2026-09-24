@@ -9,6 +9,22 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **ORM : `$timestamps`, `$casts`, `$softDeletes`** (roadmap §17) :
+  - **`updated_at` n'était jamais mis à jour** : `timestamps()` ne posait qu'une valeur par défaut à
+    l'insertion. `create()` renseigne désormais `created_at`/`updated_at`, `update()` `updated_at`
+    (valeur explicite prioritaire), avec l'horloge PHP plutôt que `CURRENT_TIMESTAMP` (UTC sous
+    SQLite, alors que les thèmes écrivaient déjà `date()` — deux fuseaux mélangés dans une même
+    colonne). Une table sans ces colonnes donne une `DatabaseException` qui explique la solution au
+    lieu d'une erreur SQL brute.
+  - **`$casts`** (`int`, `float`, `bool`, `string`, `json`) appliqués à toutes les lectures
+    (`find`, `all`, `where`, `query()`, `paginate`, `with()`, relations y compris `belongsToMany`) et,
+    pour `json`/`bool`, à l'écriture. `Product` du thème boutique les déclare : mêmes types sous
+    SQLite et MySQL.
+  - **Suppression douce** : `$softDeletes`, `withTrashed()`, `onlyTrashed()`, `restore()`,
+    `forceDestroy()`, `$table->softDeletes()`. Les lignes supprimées sont ignorées partout, relations
+    et eager loading compris ; un second `destroy()` ne déplace pas la date de suppression.
+  - 13 tests `ModelFeaturesTest`, passés sur SQLite et sur un vrai MySQL 9 local (PostgreSQL : CI).
+
 - **Internationalisation des textes vus par les visiteurs** (roadmap §43) : messages de validation,
   erreurs d'upload, pages d'erreur, messages 401/403/405/419/429 et pagination étaient écrits en
   français en dur dans `src/Core` et les middlewares.
@@ -115,6 +131,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
   `auth/reset-password.php`, `shop/checkout.php`).
 
 ### Changed
+
+- **Rupture : `Model::$timestamps` vaut `true` par défaut.** Un modèle dont la table n'a pas
+  `created_at`/`updated_at` doit déclarer `protected static bool $timestamps = false;` (fait pour
+  `Tag` et `PasswordResetToken`). Les migrations générées par `make:migration` ont déjà
+  `timestamps()`.
 
 - **`np:install` fonctionne aussi sur Windows** : jusqu'ici, la commande affichait seulement un
   alias PowerShell à créer à la main. Elle pose désormais un `np.cmd` (utilisable depuis cmd comme

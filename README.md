@@ -155,6 +155,36 @@ jeter) en silence — `niang make:model` génère la propriété, à compléter.
 d'email) : `User::forceCreate([...])` et `User::forceUpdate($id, [...])`. Les factories passent par
 `forceCreate()`.
 
+**Dates, types et suppression douce** — trois propriétés facultatives :
+
+```php
+class Article extends Model
+{
+    protected static array $fillable = ['title', 'published', 'options'];
+
+    // created_at / updated_at renseignés par create(), updated_at par update() (vrai par défaut ;
+    // false pour une table sans ces colonnes).
+    protected static bool $timestamps = true;
+
+    // Types à la lecture, quel que soit le SGBD (MySQL renvoie les entiers en chaînes) ;
+    // json : tableau PHP <-> texte JSON en base.
+    protected static array $casts = ['published' => 'bool', 'views' => 'int', 'options' => 'json'];
+
+    // destroy() renseigne deleted_at au lieu de supprimer ; toutes les lectures l'ignorent.
+    protected static bool $softDeletes = true;   // migration : $table->softDeletes();
+}
+
+Article::destroy($id);                 // UPDATE ... SET deleted_at = maintenant
+Article::onlyTrashed()->get();         // la corbeille
+Article::withTrashed()->count();       // tout, supprimé compris
+Article::restore($id);
+Article::forceDestroy($id);            // DELETE réel
+```
+
+Les lignes supprimées en douceur sont aussi ignorées par `with()` et les relations. Les dates sont
+écrites avec l'horloge PHP (`date_default_timezone`), pas `CURRENT_TIMESTAMP` de la base (UTC sous
+SQLite). `Model::query()->where(...)->update([...])` (mise à jour en masse via le Query Builder) ne
+touche pas `updated_at` : passez-le explicitement.
 
 Configurez la connexion dans `.env` (`DB_CONNECTION=sqlite` par défaut, ou `mysql`/`pgsql`).
 

@@ -83,9 +83,11 @@ class MassAssignmentMember extends Model
 {
     protected static string $table = 'np_test_members';
     protected static array $fillable = ['name'];
+    protected static bool $timestamps = false;
 }
 
 class MassAssignmentUnguardedMember extends Model
 {
     protected static string $table = 'np_test_members';
+    protected static bool $timestamps = false;
 }
