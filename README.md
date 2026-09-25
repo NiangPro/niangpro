@@ -946,6 +946,25 @@ $this->post('/profil/avatar', ['avatar' => UploadedFile::fakeImage('moi.png', 20
 $this->post('/cv', ['cv' => UploadedFile::fake('cv.pdf', "%PDF-1.4 ...")]);
 ```
 
+## Réponses fichiers
+
+```php
+return Response::download(Storage::path($facture['path']), 'Facture été 2026.pdf'); // téléchargement
+return Response::file(Storage::path($user['avatar']));                               // affichage (image, PDF...)
+return Response::stream(function () {                                               // corps écrit au fil de l'eau
+    foreach (Order::query()->get() as $order) {
+        echo $order['reference'] . ';' . $order['total_cents'] . "\n";
+    }
+}, 200, ['Content-Type' => 'text/csv']);
+```
+
+Le fichier est lu depuis le disque à l'envoi, sans être chargé en mémoire. Ni la compression gzip
+ni la barre de debug ne touchent un fichier ou un flux. `file()` n'affiche dans le navigateur que
+des types sûrs (images, PDF, texte, MP3, MP4) : un fichier HTML ou SVG envoyé par un visiteur
+exécuterait son JavaScript sur votre domaine, il est donc proposé en téléchargement. Le nom proposé
+peut contenir des accents (RFC 6266) ; un fichier absent donne une 404. Pour servir les uploads de
+`storage/app/`, passez par une route qui vérifie les droits avant `Response::file()`.
+
 ## Emails
 
 Trois drivers, pilotés par `MAIL_MAILER` dans `.env` (`log` par défaut) : `smtp` pour un envoi

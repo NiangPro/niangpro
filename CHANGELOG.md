@@ -9,6 +9,15 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Réponses fichiers : `Response::download()`, `Response::file()`, `Response::stream()`** : aucun moyen
+  jusqu'ici d'envoyer un fichier (facture, export) ni de servir un upload de `storage/app/`.
+  Fichier lu à l'envoi (`readfile`, pas en mémoire), nom accentué selon RFC 6266 (en-tête protégé
+  contre l'injection), `nosniff`, 404 si absent. `file()` n'affiche inline que des types sûrs et
+  force le téléchargement du HTML/SVG. `Response::isStreamed()` : la compression gzip et la barre
+  de debug ne lisent ni ne modifient plus un fichier ou un flux ; vider le contenu (requête HEAD)
+  retire aussi le fichier. 8 tests, et vérifié sur un vrai serveur (octets complets malgré
+  `Accept-Encoding: gzip`, HEAD sans corps).
+
 - **Planificateur de tâches** (roadmap §41) : `queue:work` devait déjà être lancé par cron, sans
   aucun outil pour déclarer des tâches récurrentes.
   - `routes/schedule.php` (reçoit `$schedule`) : `command()` (process séparé — un plantage ou un

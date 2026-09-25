@@ -120,7 +120,7 @@ class Application
     {
         $acceptEncoding = $request->header('Accept-Encoding', $request->server['HTTP_ACCEPT_ENCODING'] ?? '');
 
-        if (!str_contains((string) $acceptEncoding, 'gzip') || !function_exists('gzencode')) {
+        if ($response->isStreamed() || !str_contains((string) $acceptEncoding, 'gzip') || !function_exists('gzencode')) {
             return $response;
         }
 
