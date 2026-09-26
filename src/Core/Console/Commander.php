@@ -13,6 +13,7 @@ use Niang\Core\Database\Seeder;
 use Niang\Core\Env;
 use Niang\Core\HealthCheck;
 use Niang\Core\Log;
+use Niang\Core\MaintenanceMode;
 use Niang\Core\Queue;
 use Niang\Core\RouteCache;
 use Niang\Core\Router;
@@ -71,6 +72,8 @@ class Commander
             'theme:add' => $this->themeAdd($arg),
             'schedule:run' => $this->scheduleRun(),
             'schedule:list' => $this->scheduleList(),
+            'down' => $this->down(array_slice($argv, 2)),
+            'up' => $this->up(),
             default => $this->runCustomCommand($command, array_slice($argv, 2)) ? null : $this->help(),
         };
     }
@@ -830,6 +833,46 @@ class Commander
         }
     }
 
+    /**
+     * `niang down [--retry=60] [--secret[=valeur]]` : --secret seul génère une valeur aléatoire,
+     * affichée une seule fois (seul son hachage est écrit sur le disque).
+     */
+    private function down(array $arguments): void
+    {
+        [, $options] = $this->parseNewArguments($arguments);
+
+        $retry = isset($options['retry']) && ctype_digit((string) $options['retry']) ? (int) $options['retry'] : null;
+        $secret = null;
+
+        if (array_key_exists('secret', $options)) {
+            $secret = $options['secret'] !== null && $options['secret'] !== ''
+                ? trim($options['secret'], '/')
+                : bin2hex(random_bytes(16));
+        }
+
+        MaintenanceMode::activate($retry, $secret);
+
+        echo "Site en maintenance : toute requête reçoit une 503 (sauf /up et /health).\n";
+
+        if ($secret !== null) {
+            $url = rtrim((string) Env::get('APP_URL', ''), '/');
+            echo "Accès pendant la maintenance : ouvrez {$url}/{$secret} (cookie valable 12 h).\n";
+        }
+
+        echo "Pour rouvrir le site : niang up\n";
+    }
+
+    private function up(): void
+    {
+        if (!MaintenanceMode::isDown()) {
+            echo "Le site n'était pas en maintenance.\n";
+            return;
+        }
+
+        MaintenanceMode::deactivate();
+        echo "Site rouvert.\n";
+    }
+
     private function queueFailed(): void
     {
         $failed = Queue::failed();
@@ -1003,6 +1046,10 @@ class Commander
         // image/mimes/mimetypes refusent alors tout, par prudence.
         if (!extension_loaded('fileinfo')) {
             $results[] = ['warn', 'Extension fileinfo manquante — les uploads validés par image/mimes/mimetypes seront tous refusés'];
+        }
+
+        if (MaintenanceMode::isDown()) {
+            $results[] = ['warn', 'Site en maintenance (niang up pour le rouvrir)'];
         }
 
         return $results;
@@ -1517,6 +1564,8 @@ class Commander
           make:test <Nom>          Génère un test dans tests/Unit
           schedule:run             Lance les tâches planifiées dues (routes/schedule.php) — à appeler chaque minute par cron
           schedule:list            Liste les tâches planifiées et leur prochaine exécution
+          down [--retry=N] [--secret] Met le site en maintenance (503, sauf /up et /health)
+          up                       Sort du mode maintenance
           theme:add <vendor/paquet> Installe un thème publié comme paquet Composer (extra.niangpro-theme)
 
         TEXT;

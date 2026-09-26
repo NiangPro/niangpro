@@ -9,6 +9,18 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Mode maintenance : `niang down` / `niang up`** : rien ne permettait de fermer le site pendant une
+  migration ou un déploiement. Tant que `storage/framework/down` existe, toute requête reçoit une 503
+  (page autonome `errors/503.php`, sans le layout qui pourrait dépendre de la base ; JSON pour une
+  API), sauf `/up` et `/health`. `--retry=N` ajoute `Retry-After`. `--secret[=valeur]` ouvre une URL
+  qui pose un cookie chiffré de 12 h pour naviguer normalement ; seul le hachage du secret est
+  écrit sur le disque. `niang doctor` signale un site resté en maintenance. Messages traduits (fr,
+  en). 11 tests, et vérifié sur un vrai serveur (503 + Retry-After, /up à 200, cookie posé par l'URL
+  secrète puis accepté, 200 après `up`).
+- **`Response::cookie()` / `withoutCookie()`** (roadmap §13) : un cookie chiffré posé avec la
+  réponse plutôt qu'immédiatement, visible dans les tests (`TestResponse::cookie()`,
+  `assertCookie()`). Pas encore transmis par le pont PSR-7.
+
 - **Réponses fichiers : `Response::download()`, `Response::file()`, `Response::stream()`** : aucun moyen
   jusqu'ici d'envoyer un fichier (facture, export) ni de servir un upload de `storage/app/`.
   Fichier lu à l'envoi (`readfile`, pas en mémoire), nom accentué selon RFC 6266 (en-tête protégé

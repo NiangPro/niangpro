@@ -8,6 +8,7 @@ return [
     '405' => 'Method not allowed.',
     '419' => 'Invalid or expired CSRF token.',
     '429' => 'Too many requests, please try again later.',
+    '503' => 'Down for maintenance, please try again in a few minutes.',
     'server_error' => 'Server error.',
     'database_error' => 'Database error.',
     'other' => 'HTTP error :status.',
@@ -21,4 +22,6 @@ return [
     'page_forbidden' => 'You are not allowed to perform this action.',
     'page_server_error' => 'Something went wrong. The team has been notified.',
     'back_home' => 'Back to home',
+    'page_maintenance_title' => 'Maintenance in progress',
+    'page_maintenance' => "We're performing scheduled maintenance. We'll be back shortly.",
 ];

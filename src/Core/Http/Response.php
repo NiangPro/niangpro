@@ -2,6 +2,7 @@
 
 namespace Niang\Core\Http;
 
+use Niang\Core\Cookie;
 use Niang\Core\Exceptions\NotFoundException;
 use Niang\Core\Session;
 
@@ -21,6 +22,9 @@ final class Response
     private array $headers = [];
     private string $content = '';
 
+    /** @var array<string, array{value: string|null, minutes: int}> posés à send() ; value null = suppression */
+    private array $cookies = [];
+
     /** Fichier envoyé depuis le disque à send(), sans être chargé en mémoire (download(), file()). */
     private ?string $filePath = null;
 
@@ -37,6 +41,28 @@ final class Response
     {
         $this->headers[$key] = $value;
         return $this;
+    }
+
+    /**
+     * Pose un cookie chiffré (voir Cookie) avec la réponse, plutôt qu'immédiatement : il n'est
+     * envoyé que si cette réponse l'est — et reste visible dans les tests via getCookies().
+     */
+    public function cookie(string $name, string $value, int $minutes = 60): static
+    {
+        $this->cookies[$name] = ['value' => $value, 'minutes' => $minutes];
+        return $this;
+    }
+
+    public function withoutCookie(string $name): static
+    {
+        $this->cookies[$name] = ['value' => null, 'minutes' => 0];
+        return $this;
+    }
+
+    /** @return array<string, array{value: string|null, minutes: int}> */
+    public function getCookies(): array
+    {
+        return $this->cookies;
     }
 
     public function content(string $content): static
@@ -201,6 +227,9 @@ final class Response
             http_response_code($this->status);
             foreach ($this->headers as $key => $value) {
                 header("$key: $value");
+            }
+            foreach ($this->cookies as $name => $cookie) {
+                $cookie['value'] === null ? Cookie::forget($name) : Cookie::set($name, $cookie['value'], $cookie['minutes']);
             }
         }
 

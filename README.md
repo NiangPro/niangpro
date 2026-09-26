@@ -965,6 +965,14 @@ exécuterait son JavaScript sur votre domaine, il est donc proposé en télécha
 peut contenir des accents (RFC 6266) ; un fichier absent donne une 404. Pour servir les uploads de
 `storage/app/`, passez par une route qui vérifie les droits avant `Response::file()`.
 
+Un cookie peut accompagner n'importe quelle réponse, chiffré comme ceux de `Cookie::set()`. Il
+n'est envoyé que si la réponse l'est, et reste lisible dans les tests (`assertCookie()`) :
+
+```php
+return Response::redirect('/')->cookie('theme', 'sombre', 60 * 24 * 30); // minutes
+return Response::redirect('/')->withoutCookie('theme');
+```
+
 ## Emails
 
 Trois drivers, pilotés par `MAIL_MAILER` dans `.env` (`log` par défaut) : `smtp` pour un envoi
@@ -1054,6 +1062,20 @@ composer install --no-dev --optimize-autoloader
 Activez `opcache.enable=1` et `opcache.validate_timestamps=0` dans le `php.ini` de production
 (remettez `validate_timestamps=1` en développement, sinon vos modifications de code ne seront pas prises
 en compte sans redémarrage).
+
+### Mode maintenance
+
+```bash
+./bin/niang down                      # toute requête reçoit une page 503
+./bin/niang down --retry=60           # + en-tête Retry-After: 60
+./bin/niang down --secret             # affiche une URL secrète qui vous laisse naviguer (cookie 12 h)
+./bin/niang up                        # rouvre le site
+```
+
+`/up` et `/health` restent accessibles, pour que la supervision ne déclenche pas d'alerte pendant une
+maintenance prévue. La page 503 (`resources/views/errors/503.php`) n'utilise pas le layout du site,
+qui pourrait dépendre d'une base en cours de migration. Seul le hachage du secret est écrit sur le
+disque (`storage/framework/down`). Avec plusieurs serveurs web, lancez `down` et `up` sur chacun.
 
 ## Tests
 

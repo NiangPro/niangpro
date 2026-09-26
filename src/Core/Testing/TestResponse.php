@@ -83,4 +83,23 @@ class TestResponse
     {
         return $this->response->getStatus();
     }
+
+    /** Valeur en clair d'un cookie posé par Response::cookie() ; null s'il n'est pas posé ou est supprimé. */
+    public function cookie(string $name): ?string
+    {
+        return $this->response->getCookies()[$name]['value'] ?? null;
+    }
+
+    public function assertCookie(string $name, ?string $value = null): static
+    {
+        $cookies = $this->response->getCookies();
+
+        Assert::assertTrue(isset($cookies[$name]) && $cookies[$name]['value'] !== null, "Cookie « $name » absent de la réponse.");
+
+        if ($value !== null) {
+            Assert::assertSame($value, $cookies[$name]['value']);
+        }
+
+        return $this;
+    }
 }

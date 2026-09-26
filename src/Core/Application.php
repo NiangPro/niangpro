@@ -104,7 +104,7 @@ class Application
         DB::resetQueryCount();
 
         try {
-            $response = $this->router->dispatch($request, $this->container);
+            $response = MaintenanceMode::intercept($request) ?? $this->router->dispatch($request, $this->container);
         } catch (\Throwable $e) {
             $response = Handler::render($e, $request, $startedAt);
         }
