@@ -18,7 +18,10 @@ const COMPONENTS = [
     'Router' => [85.0, ['src/Core/Router.php', 'src/Core/RouteRegistration.php', 'src/Core/RouteCache.php']],
     'Container' => [90.0, ['src/Core/Container.php']],
     'Database' => [85.0, ['src/Core/Database/']],
-    'Auth' => [90.0, ['src/Core/Auth.php', 'src/Core/ApiToken.php', 'src/Core/Gate.php', 'src/Core/Hash.php']],
+    'Auth' => [90.0, [
+        'src/Core/Auth.php', 'src/Core/ApiToken.php', 'src/Core/Gate.php', 'src/Core/Hash.php',
+        'src/Core/Totp.php', 'src/Core/TwoFactor.php', 'src/Core/OAuth.php', 'src/Core/OAuth/',
+    ]],
     'Validation' => [90.0, ['src/Core/Validation/']],
     'HTTP' => [80.0, ['src/Core/Http/']],
     'Sécurité' => [90.0, [
