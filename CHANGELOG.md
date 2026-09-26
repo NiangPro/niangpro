@@ -9,6 +9,15 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Notifications** (roadmap §29) : `Notification::send($user|$users, new X())`, canaux `mail`,
+  `database` (nouvelle table `notifications`), `webhook` (JSON POST, signature HMAC
+  `X-Niang-Signature` avec un secret, http/https uniquement, redirections non suivies, erreur hors 2xx)
+  et canaux sur mesure (`Contracts\NotificationChannel`, pour les SMS par exemple). `ShouldQueue` :
+  un job `SendQueuedNotification` par destinataire. Lecture : `for()`, `unread()`, `unreadCount()`,
+  `markAsRead()` (limité au destinataire : impossible de marquer la notification d'un autre),
+  `markAllAsRead()`. `Notification::fake()` / `sent()`. 13 tests, dont le webhook contre un vrai
+  serveur HTTP (process séparé).
+
 - **Docker** (roadmap §66) : `compose.yaml` (PHP-FPM 8.3, Nginx 1.27, MySQL 8.4) et `docker/` (image
   PHP avec `pdo_mysql`, `pdo_pgsql`, OPcache ; configuration Nginx ; base `niangpro_test`). Au démarrage,
   le conteneur installe `vendor/`, crée `.env` et une `APP_KEY` jamais remplacée, puis migre. PHP-FPM

@@ -8,6 +8,7 @@ use Niang\Core\Cookie;
 use Niang\Core\Database\Migrator;
 use Niang\Core\Event;
 use Niang\Core\Http\Request;
+use Niang\Core\Notification;
 use Niang\Core\Queue;
 use Niang\Core\RateLimiter;
 use Niang\Core\Session;
@@ -45,6 +46,7 @@ abstract class TestCase extends BaseTestCase
         // ne doit pas partir avec la réponse d'un test suivant.
         Cookie::pullQueued();
         RateLimiter::reset();
+        Notification::reset();
         unset($_COOKIE[Auth::REMEMBER_COOKIE]);
 
         // Construit avant Session::start() : charge config/session.php (lifetime, cookie secure...).

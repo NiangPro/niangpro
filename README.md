@@ -1129,6 +1129,55 @@ $this->post('/register', [...]);
 $this->assertCount(1, Mail::sent());
 ```
 
+## Notifications
+
+Un même message envoyé sur un ou plusieurs canaux : `mail`, `database` (table `notifications`, fournie
+avec les migrations), `webhook`, ou votre propre canal (SMS, Slack...).
+
+```php
+use Niang\Core\Notification;
+
+class CommandeExpediee extends Notification
+{
+    public function __construct(private array $commande) {}
+
+    public function via(array $user): array
+    {
+        return ['mail', 'database'];
+    }
+
+    public function toMail(array $user): Mailable
+    {
+        return new CommandeExpedieeMailable($this->commande);
+    }
+
+    public function toDatabase(array $user): array
+    {
+        return ['commande' => $this->commande['id'], 'message' => 'Votre commande est en route'];
+    }
+}
+
+Notification::send($user, new CommandeExpediee($commande));        // un destinataire (sa colonne email)
+Notification::send($admins, new CommandeExpediee($commande));      // ou une liste
+
+Notification::for($user);             // ses notifications (data décodé), les plus récentes d'abord
+Notification::unread($user);          // non lues ; Notification::unreadCount($user)
+Notification::markAsRead($user, $id); // false si la notification n'est pas la sienne
+Notification::markAllAsRead($user);
+```
+
+Une notification qui implémente `ShouldQueue` part par la file (un job par destinataire, 3 tentatives) ;
+`Notification::sendNow()` l'envoie tout de suite. En test, `Notification::fake()` puis
+`Notification::sent()`.
+
+**Webhook** : `toWebhook()` renvoie le corps JSON, `webhookUrl()` l'adresse (http ou https uniquement).
+Avec `webhookSecret()`, l'en-tête `X-Niang-Signature: sha256=<HMAC du corps>` permet au destinataire de
+vérifier l'origine (`hash_equals()` avec son propre calcul). Les redirections ne sont pas suivies, et une
+réponse hors 2xx lève une `NotificationException`.
+
+**Canal sur mesure** (SMS...) : une classe qui implémente `Niang\Core\Contracts\NotificationChannel`
+(`send(array $notifiable, Notification $notification)`), dont vous renvoyez le nom depuis `via()`.
+
 ## Compression & supervision
 
 Les réponses sont automatiquement compressées en gzip si le client l'accepte et que ça vaut le coût.
