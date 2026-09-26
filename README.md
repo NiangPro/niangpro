@@ -1154,6 +1154,28 @@ Activez `opcache.enable=1` et `opcache.validate_timestamps=0` dans le `php.ini` 
 (remettez `validate_timestamps=1` en développement, sinon vos modifications de code ne seront pas prises
 en compte sans redémarrage).
 
+### Docker (facultatif)
+
+```bash
+docker compose up -d     # PHP-FPM 8.3 + Nginx + MySQL 8.4, sur http://localhost:8080
+docker compose exec app php bin/niang db:seed
+docker compose down      # ajoutez -v pour supprimer aussi la base
+```
+
+Au premier démarrage, le conteneur `app` installe `vendor/`, crée `.env` et sa clé `APP_KEY` (jamais
+remplacée ensuite), puis lance les migrations (`NIANGPRO_MIGRATE=false` pour s'en passer). Le code est
+monté depuis votre dossier : une modification est visible sans reconstruire l'image. Les variables de
+`compose.yaml` (`DB_HOST=db`...) priment sur `.env`. Nginx ne sert que `public/`, n'exécute que
+`index.php` et refuse les fichiers cachés. Autre port : `NIANGPRO_HTTP_PORT=8000 docker compose up -d`.
+Une base `niangpro_test` est créée pour lancer la suite Database contre MySQL :
+`docker compose exec -e DB_DATABASE=niangpro_test app vendor/bin/phpunit --testsuite=Database`.
+
+Pour la production, `docker/php/Dockerfile` construit une image autonome (code copié, `composer install
+--no-dev`) : passez `APP_KEY`, `APP_ENV=production`, `APP_DEBUG=false` et les `DB_*` comme variables
+d'environnement, et mettez `opcache.validate_timestamps=0` dans `docker/php/php.ini`.
+
+Docker reste facultatif : `./bin/niang serve` avec SQLite suffit pour développer.
+
 ### Mode maintenance
 
 ```bash

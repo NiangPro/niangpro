@@ -9,6 +9,16 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Docker** (roadmap §66) : `compose.yaml` (PHP-FPM 8.3, Nginx 1.27, MySQL 8.4) et `docker/` (image
+  PHP avec `pdo_mysql`, `pdo_pgsql`, OPcache ; configuration Nginx ; base `niangpro_test`). Au démarrage,
+  le conteneur installe `vendor/`, crée `.env` et une `APP_KEY` jamais remplacée, puis migre. PHP-FPM
+  garde les variables d'environnement (`clear_env = no`, sans quoi `DB_HOST` n'arriverait pas à
+  l'application). Nginx n'exécute que `public/index.php` et refuse les fichiers cachés. Nouveau job CI
+  `docker` qui construit et démarre la pile et vérifie : `/`, `/up`, `/health` avec MySQL, un article
+  inséré dans MySQL renvoyé par l'API (preuve que PHP-FPM reçoit bien les variables), fichier statique,
+  `.env` et autre `.php` en 404, clé conservée au redémarrage, suite Database dans le conteneur.
+  Non testé en local (Docker absent de la machine de développement) : la CI est la vérification.
+
 - **Couverture de code en CI** (roadmap §58 et §60) : job `coverage` (pcov), rapport Clover en
   artefact, et `tools/coverage-check.php` qui impose un seuil global (78 %, mesuré 79,8 %) et un seuil
   par composant critique : Router 85 %, Container 90 %, Database 85 %, Auth 90 %, Validation 90 %,
