@@ -8,6 +8,7 @@ use App\Controllers\ContactController;
 use App\Controllers\HealthController;
 use App\Controllers\HomeController;
 use App\Controllers\PostController;
+use App\Controllers\SocialAuthController;
 use App\Controllers\TagController;
 use App\Controllers\TwoFactorController;
 use App\Middleware\Authenticate;
@@ -54,6 +55,12 @@ $router->post('/register', [AuthController::class, 'register'], [VerifyCsrfToken
 $router->get('/login', [AuthController::class, 'showLogin'], [RedirectIfAuthenticated::class])->name('login');
 $router->post('/login', [AuthController::class, 'login'], [VerifyCsrfToken::class, ThrottleRequests::class]);
 $router->post('/logout', [AuthController::class, 'logout'], [VerifyCsrfToken::class]);
+
+// Connexion avec Google ou GitHub (OAuth) : 404 tant que le fournisseur n'est pas configuré.
+$router->get('/auth/{provider}/redirect', [SocialAuthController::class, 'redirectToProvider'], [RedirectIfAuthenticated::class])
+    ->where(['provider' => 'google|github']);
+$router->get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'], [ThrottleRequests::class])
+    ->where(['provider' => 'google|github']);
 
 // Double authentification (TOTP) : code demandé après le mot de passe, et réglage du compte.
 $router->get('/two-factor-challenge', [TwoFactorController::class, 'showChallenge']);

@@ -833,6 +833,32 @@ code (champ `code`) : un jeton API ne contourne pas la double authentification. 
 directement l'application sur mobile ; pour un QR code, passez `$setup['uri']` à la bibliothèque
 JavaScript de votre choix.
 
+**Connexion avec Google ou GitHub (OAuth 2).** Sans dépendance. Créez une application chez le
+fournisseur ([Google](https://console.cloud.google.com/apis/credentials),
+[GitHub](https://github.com/settings/developers)), déclarez l'URL de retour
+`APP_URL/auth/google/callback` (ou `github`), puis dans `.env` :
+
+```dotenv
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+```
+
+Le bouton « Continuer avec GitHub » apparaît alors sur `/login` (routes `/auth/{provider}/redirect` et
+`/auth/{provider}/callback`, 404 tant qu'un fournisseur n'est pas configuré). À la connexion, le compte est
+retrouvé par son email, ou créé (email marqué vérifié, mot de passe aléatoire : « mot de passe oublié »
+permet d'en choisir un). Pour vos propres routes :
+
+```php
+return OAuth::redirect('github');
+$profil = OAuth::user('github', $request); // ['id', 'email', 'email_verified', 'name', 'avatar', 'raw']
+Auth::loginOrRequireTwoFactor($user);       // connecte, ou exige le code si la 2FA est activée
+```
+
+Protections : `state` aléatoire à usage unique (un lien de retour forgé ou rejoué est refusé), PKCE (un
+code intercepté est inutilisable), secret client jamais envoyé au navigateur. Seul un email **vérifié par
+le fournisseur** désigne un compte : sans cette règle, créer chez le fournisseur une adresse non vérifiée
+identique à celle d'un compte suffirait à s'y connecter. La double authentification reste exigée.
+
 Protégez une route avec `Authenticate::class` (redirige vers `/login`, ou 401 JSON si la requête
 l'attend) ; empêchez l'accès aux pages login/register une fois connecté avec `RedirectIfAuthenticated::class`.
 

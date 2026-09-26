@@ -89,16 +89,26 @@ class Auth
             self::usersQuery('id', $user['id'])->update([$passwordField => Hash::make($password)]);
         }
 
+        self::loginOrRequireTwoFactor($user, $remember);
+        return true;
+    }
+
+    /**
+     * Pour une identité déjà prouvée autrement que par le mot de passe (OAuth, lien magique...) :
+     * connecte, sauf si la double authentification est activée — le code est alors exigé comme
+     * après attempt() (vérifiez Auth::twoFactorPending()).
+     */
+    public static function loginOrRequireTwoFactor(array $user, bool $remember = false): void
+    {
         if (TwoFactor::enabled($user)) {
             Session::regenerate();
             Session::forget(self::SESSION_KEY);
             Session::put(self::TWO_FACTOR_PENDING, ['id' => $user['id'], 'remember' => $remember, 'at' => time()]);
 
-            return true;
+            return;
         }
 
         self::login($user, remember: $remember);
-        return true;
     }
 
     /** Vrai entre un attempt() réussi et la saisie du code, pendant TWO_FACTOR_TIMEOUT secondes. */

@@ -9,6 +9,17 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Connexion avec Google ou GitHub** (OAuth 2, roadmap §52, sans dépendance) : `Niang\Core\OAuth`
+  (`redirect()`, `user()`, `configured()`), fournisseurs `GoogleProvider` (OpenID Connect) et
+  `GitHubProvider` (email principal lu sur `/user/emails`), `config/oauth.php`. `state` à usage unique
+  lié au fournisseur, PKCE S256. `Auth::loginOrRequireTwoFactor()` : la double authentification reste
+  exigée. Application de démonstration : routes `/auth/{provider}/redirect|callback`, boutons sur
+  `/login` pour les fournisseurs configurés ; un compte n'est rattaché que par un email vérifié par le
+  fournisseur. `Niang\Core\Http\Client` : client HTTP minimal (http/https, sans redirection, délai
+  borné), désormais utilisé aussi par le webhook des notifications. 12 tests contre un faux
+  fournisseur (vrai serveur HTTP local) ; un test de mutation confirme que retirer la vérification de
+  l'email fait échouer le test. Non testé contre les vrais Google et GitHub (identifiants requis).
+
 - **Server-Sent Events** (roadmap §51, sans paquet séparé ni dépendance) : `Response::eventStream()`
   à partir d'un générateur, `Http\ServerSentEvent` (event, id, retry, données JSON ou texte, données
   multi-lignes, retours à la ligne neutralisés dans event/id), commentaire `: ping` périodique.

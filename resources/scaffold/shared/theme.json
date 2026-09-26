@@ -17,6 +17,7 @@
         "tests/Feature/HomeTest.php",
         "tests/Feature/JsonResourceTest.php",
         "tests/Feature/LocalizationTest.php",
+        "tests/Feature/OAuthTest.php",
         "tests/Feature/PasswordResetTest.php",
         "tests/Feature/PostsTest.php",
         "tests/Feature/RememberMeTest.php",
