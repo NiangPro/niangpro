@@ -267,7 +267,8 @@ class SmtpTransportTest extends TestCase
 
         $message = substr($transcript, (int) strpos($transcript, "DATA\r\n"));
         $this->assertStringNotContainsString('archives@example.test', $message);
-        $this->assertStringNotContainsStringIgnoringCase('bcc', $message);
+        // Pas de recherche de « bcc » dans tout le message : le Message-ID aléatoire (hexadécimal) le contient parfois.
+        $this->assertDoesNotMatchRegularExpression('/^bcc:/im', $message);
     }
 
     public function test_attachments_are_sent_as_multipart_mixed_and_decode_back_to_the_same_bytes(): void
