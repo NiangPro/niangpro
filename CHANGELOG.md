@@ -9,6 +9,15 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Emails : copie (`cc()`), copie cachée (`bcc()`), pièces jointes, envoi par la file.**
+  `Mail::to(...)->cc(...)->bcc(...)`, `Mailable::attachments()` avec `MailAttachment::fromPath()` /
+  `fromData()` (`multipart/mixed`, base64 en lignes de 76 caractères, nom accentué RFC 2231, type
+  MIME détecté), `->queue()` / `->later()` (job `Niang\Core\Jobs\SendQueuedMail`, 3 tentatives).
+  En SMTP, un `RCPT TO` par destinataire (doublons retirés) et aucun en-tête `Bcc` dans le message.
+  Adresses en copie vérifiées contre l'injection d'en-têtes. `Mail::sent()` expose `cc` et `bcc`.
+  Vérifié avec un vrai serveur SMTP (aiosmtpd) et le parseur `email` de Python : aucun défaut MIME,
+  pièces jointes identiques octet pour octet, nom accentué lu correctement, `Bcc` absent.
+
 - **« Se souvenir de moi »** (roadmap §21) : `Auth::attempt(..., remember: true)` /
   `Auth::login($user, remember: true)` posent un cookie chiffré de 30 jours (`remember_web`) qui
   reconnecte l'utilisateur après expiration de sa session. Jeton aléatoire de 64 caractères dans

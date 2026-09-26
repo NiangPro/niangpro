@@ -1042,6 +1042,36 @@ class WelcomeMailable extends Mailable
 Mail::to('awa@example.com')->send(new WelcomeMailable('Awa'));
 ```
 
+### Copies, pièces jointes, envoi différé
+
+```php
+Mail::to('awa@example.com')
+    ->cc('comptabilite@example.com')           // visible de tous
+    ->bcc(['archives@example.com'])            // copie cachée : n'apparaît jamais dans le message
+    ->send(new InvoiceMailable($facture));
+
+class InvoiceMailable extends Mailable
+{
+    // ...
+    public function attachments(): array
+    {
+        return [
+            MailAttachment::fromPath(Storage::path($this->facture['path']), 'Facture été 2026.pdf'),
+            MailAttachment::fromData($csv, 'export.csv', 'text/csv'),   // contenu déjà en mémoire
+        ];
+    }
+}
+
+Mail::to($user['email'])->queue(new WelcomeMailable($user['name']));       // envoyé par queue:work
+Mail::to($user['email'])->later(3600, new ReminderMailable($user['name'])); // dans une heure au plus tôt
+```
+
+`queue()` ne fait pas attendre la requête HTTP le serveur SMTP ; le job retente 3 fois si le serveur
+est indisponible. Le Mailable est sérialisé : pas de closure ni de connexion dans ses propriétés, et
+un fichier joint par `fromPath()` doit encore exister quand `queue:work` envoie. Le type MIME d'une
+pièce jointe est détecté (extension `fileinfo`) si vous ne le donnez pas ; un nom accentué est encodé
+(RFC 2231).
+
 ### SMTP (production)
 
 Un client SMTP écrit à la main (`Niang\Core\SmtpTransport`), sans extension ni dépendance —
@@ -1072,8 +1102,7 @@ vérifié. Une erreur (serveur injoignable, identifiants refusés, destinataire 
 ou `array` en production. En développement, [Mailpit](https://mailpit.axllent.org/) avec
 `MAIL_HOST=127.0.0.1`, `MAIL_PORT=1025` et `MAIL_ENCRYPTION=none` affiche les emails dans le navigateur.
 
-L'envoi est synchrone : pour ne pas faire attendre la requête, envoyez depuis un job
-(`Queue::push()`) ou un écouteur `ShouldQueue`.
+`send()` est synchrone : pour ne pas faire attendre la requête, utilisez `queue()` (voir plus haut).
 
 ### Développement et tests
 

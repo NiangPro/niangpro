@@ -6,6 +6,7 @@ use Niang\Core\Exceptions\ConfigurationException;
 use Niang\Core\Exceptions\MailException;
 use Niang\Core\Mail;
 use Niang\Core\Mailable;
+use Niang\Core\Queue;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\FakeSmtpServer;
 
@@ -28,6 +29,48 @@ class MailTest extends TestCase
         $this->assertSame('awa@example.com', $sent[0]['to']);
         $this->assertInstanceOf(MailTestWelcomeMailable::class, $sent[0]['mailable']);
         $this->assertSame('Bienvenue', $sent[0]['mailable']->subject());
+    }
+
+    public function test_cc_and_bcc_are_recorded_by_the_fake(): void
+    {
+        Mail::fake();
+
+        Mail::to('awa@example.com')->cc('modou@example.com')->bcc(['a@example.com', 'b@example.com'])->send(new MailTestWelcomeMailable());
+
+        $this->assertSame(['modou@example.com'], Mail::sent()[0]['cc']);
+        $this->assertSame(['a@example.com', 'b@example.com'], Mail::sent()[0]['bcc']);
+    }
+
+    public function test_queue_defers_sending_until_the_worker_runs(): void
+    {
+        Queue::reset();
+        Mail::fake();
+
+        $id = Mail::to('awa@example.com')->cc('modou@example.com')->queue(new MailTestWelcomeMailable());
+
+        $this->assertNotSame('', $id);
+        $this->assertCount(0, Mail::sent(), 'rien ne part pendant la requête');
+        $this->assertSame(1, Queue::pending());
+
+        Queue::work();
+
+        $this->assertCount(1, Mail::sent());
+        $this->assertSame('awa@example.com', Mail::sent()[0]['to']);
+        $this->assertSame(['modou@example.com'], Mail::sent()[0]['cc']);
+        $this->assertSame('Bienvenue', Mail::sent()[0]['mailable']->subject());
+        Queue::reset();
+    }
+
+    public function test_later_is_not_sent_before_its_delay(): void
+    {
+        Queue::reset();
+        Mail::fake();
+
+        Mail::to('awa@example.com')->later(3600, new MailTestWelcomeMailable());
+        Queue::work();
+
+        $this->assertSame([], Mail::sent());
+        Queue::reset();
     }
 
     public function test_sent_is_empty_before_anything_is_sent(): void

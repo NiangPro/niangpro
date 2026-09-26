@@ -4,6 +4,7 @@ namespace Tests\Unit;
 
 use Niang\Core\Exceptions\MailException;
 use Niang\Core\Mailable;
+use Niang\Core\MailAttachment;
 use Niang\Core\SmtpTransport;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\FakeSmtpServer;
@@ -247,6 +248,80 @@ class SmtpTransportTest extends TestCase
         $this->transportWithoutServer()->send("awa@example.test>\r\nBcc: <victime@example.test", new SmtpTestMailable('Test', 'Corps'));
     }
 
+    public function test_cc_and_bcc_receive_the_message_but_bcc_never_appears_in_it(): void
+    {
+        $server = new FakeSmtpServer();
+
+        $this->transport($server)->send(
+            'awa@example.test',
+            new SmtpTestMailable('Réunion', 'Corps'),
+            ['modou@example.test', 'awa@example.test'],
+            ['archives@example.test']
+        );
+
+        $transcript = $server->transcript();
+        $this->assertSame(1, substr_count($transcript, 'RCPT TO:<awa@example.test>'), 'une adresse en double ne reçoit qu\'un exemplaire');
+        $this->assertStringContainsString("RCPT TO:<modou@example.test>\r\n", $transcript);
+        $this->assertStringContainsString("RCPT TO:<archives@example.test>\r\n", $transcript);
+        $this->assertStringContainsString("Cc: <modou@example.test>, <awa@example.test>\r\n", $transcript);
+
+        $message = substr($transcript, (int) strpos($transcript, "DATA\r\n"));
+        $this->assertStringNotContainsString('archives@example.test', $message);
+        $this->assertStringNotContainsStringIgnoringCase('bcc', $message);
+    }
+
+    public function test_attachments_are_sent_as_multipart_mixed_and_decode_back_to_the_same_bytes(): void
+    {
+        $file = tempnam(sys_get_temp_dir(), 'np-pj');
+        $bytes = random_bytes(3000) . "\r\n.\r\n";
+        file_put_contents($file, $bytes);
+
+        $server = new FakeSmtpServer();
+
+        try {
+            $this->transport($server)->send('awa@example.test', new SmtpTestMailable('Votre facture', 'Ci-joint.', '<p>Ci-joint.</p>', [
+                MailAttachment::fromPath($file, 'Facture été 2026.pdf', 'application/pdf'),
+                MailAttachment::fromData("id;total\n1;100\n", 'export.csv', 'text/csv'),
+            ]));
+        } finally {
+            unlink($file);
+        }
+
+        $transcript = $server->transcript();
+        $this->assertStringContainsString('Content-Type: multipart/mixed; boundary="niang-mixed-', $transcript);
+        $this->assertStringContainsString('Content-Type: multipart/alternative; boundary="niang-', $transcript);
+        $this->assertStringContainsString("Content-Disposition: attachment; filename*=UTF-8''Facture%20%C3%A9t%C3%A9%202026.pdf\r\n", $transcript);
+        $this->assertStringContainsString("Content-Disposition: attachment; filename=\"export.csv\"\r\n", $transcript);
+        $this->assertStringContainsString('Content-Type: text/csv; name="export.csv"', $transcript);
+
+        preg_match('/filename\*=UTF-8\'\'Facture[^\r]*\r\n\r\n(.*?)\r\n--niang-mixed-/s', $transcript, $matches);
+        $this->assertSame($bytes, base64_decode(str_replace("\r\n", '', $matches[1] ?? ''), true));
+
+        foreach (explode("\r\n", $matches[1] ?? '') as $line) {
+            $this->assertLessThanOrEqual(76, strlen($line));
+        }
+    }
+
+    public function test_a_missing_attachment_file_fails_before_connecting(): void
+    {
+        $this->expectException(MailException::class);
+        $this->expectExceptionMessage('Pièce jointe introuvable');
+
+        $this->transportWithoutServer()->send('awa@example.test', new SmtpTestMailable('Test', 'Corps', null, [MailAttachment::fromPath('/nulle/part/facture.pdf')]));
+    }
+
+    public function test_header_injection_through_cc_or_bcc_is_rejected(): void
+    {
+        foreach ([[["x@example.test>\r\nBcc: <victime@example.test"], []], [[], ["x@example.test\r\nSubject: pirate"]]] as [$cc, $bcc]) {
+            try {
+                $this->transportWithoutServer()->send('awa@example.test', new SmtpTestMailable('Test', 'Corps'), $cc, $bcc);
+                $this->fail('adresse acceptée');
+            } catch (MailException $e) {
+                $this->assertStringContainsString('Adresse email invalide', $e->getMessage());
+            }
+        }
+    }
+
     public function test_an_invalid_encryption_value_is_rejected(): void
     {
         $this->expectException(MailException::class);
@@ -266,8 +341,14 @@ class SmtpTransportTest extends TestCase
 
 class SmtpTestMailable extends Mailable
 {
-    public function __construct(private string $subjectLine, private string $text, private ?string $htmlBody = null)
+    /** @param list<MailAttachment> $files */
+    public function __construct(private string $subjectLine, private string $text, private ?string $htmlBody = null, private array $files = [])
     {
+    }
+
+    public function attachments(): array
+    {
+        return $this->files;
     }
 
     public function subject(): string

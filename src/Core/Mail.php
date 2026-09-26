@@ -17,7 +17,7 @@ use Niang\Core\Exceptions\ConfigurationException;
  */
 class Mail
 {
-    /** @var array<int, array{to: string, mailable: Mailable}> */
+    /** @var array<int, array{to: string, cc: list<string>, bcc: list<string>, mailable: Mailable}> */
     private static array $sent = [];
     private static bool $faked = false;
 
@@ -26,18 +26,23 @@ class Mail
         return new PendingMail($address);
     }
 
-    /** @internal appelé par PendingMail::send() */
-    public static function dispatch(string $to, Mailable $mailable): void
+    /**
+     * @internal appelé par PendingMail::send() et le job SendQueuedMail
+     *
+     * @param list<string> $cc
+     * @param list<string> $bcc
+     */
+    public static function dispatch(string $to, Mailable $mailable, array $cc = [], array $bcc = []): void
     {
         $mailer = self::$faked ? 'array' : (string) Env::get('MAIL_MAILER', 'log');
 
         if ($mailer === 'array') {
-            self::$sent[] = ['to' => $to, 'mailable' => $mailable];
+            self::$sent[] = ['to' => $to, 'cc' => $cc, 'bcc' => $bcc, 'mailable' => $mailable];
             return;
         }
 
         if ($mailer === 'smtp') {
-            SmtpTransport::fromEnv()->send($to, $mailable);
+            SmtpTransport::fromEnv()->send($to, $mailable, $cc, $bcc);
             return;
         }
 
@@ -49,8 +54,11 @@ class Mail
         // réelle) : ne pas garder MAIL_MAILER=log en production si vos emails contiennent des secrets.
         Log::info('Email à {to} : {subject}', [
             'to' => $to,
+            'cc' => $cc,
+            'bcc' => $bcc,
             'subject' => $mailable->subject(),
             'body' => $mailable->body(),
+            'attachments' => array_map(fn (MailAttachment $attachment) => $attachment->name, $mailable->attachments()),
         ]);
     }
 
@@ -61,7 +69,7 @@ class Mail
         self::$sent = [];
     }
 
-    /** @return array<int, array{to: string, mailable: Mailable}> rempli seulement après fake() ou avec MAIL_MAILER=array */
+    /** @return array<int, array{to: string, cc: list<string>, bcc: list<string>, mailable: Mailable}> rempli seulement après fake() ou avec MAIL_MAILER=array */
     public static function sent(): array
     {
         return self::$sent;
