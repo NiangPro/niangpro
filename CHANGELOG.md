@@ -9,6 +9,14 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Logs : niveau minimal, durée de conservation, secrets masqués** (roadmap §27). `config/logging.php`
+  : `LOG_LEVEL` (défaut `debug` ; un niveau inconnu journalise tout plutôt que rien), `LOG_DAYS`
+  (défaut 14, 0 = tout garder ; les fichiers plus anciens sont supprimés au premier message de la
+  journée, `Log::prune()`). Les clés de contexte sensibles (`password`, `token`, `secret`, `api_key`,
+  `authorization`, `cookie`, `card`, `cvv`, `iban`) sont remplacées par `[masqué]` à toute profondeur,
+  y compris dans le message interpolé. `niang doctor` signale un `LOG_LEVEL` inconnu, et `debug` en
+  production. Nouveau `Config::set()` (notation pointée).
+
 - **Emails : copie (`cc()`), copie cachée (`bcc()`), pièces jointes, envoi par la file.**
   `Mail::to(...)->cc(...)->bcc(...)`, `Mailable::attachments()` avec `MailAttachment::fromPath()` /
   `fromData()` (`multipart/mixed`, base64 en lignes de 76 caractères, nom accentué RFC 2231, type

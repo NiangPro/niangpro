@@ -581,6 +581,18 @@ Niveaux disponibles (style PSR-3) : `emergency`, `alert`, `critical`, `error`, `
 de contexte. Un fichier par jour dans `storage/logs/`. Les exceptions non interceptées y sont aussi
 consignées automatiquement.
 
+```dotenv
+LOG_LEVEL=warning   # niveau minimal écrit (debug par défaut) : warning ignore debug, info et notice
+LOG_DAYS=14         # jours de fichiers conservés ; 0 = ne jamais supprimer
+```
+
+Les fichiers plus anciens que `LOG_DAYS` sont supprimés au premier message de chaque journée.
+Une valeur de contexte dont la clé évoque un secret (`password`, `token`, `secret`, `api_key`,
+`authorization`, `cookie`, `card`, `cvv`, `iban`...) est remplacée par `[masqué]`, à n'importe quelle
+profondeur : `Log::info('Connexion', $request->all())` n'écrit pas le mot de passe. `niang doctor`
+signale un `LOG_LEVEL` inconnu (tout est alors journalisé) et `debug` en production.
+`Config::set('logging.level', 'error')` change la valeur pour la suite du process (tests).
+
 Pour injecter un logger plutôt qu'appeler la façade statique (interop avec du code tiers, tests avec
 un mock), `Niang\Core\Logger` implémente `Psr\Log\LoggerInterface` et écrit dans les mêmes fichiers
 — voir [PSR-11 et PSR-3](#psr-11-et-psr-3).

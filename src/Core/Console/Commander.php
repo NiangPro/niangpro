@@ -1052,6 +1052,14 @@ class Commander
             $results[] = ['warn', 'Site en maintenance (niang up pour le rouvrir)'];
         }
 
+        $logLevel = strtolower((string) Config::get('logging.level', 'debug'));
+
+        if (!in_array($logLevel, Log::LEVELS, true)) {
+            $results[] = ['warn', "LOG_LEVEL inconnu : « $logLevel » — tout est journalisé (attendu : " . implode(', ', Log::LEVELS) . ')'];
+        } elseif ($logLevel === 'debug' && Env::get('APP_ENV') === 'production') {
+            $results[] = ['warn', 'LOG_LEVEL=debug en production — préférez info ou warning pour ne pas remplir le disque'];
+        }
+
         return $results;
     }
 
