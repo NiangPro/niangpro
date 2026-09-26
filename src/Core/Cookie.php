@@ -13,6 +13,35 @@ namespace Niang\Core;
  */
 class Cookie
 {
+    /** @var array<string, array{value: string|null, minutes: int}> rattachés à la réponse par Application::handle() */
+    private static array $queued = [];
+
+    /**
+     * Pour du code qui n'a pas la réponse sous la main (ex. Auth::login()) : le cookie part avec
+     * la réponse de la requête en cours, via Response::cookie() — donc visible dans les tests.
+     */
+    public static function queue(string $name, string $value, int $minutes = 60): void
+    {
+        self::$queued[$name] = ['value' => $value, 'minutes' => $minutes];
+    }
+
+    public static function queueForget(string $name): void
+    {
+        self::$queued[$name] = ['value' => null, 'minutes' => 0];
+    }
+
+    /**
+     * @internal Application::handle()
+     *
+     * @return array<string, array{value: string|null, minutes: int}>
+     */
+    public static function pullQueued(): array
+    {
+        $queued = self::$queued;
+        self::$queued = [];
+
+        return $queued;
+    }
     public static function set(string $name, string $value, int $minutes = 60): void
     {
         setcookie($name, self::encode($name, $value, $minutes), [

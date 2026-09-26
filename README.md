@@ -777,6 +777,22 @@ $user['password'] = Hash::make($plain); // Argon2id si dispo, sinon bcrypt
 
 Un autre modèle ? `Auth::useModel(MonUser::class)`.
 
+**Se souvenir de moi.** `Auth::attempt($email, $password, remember: true)` (ou
+`Auth::login($user, remember: true)`) pose un cookie chiffré de 30 jours, qui reconnecte l'utilisateur
+quand sa session a expiré. Il faut la colonne `users.remember_token` (migration fournie). La case est
+déjà présente sur `/login`.
+
+```php
+Auth::logout();            // déconnecte cet appareil ; les autres appareils mémorisés le restent
+Auth::logoutEverywhere();  // invalide aussi le « se souvenir de moi » de tous les appareils
+```
+
+**Rehachage automatique.** À chaque connexion réussie, un mot de passe haché avec d'anciens paramètres
+(bcrypt, puis Argon2id devenu disponible, ou un coût relevé) est recalculé et enregistré : c'est le
+seul moment où le mot de passe en clair est connu. `Hash::needsRehash($hash)` fait la vérification.
+Un email inconnu coûte le même temps de calcul qu'un mauvais mot de passe : la durée de la réponse ne
+révèle pas quels comptes existent.
+
 Protégez une route avec `Authenticate::class` (redirige vers `/login`, ou 401 JSON si la requête
 l'attend) ; empêchez l'accès aux pages login/register une fois connecté avec `RedirectIfAuthenticated::class`.
 

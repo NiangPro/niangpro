@@ -10,6 +10,7 @@
             <?= csrf_field() ?>
             <?= field('email', 'Adresse email', ['type' => 'email', 'autocomplete' => 'email']) ?>
             <?= field('password', 'Mot de passe', ['type' => 'password', 'autocomplete' => 'current-password']) ?>
+            <label style="display:flex; gap:.5rem; align-items:center; margin-bottom: var(--space-4)"><input type="checkbox" name="remember" value="1"> Se souvenir de moi</label>
             <button class="btn btn--primary btn--block btn--lg" type="submit">Se connecter</button>
         </form>
         <p class="text-center muted" style="margin-top: var(--space-5)">Pas encore de compte ? <a href="/register">Créer un compte</a></p>

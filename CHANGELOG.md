@@ -9,6 +9,21 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **« Se souvenir de moi »** (roadmap §21) : `Auth::attempt(..., remember: true)` /
+  `Auth::login($user, remember: true)` posent un cookie chiffré de 30 jours (`remember_web`) qui
+  reconnecte l'utilisateur après expiration de sa session. Jeton aléatoire de 64 caractères dans
+  `users.remember_token` (nouvelle migration), réutilisé par chaque appareil ; comparaison
+  `hash_equals`, cookie invalide supprimé. `Auth::logoutEverywhere()` l'efface pour tous les
+  appareils. Case à cocher sur `/login` (squelette, thèmes blog et boutique). Vérifié sur un vrai
+  serveur : avec le seul cookie `remember_web`, l'utilisateur est reconnu.
+- **Rehachage automatique des mots de passe** : `Hash::needsRehash()`, appelé par `Auth::attempt()`
+  après une connexion réussie ; le nouveau hachage est écrit sans toucher `updated_at`.
+- **`Cookie::queue()` / `queueForget()`** : pour poser un cookie hors d'un contrôleur (ex. `Auth`), il
+  part avec la réponse de la requête en cours. `TestResponse::assertCookieForgotten()`.
+- **`RateLimiter::clear($key)`** remet un compteur à zéro. `TestCase::setUp()` vide désormais les
+  compteurs (`RateLimiter::reset()`), comme `Event` et `Queue` : les connexions d'un test ne font plus
+  échouer en 429 un test suivant sur `/login`.
+
 - **Query Builder : `leftJoin()`, `pluck()`, `chunk()`, `increment()` / `decrement()`** (roadmap §17).
   `pluck('title', 'id')` accepte les colonnes qualifiées (`posts.title`) et applique les `$casts`.
   `chunk()` trie par `id` à défaut d'`orderBy()` et s'arrête si le rappel retourne `false`.
@@ -212,6 +227,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Security
 
+- **`GET /api/me` renvoyait la ligne `users` entière**, hachage du mot de passe compris. La route de
+  démonstration ne renvoie plus que `id`, `name`, `email` et `email_verified_at`.
+- **`Auth::attempt()` avec un email inconnu répondait plus vite** qu'avec un mauvais mot de passe (pas
+  de calcul de hachage), ce qui permettait de deviner quels comptes existent. Même coût désormais.
 - **Query Builder : opérateurs et clés de colonnes vérifiés.** L'opérateur de `where()`, `orWhere()`,
   `having()`, `whereColumn()` et `join()`, ainsi que les clés de `insert()` et `update()`, étaient
   insérés tels quels dans le SQL : `where('prix', $_GET['op'], 10)` ou

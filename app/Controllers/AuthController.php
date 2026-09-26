@@ -66,7 +66,7 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        if (!Auth::attempt($data['email'], $data['password'])) {
+        if (!Auth::attempt($data['email'], $data['password'], remember: $request->input('remember') === '1')) {
             return $this->redirect('/login')
                 ->with('errors', ['email' => ['Identifiants invalides.']])
                 ->with('old', ['email' => $data['email']]);

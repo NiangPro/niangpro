@@ -19,6 +19,7 @@
         "tests/Feature/LocalizationTest.php",
         "tests/Feature/PasswordResetTest.php",
         "tests/Feature/PostsTest.php",
+        "tests/Feature/RememberMeTest.php",
         "tests/Feature/SecurityHeadersTest.php",
         "tests/Feature/ThemeInstallationTest.php"
     ]

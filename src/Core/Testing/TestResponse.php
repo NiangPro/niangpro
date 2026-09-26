@@ -90,6 +90,15 @@ class TestResponse
         return $this->response->getCookies()[$name]['value'] ?? null;
     }
 
+    public function assertCookieForgotten(string $name): static
+    {
+        $cookies = $this->response->getCookies();
+
+        Assert::assertTrue(isset($cookies[$name]) && $cookies[$name]['value'] === null, "Le cookie « $name » n'est pas supprimé par la réponse.");
+
+        return $this;
+    }
+
     public function assertCookie(string $name, ?string $value = null): static
     {
         $cookies = $this->response->getCookies();

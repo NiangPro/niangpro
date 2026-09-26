@@ -82,7 +82,10 @@ $router->group(['prefix' => '/api', 'middleware' => [HandleCors::class]], functi
     $router->options('/tokens', fn () => Response::html('', 204));
 
     $router->get('/me', function (Request $request): Response {
-        return Response::json(['user' => Auth::user()]);
+        // Jamais la ligne entière : elle contient le hachage du mot de passe et remember_token.
+        $user = Auth::user();
+
+        return Response::json(['user' => array_intersect_key($user ?? [], array_flip(['id', 'name', 'email', 'email_verified_at']))]);
     }, [AuthenticateWithToken::class]);
     $router->options('/me', fn () => Response::html('', 204));
 });

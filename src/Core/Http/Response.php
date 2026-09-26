@@ -59,6 +59,13 @@ final class Response
         return $this;
     }
 
+    /** @param array<string, array{value: string|null, minutes: int}> $cookies ceux de Cookie::queue(), sans écraser un cookie déjà posé sur la réponse */
+    public function withQueuedCookies(array $cookies): static
+    {
+        $this->cookies += $cookies;
+        return $this;
+    }
+
     /** @return array<string, array{value: string|null, minutes: int}> */
     public function getCookies(): array
     {

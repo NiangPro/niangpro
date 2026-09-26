@@ -28,6 +28,19 @@ class RateLimiterTest extends TestCase
         $this->assertFalse(RateLimiter::attempt($key, 3, 60));
     }
 
+    public function test_clear_resets_one_key_only(): void
+    {
+        $key = 'test-' . uniqid();
+        $other = 'test-' . uniqid();
+
+        RateLimiter::attempt($key, 1, 60);
+        RateLimiter::attempt($other, 1, 60);
+        RateLimiter::clear($key);
+
+        $this->assertTrue(RateLimiter::attempt($key, 1, 60));
+        $this->assertFalse(RateLimiter::attempt($other, 1, 60));
+    }
+
     public function test_different_keys_are_independent(): void
     {
         $a = 'test-a-' . uniqid();

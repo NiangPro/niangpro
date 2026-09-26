@@ -109,7 +109,7 @@ class Application
             $response = Handler::render($e, $request, $startedAt);
         }
 
-        $response = $this->applySecurityHeaders($response);
+        $response = $this->applySecurityHeaders($response)->withQueuedCookies(Cookie::pullQueued());
         $response = DebugToolbar::inject($response, $startedAt);
 
         return $this->compressIfSupported($response, $request);
