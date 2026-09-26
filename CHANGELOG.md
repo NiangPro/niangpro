@@ -9,6 +9,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **`SECURITY.md` et `CONTRIBUTING.md`** (roadmap §72-73) : signalement privé des failles via les
+  avis de sécurité GitHub, versions maintenues, délais de réponse, crédits ; installation, commandes
+  de vérification (`composer test`, `lint`, `analyse`), exigences d'une contribution (tests, aucune
+  dépendance à l'exécution, rétrocompatibilité, documentation FR + EN), format des commits. Modèles
+  d'issues (bug, fonctionnalité, lien vers le signalement privé) et de pull request.
+
 - **Logs : niveau minimal, durée de conservation, secrets masqués** (roadmap §27). `config/logging.php`
   : `LOG_LEVEL` (défaut `debug` ; un niveau inconnu journalise tout plutôt que rien), `LOG_DAYS`
   (défaut 14, 0 = tout garder ; les fichiers plus anciens sont supprimés au premier message de la
