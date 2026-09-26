@@ -9,6 +9,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Couverture de code en CI** (roadmap §58 et §60) : job `coverage` (pcov), rapport Clover en
+  artefact, et `tools/coverage-check.php` qui impose un seuil global (78 %, mesuré 79,8 %) et un seuil
+  par composant critique : Router 85 %, Container 90 %, Database 85 %, Auth 90 %, Validation 90 %,
+  HTTP 80 %, sécurité (Crypt, Csrf, UrlSignature, AppKey, Cors, RateLimiter, MaintenanceMode, Env)
+  90 %. Nouveaux tests d'`Env` : le chargement de `.env` n'était jamais exercé (26,7 % → couvert).
+
 - **`SECURITY.md` et `CONTRIBUTING.md`** (roadmap §72-73) : signalement privé des failles via les
   avis de sécurité GitHub, versions maintenues, délais de réponse, crédits ; installation, commandes
   de vérification (`composer test`, `lint`, `analyse`), exigences d'une contribution (tests, aucune

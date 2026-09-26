@@ -30,6 +30,13 @@ composer lint       # style PSR-12 (php-cs-fixer) ; composer lint:fix corrige
 composer analyse    # PHPStan
 ```
 
+La CI mesure aussi la couverture de code : un seuil global et un seuil par composant critique
+(`tools/coverage-check.php`). En local, avec l'extension `pcov` ou `xdebug` :
+
+```bash
+vendor/bin/phpunit --coverage-clover build/clover.xml && php tools/coverage-check.php build/clover.xml
+```
+
 Suite Database sur un vrai MySQL ou PostgreSQL (la CI le fait pour vous, mais c'est utile si vous
 touchez aux migrations ou au Query Builder) :
 

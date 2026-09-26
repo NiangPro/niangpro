@@ -153,6 +153,36 @@ jobs:
           DB_PASSWORD: postgres
         run: ./vendor/bin/phpunit --testsuite=Database
 
+  coverage:
+    name: Couverture de code
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite
+          coverage: pcov
+
+      - name: Installer les dépendances
+        run: composer install --prefer-dist --no-progress
+
+      - name: Tests avec mesure de couverture
+        run: ./vendor/bin/phpunit --coverage-clover build/clover.xml --coverage-text
+
+      - name: Seuils (global et composants critiques, voir tools/coverage-check.php)
+        run: php tools/coverage-check.php build/clover.xml
+
+      - name: Rapport Clover
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: couverture-clover
+          path: build/clover.xml
+          if-no-files-found: ignore
+
   packaging-smoke:
     name: Packaging — ${{ matrix.site_type }}
     runs-on: ubuntu-latest

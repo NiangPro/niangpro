@@ -1180,6 +1180,15 @@ composer lint:fix     # PHP-CS-Fixer (applique)
 composer analyse      # PHPStan niveau 6
 ```
 
+Couverture de code (extension `pcov` ou `xdebug`), vérifiée en CI : un seuil global (78 %) et un seuil par
+composant critique (Router, Container, Database, Auth, Validation, HTTP, sécurité), définis dans
+`tools/coverage-check.php` :
+
+```bash
+vendor/bin/phpunit --coverage-clover build/clover.xml
+php tools/coverage-check.php build/clover.xml
+```
+
 Client de test sans serveur HTTP réel (dispatche directement dans le Router) :
 
 ```php
