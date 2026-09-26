@@ -226,7 +226,34 @@ Post::query()->max('views');
 Post::query()->where('id', 5)->exists();  // bool
 
 Post::query()->where('id', 5)->firstOrFail();  // lève NotFoundException si aucune ligne
+
+// Jointure externe : les articles sans auteur sont gardés (name vaut alors null)
+Post::query()->select('posts.title', 'users.name')
+    ->leftJoin('users', 'posts.author_id', '=', 'users.id')->get();
+
+// Une seule colonne
+Post::query()->pluck('title');          // ['Premier', 'Second', ...]
+Post::query()->pluck('title', 'id');    // [1 => 'Premier', 2 => 'Second', ...]
+
+// Parcourir une grande table par paquets, sans tout charger en mémoire
+User::query()->where('active', true)->chunk(500, function (array $users, int $paquet) {
+    foreach ($users as $user) { /* ... */ }
+    // return false; arrête le parcours
+});
+
+// Incrément calculé par la base : deux commandes simultanées ne perdent pas de mise à jour
+Product::query()->where('id', 5)->decrement('stock', 2);
+Post::query()->where('id', 5)->increment('views', 1, ['last_viewed_at' => date('Y-m-d H:i:s')]);
 ```
+
+`chunk()` trie par `id` si vous ne donnez pas d'`orderBy()` : sans ordre stable, deux paquets pourraient
+se chevaucher. Ne modifiez pas, dans le rappel, la colonne sur laquelle la requête filtre (par exemple
+`active` ci-dessus), sinon les paquets suivants sont décalés.
+
+Les noms de colonnes et de tables, et les opérateurs (`=`, `!=`, `<>`, `<`, `<=`, `>`, `>=`, `LIKE`,
+`NOT LIKE`), sont insérés tels quels dans le SQL : ils sont donc vérifiés, et tout le reste est refusé.
+`where('prix', $_GET['op'], 10)` ou `update($_POST)` ne peuvent pas injecter de SQL. Les valeurs, elles,
+sont toujours liées.
 
 ## Migrations
 
@@ -249,6 +276,9 @@ Schema::create('posts', function ($table) {
     $table->date('published_at')->nullable();
     $table->timestamp('deleted_at')->nullable();
     $table->json('metadata')->nullable();
+    $table->bigInteger('downloads')->default(0);          // 64 bits (BIGINT)
+    $table->uuid('public_id')->unique();                   // remplissez-la avec uuid()
+    $table->enum('status', ['draft', 'published'])->default('draft');
     $table->foreignId('author_id')->constrained();  // -> table `authors`, colonne `id`
     $table->string('slug')->unique();
     $table->timestamps();               // created_at + updated_at
@@ -259,6 +289,10 @@ Schema::create('posts', function ($table) {
 ```
 
 Chaque colonne accepte `->nullable()`, `->default($valeur)` et `->unique()`, chaînables entre eux.
+
+`enum()` devient un vrai `ENUM` en MySQL, et un `VARCHAR` avec une contrainte `CHECK` en SQLite et
+PostgreSQL : sur les trois moteurs, la base refuse une valeur hors liste. `uuid()` est un type natif
+`UUID` en PostgreSQL et 36 caractères ailleurs ; le helper `uuid()` génère une valeur (version 4).
 
 ### Multi-SGBD (SQLite, MySQL, PostgreSQL)
 

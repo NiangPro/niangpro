@@ -19,7 +19,9 @@ class SQLiteGrammar extends Grammar
         return match ($type) {
             'string' => 'VARCHAR(' . ($params['length'] ?? 255) . ')',
             'text' => 'TEXT',
-            'integer', 'foreignId' => 'INTEGER',
+            'integer', 'foreignId', 'bigInteger' => 'INTEGER', // SQLite : INTEGER est déjà 64 bits
+            'uuid' => 'VARCHAR(36)',
+            'enum' => 'VARCHAR(255)',
             'boolean' => 'BOOLEAN',
             'decimal' => 'NUMERIC',
             'float' => 'FLOAT',

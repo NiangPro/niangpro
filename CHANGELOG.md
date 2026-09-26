@@ -9,6 +9,15 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Query Builder : `leftJoin()`, `pluck()`, `chunk()`, `increment()` / `decrement()`** (roadmap §17).
+  `pluck('title', 'id')` accepte les colonnes qualifiées (`posts.title`) et applique les `$casts`.
+  `chunk()` trie par `id` à défaut d'`orderBy()` et s'arrête si le rappel retourne `false`.
+  `increment()` fait le calcul côté base (`stock = stock + ?`) : pas de mise à jour perdue entre deux
+  requêtes simultanées.
+- **Blueprint : `bigInteger()`, `uuid()`, `enum()`** et le helper `uuid()` (version 4). `enum()` :
+  `ENUM` natif en MySQL, `VARCHAR` + `CHECK` en SQLite et PostgreSQL ; une valeur hors liste est
+  refusée par la base sur les trois moteurs. Suite Database vérifiée sur SQLite et un vrai MySQL.
+
 - **Mode maintenance : `niang down` / `niang up`** : rien ne permettait de fermer le site pendant une
   migration ou un déploiement. Tant que `storage/framework/down` existe, toute requête reçoit une 503
   (page autonome `errors/503.php`, sans le layout qui pourrait dépendre de la base ; JSON pour une
@@ -202,6 +211,13 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
   ligne exacte à exécuter pour ajouter ce dossier au `PATH`.
 
 ### Security
+
+- **Query Builder : opérateurs et clés de colonnes vérifiés.** L'opérateur de `where()`, `orWhere()`,
+  `having()`, `whereColumn()` et `join()`, ainsi que les clés de `insert()` et `update()`, étaient
+  insérés tels quels dans le SQL : `where('prix', $_GET['op'], 10)` ou
+  `QueryBuilder::update($request->all())` permettaient une injection (les modèles, eux, étaient
+  protégés par `$fillable`). Seuls les opérateurs de comparaison usuels et les identifiants simples
+  ou qualifiés passent désormais ; le reste lève `InvalidArgumentException`.
 
 - **Plus de clé de repli publique pour `APP_KEY`** : `Cookie`, `UrlSignature` et `ApiToken`
   utilisaient `niangpro-insecure-default-key` quand `APP_KEY` était vide — et `composer

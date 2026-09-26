@@ -14,6 +14,11 @@ class MySqlGrammar extends Grammar
         return $this->wrap($name) . ' BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY';
     }
 
+    protected function compileEnumCheck(string $name, array $values): string
+    {
+        return '';
+    }
+
     public function typeKeyword(string $type, array $params): string
     {
         return match ($type) {
@@ -21,6 +26,9 @@ class MySqlGrammar extends Grammar
             'text' => 'TEXT',
             'integer' => 'INT',
             'foreignId' => 'BIGINT UNSIGNED',
+            'bigInteger' => 'BIGINT',
+            'uuid' => 'CHAR(36)',
+            'enum' => 'ENUM(' . $this->quoteList($params['values'] ?? []) . ')',
             'boolean' => 'TINYINT(1)',
             'decimal' => 'DECIMAL(' . ($params['precision'] ?? 10) . ',' . ($params['scale'] ?? 2) . ')',
             'float' => 'FLOAT',

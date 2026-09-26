@@ -50,7 +50,23 @@ abstract class Grammar
             $sql .= ' UNIQUE';
         }
 
+        if ($type === 'enum') {
+            $sql .= $this->compileEnumCheck($name, $params['values']);
+        }
+
         return $sql;
+    }
+
+    /** Contrainte qui limite une colonne enum() à ses valeurs ; MySQL n'en a pas besoin (type ENUM natif). */
+    protected function compileEnumCheck(string $name, array $values): string
+    {
+        return ' CHECK (' . $this->wrap($name) . ' IN (' . $this->quoteList($values) . '))';
+    }
+
+    /** @param list<string> $values */
+    protected function quoteList(array $values): string
+    {
+        return implode(', ', array_map(fn (string $value) => "'" . str_replace("'", "''", $value) . "'", $values));
     }
 
     protected function compileDefault(mixed $value): string
