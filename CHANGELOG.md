@@ -9,6 +9,14 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Server-Sent Events** (roadmap §51, sans paquet séparé ni dépendance) : `Response::eventStream()`
+  à partir d'un générateur, `Http\ServerSentEvent` (event, id, retry, données JSON ou texte, données
+  multi-lignes, retours à la ligne neutralisés dans event/id), commentaire `: ping` périodique.
+  `Response::send()` libère la session et vide les tampons de sortie avant tout flux (y compris
+  `stream()`). Vérifié sur un vrai serveur : événements reçus à une seconde d'intervalle, requête
+  du même visiteur servie en 1 ms pendant le flux, flux arrêté à la déconnexion (4 événements
+  produits sur 10 pour un client parti à 1,5 s).
+
 - **Double authentification TOTP** (roadmap §21) : `Niang\Core\Totp` (RFC 6238/4226, SHA-1,
   6 chiffres, 30 s ; vérifié contre les vecteurs de la RFC et une implémentation Python indépendante),
   `Niang\Core\TwoFactor` (secret chiffré avec `APP_KEY`, confirmation par un premier code, 8 codes de

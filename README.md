@@ -1063,6 +1063,43 @@ return Response::redirect('/')->cookie('theme', 'sombre', 60 * 24 * 30); // minu
 return Response::redirect('/')->withoutCookie('theme');
 ```
 
+### Temps réel : Server-Sent Events
+
+Pour pousser des mises à jour au navigateur (progression d'un export, notifications, tableau de bord)
+sans WebSocket ni dépendance :
+
+```php
+use Niang\Core\Http\ServerSentEvent;
+
+$router->get('/export/{id}/progression', function (string $id): Response {
+    return Response::eventStream(function () use ($id) {
+        while (($pourcent = Export::progression($id)) < 100) {
+            yield new ServerSentEvent(['pourcent' => $pourcent], event: 'progress', id: (string) $pourcent);
+            sleep(1);
+        }
+        yield new ServerSentEvent(['pourcent' => 100], event: 'done');
+    });
+});
+```
+
+```js
+const source = new EventSource('/export/42/progression');
+source.addEventListener('progress', e => barre.value = JSON.parse(e.data).pourcent);
+source.addEventListener('done', () => source.close());
+```
+
+Chaque `yield` part immédiatement : une chaîne est envoyée telle quelle, toute autre valeur en JSON.
+`yield null` ne produit rien, mais envoie un commentaire `: ping` si rien n'est parti depuis
+`$heartbeat` secondes (15 par défaut), pour que les proxys ne coupent pas la connexion. Pendant le flux,
+la session est libérée (les autres onglets du visiteur ne sont pas bloqués ; écrivez en session avant de
+commencer), et l'en-tête `X-Accel-Buffering: no` empêche Nginx de retenir les événements. Le flux s'arrête
+quand le générateur se termine ou, à un ou deux événements près, quand le client se déconnecte.
+
+Chaque flux occupe un processus PHP tant qu'il est ouvert : prévoyez assez de workers PHP-FPM
+(`pm.max_children`). En développement, `PHP_CLI_SERVER_WORKERS=4 ./bin/niang serve` permet de naviguer
+pendant qu'un flux est ouvert. Pour des milliers de connexions simultanées, un serveur dédié (WebSocket,
+Mercure) reste plus adapté.
+
 ## Emails
 
 Trois drivers, pilotés par `MAIL_MAILER` dans `.env` (`log` par défaut) : `smtp` pour un envoi

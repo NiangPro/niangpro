@@ -143,6 +143,60 @@ final class Response
     }
 
     /** Corps lu depuis un fichier ou écrit par un flux : ni compressé ni modifié après coup. */
+    /**
+     * Flux SSE (Server-Sent Events) : $events est appelée au moment de l'envoi et produit (yield) des
+     * ServerSentEvent — ou de simples valeurs, envoyées comme données. Chaque événement part
+     * immédiatement ; le flux s'arrête quand le générateur se termine ou que le client se déconnecte.
+     *
+     *   return Response::eventStream(function () use ($job) {
+     *       while (($p = Progress::of($job)) < 100) {
+     *           yield new ServerSentEvent(['percent' => $p], event: 'progress');
+     *           sleep(1);
+     *       }
+     *   });
+     *
+     * $heartbeat : secondes sans événement après lesquelles un commentaire « : ping » est envoyé,
+     * pour que les proxys ne coupent pas une connexion inactive (vérifié entre deux événements).
+     */
+    public static function eventStream(\Closure $events, int $heartbeat = 15, array $headers = []): static
+    {
+        return static::stream(function () use ($events, $heartbeat): void {
+            $lastWrite = time();
+            $generator = $events();
+
+            // Boucle manuelle plutôt que foreach : on vérifie la déconnexion APRÈS chaque envoi et
+            // AVANT de demander l'événement suivant, pour ne pas lancer un calcul pour personne.
+            // PHP ne constate la déconnexion qu'à l'échec d'une écriture : un ou deux événements
+            // peuvent encore être produits après la fermeture par le client.
+            for (; $generator->valid(); $generator->next()) {
+                $event = $generator->current();
+
+                if ($event === null) {
+                    // yield null : aucune donnée, simple occasion d'envoyer le heartbeat.
+                    if (time() - $lastWrite >= $heartbeat) {
+                        echo ": ping\n\n";
+                        flush();
+                        $lastWrite = time();
+                    }
+                    continue;
+                }
+
+                echo ($event instanceof ServerSentEvent ? $event : new ServerSentEvent($event))->format();
+                flush();
+                $lastWrite = time();
+
+                if (connection_aborted()) {
+                    return;
+                }
+            }
+        }, 200, $headers + [
+            'Content-Type' => 'text/event-stream; charset=UTF-8',
+            'Cache-Control' => 'no-cache, no-transform',
+            // Nginx : ne pas mettre la réponse en tampon, sinon les événements arrivent d'un bloc.
+            'X-Accel-Buffering' => 'no',
+        ]);
+    }
+
     public function isStreamed(): bool
     {
         return $this->filePath !== null || $this->streamer !== null;
@@ -246,6 +300,16 @@ final class Response
         }
 
         if ($this->streamer !== null) {
+            // Un flux long ne doit pas garder la session verrouillée (les autres onglets du visiteur
+            // attendraient la fin du flux), ni rester dans les tampons de sortie de PHP.
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_write_close();
+            }
+
+            while (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+
             ($this->streamer)();
             return;
         }
