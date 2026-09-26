@@ -805,6 +805,34 @@ seul moment où le mot de passe en clair est connu. `Hash::needsRehash($hash)` f
 Un email inconnu coûte le même temps de calcul qu'un mauvais mot de passe : la durée de la réponse ne
 révèle pas quels comptes existent.
 
+**Double authentification (TOTP).** Compatible avec Google Authenticator, Microsoft Authenticator,
+Aegis, 1Password… (codes à 6 chiffres renouvelés toutes les 30 secondes, RFC 6238), sans dépendance.
+Les pages sont fournies : `/user/two-factor` pour l'activer (mot de passe demandé, clé et lien
+`otpauth://` à ajouter dans l'application, 8 codes de secours affichés une seule fois, puis un premier
+code pour confirmer) et `/two-factor-challenge`, demandé après le mot de passe.
+
+```php
+if (Auth::attempt($email, $password)) {
+    if (Auth::twoFactorPending()) {          // mot de passe correct, mais pas encore connecté
+        return redirect vers la saisie du code;
+    }
+}
+Auth::completeTwoFactor($code);              // code de l'application ou code de secours
+
+TwoFactor::enable($user);                    // ['secret', 'uri', 'recovery_codes'], à confirmer
+TwoFactor::confirm($user, $code);            // la double authentification devient obligatoire
+TwoFactor::disable($user);
+TwoFactor::regenerateRecoveryCodes($user);
+```
+
+Le secret est chiffré en base avec `APP_KEY`, les codes de secours ne sont stockés que sous forme
+d'empreintes et servent une fois, et un code déjà utilisé est refusé (pas de rejeu). La saisie du code
+doit se faire dans les 5 minutes, et la route est limitée en débit. `POST /api/tokens` exige aussi le
+code (champ `code`) : un jeton API ne contourne pas la double authentification. Pas de QR code intégré
+(il faudrait un encodeur) : la clé s'affiche en groupes de 4 caractères, et le lien `otpauth://` ouvre
+directement l'application sur mobile ; pour un QR code, passez `$setup['uri']` à la bibliothèque
+JavaScript de votre choix.
+
 Protégez une route avec `Authenticate::class` (redirige vers `/login`, ou 401 JSON si la requête
 l'attend) ; empêchez l'accès aux pages login/register une fois connecté avec `RedirectIfAuthenticated::class`.
 

@@ -9,6 +9,15 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Double authentification TOTP** (roadmap §21) : `Niang\Core\Totp` (RFC 6238/4226, SHA-1,
+  6 chiffres, 30 s ; vérifié contre les vecteurs de la RFC et une implémentation Python indépendante),
+  `Niang\Core\TwoFactor` (secret chiffré avec `APP_KEY`, confirmation par un premier code, 8 codes de
+  secours à usage unique stockés sous forme d'empreintes, anti-rejeu par période et requête
+  conditionnelle). `Auth::attempt()` ne connecte plus un utilisateur qui l'a activée :
+  `Auth::twoFactorPending()` puis `Auth::completeTwoFactor($code)` (5 minutes, « se souvenir de moi »
+  conservé). Pages `/two-factor-challenge` et `/user/two-factor` (mot de passe exigé pour activer ou
+  désactiver). Nouvelles colonnes `users.two_factor_*` (migration). 23 tests.
+
 - **Notifications** (roadmap §29) : `Notification::send($user|$users, new X())`, canaux `mail`,
   `database` (nouvelle table `notifications`), `webhook` (JSON POST, signature HMAC
   `X-Niang-Signature` avec un secret, http/https uniquement, redirections non suivies, erreur hors 2xx)
@@ -275,6 +284,9 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Security
 
+- **`POST /api/tokens` sans limitation de débit** : on pouvait y essayer des mots de passe sans
+  limite. `ThrottleRequests` y est ajouté, comme sur `/login`. La route répond aussi en temps constant
+  pour un email inconnu, et exige le code de double authentification quand elle est activée.
 - **`GET /api/me` renvoyait la ligne `users` entière**, hachage du mot de passe compris. La route de
   démonstration ne renvoie plus que `id`, `name`, `email` et `email_verified_at`.
 - **`Auth::attempt()` avec un email inconnu répondait plus vite** qu'avec un mauvais mot de passe (pas

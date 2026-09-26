@@ -21,6 +21,7 @@
         "tests/Feature/PostsTest.php",
         "tests/Feature/RememberMeTest.php",
         "tests/Feature/SecurityHeadersTest.php",
+        "tests/Feature/TwoFactorTest.php",
         "tests/Feature/ThemeInstallationTest.php"
     ]
 }

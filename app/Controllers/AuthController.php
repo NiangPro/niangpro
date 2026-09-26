@@ -72,6 +72,11 @@ class AuthController extends Controller
                 ->with('old', ['email' => $data['email']]);
         }
 
+        // Mot de passe correct, double authentification activée : le code est demandé avant de connecter.
+        if (Auth::twoFactorPending()) {
+            return $this->redirect('/two-factor-challenge');
+        }
+
         return $this->redirect(User::homePath(Auth::user()));
     }
 

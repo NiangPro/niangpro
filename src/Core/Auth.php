@@ -22,6 +22,12 @@ class Auth
     /** 30 jours. */
     public const REMEMBER_MINUTES = 60 * 24 * 30;
 
+    /** Mot de passe vérifié, code de double authentification attendu : ['id', 'remember', 'at']. */
+    private const TWO_FACTOR_PENDING = '_auth_two_factor';
+
+    /** Délai pour saisir le code après le mot de passe. */
+    public const TWO_FACTOR_TIMEOUT = 300;
+
     private static string $model = 'App\\Models\\User';
 
     /**
@@ -53,6 +59,10 @@ class Auth
     /**
      * Auth::attempt($email, $password, remember: true) pour « se souvenir de moi ». Un hachage
      * calculé avec d'anciens paramètres est recalculé au passage (Hash::needsRehash()).
+     *
+     * Si l'utilisateur a activé la double authentification, un mot de passe correct renvoie true
+     * SANS connecter : Auth::twoFactorPending() devient vrai, et Auth::completeTwoFactor($code)
+     * termine la connexion. Vérifiez twoFactorPending() après un attempt() réussi.
      */
     public static function attempt(
         string $email,
@@ -79,7 +89,57 @@ class Auth
             self::usersQuery('id', $user['id'])->update([$passwordField => Hash::make($password)]);
         }
 
+        if (TwoFactor::enabled($user)) {
+            Session::regenerate();
+            Session::forget(self::SESSION_KEY);
+            Session::put(self::TWO_FACTOR_PENDING, ['id' => $user['id'], 'remember' => $remember, 'at' => time()]);
+
+            return true;
+        }
+
         self::login($user, remember: $remember);
+        return true;
+    }
+
+    /** Vrai entre un attempt() réussi et la saisie du code, pendant TWO_FACTOR_TIMEOUT secondes. */
+    public static function twoFactorPending(): bool
+    {
+        $pending = Session::get(self::TWO_FACTOR_PENDING);
+
+        if (!is_array($pending)) {
+            return false;
+        }
+
+        if (time() - (int) ($pending['at'] ?? 0) > self::TWO_FACTOR_TIMEOUT) {
+            Session::forget(self::TWO_FACTOR_PENDING);
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Code de l'application d'authentification, ou code de secours : connecte l'utilisateur mis
+     * en attente par attempt(). Protégez la route par une limitation de débit (ThrottleRequests) :
+     * un code à 6 chiffres ne résiste pas à des essais illimités.
+     */
+    public static function completeTwoFactor(string $code): bool
+    {
+        if (!self::twoFactorPending()) {
+            return false;
+        }
+
+        $pending = Session::get(self::TWO_FACTOR_PENDING);
+        $model = self::$model;
+        $user = $model::find($pending['id']);
+
+        if ($user === null || !TwoFactor::verify($user, $code)) {
+            return false;
+        }
+
+        Session::forget(self::TWO_FACTOR_PENDING);
+        self::login($user, remember: (bool) $pending['remember']);
+
         return true;
     }
 
