@@ -94,7 +94,7 @@ final class RedisQueue
                 $context = Queue::enterJobContext($job);
 
                 try {
-                    $job->handle();
+                    Queue::runJob($job);
                     $processed++;
                     self::forget($id, $reserved);
                     Metrics::recordJob(true);

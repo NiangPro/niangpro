@@ -22,6 +22,7 @@ use Niang\Core\Queue;
 use Niang\Core\RouteCache;
 use Niang\Core\Router;
 use Niang\Core\Scheduling\Schedule;
+use Niang\Core\Tenancy;
 
 class Commander
 {
@@ -69,6 +70,7 @@ class Commander
             'env' => $this->environment(),
             'cors:check' => $this->corsCheck($arg),
             'make:notification' => $this->makeNotification($arg),
+            'tenancy:install' => $this->tenancyInstall(),
             'new' => $this->newProject(array_slice($argv, 2)),
             'np:install' => $this->npInstall(),
             'config:cache' => $this->configCache(),
@@ -1006,6 +1008,64 @@ class Commander
         echo "\n" . ($problems === 0 ? "Aucun problème détecté.\n" : "$problems point(s) à vérifier.\n");
     }
 
+    /** Migration de la table des locataires et étapes suivantes (voir Niang\Core\Tenancy). */
+    private function tenancyInstall(): void
+    {
+        $dir = $this->basePath . '/database/migrations';
+        $table = (string) Config::get('tenancy.table', 'tenants');
+
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $existing = glob("$dir/*_create_{$table}_table.php") ?: [];
+
+        if ($existing !== []) {
+            echo 'Migration déjà présente : database/migrations/' . basename($existing[0]) . "\n";
+        } else {
+            $file = date('Y_m_d_His') . "_create_{$table}_table.php";
+            file_put_contents("$dir/$file", <<<PHP
+                <?php
+
+                use Niang\Core\Database\Migration;
+                use Niang\Core\Database\Schema;
+
+                return new class extends Migration {
+                    public function up(): void
+                    {
+                        Schema::create('{$table}', function (\$table) {
+                            \$table->id();
+                            \$table->string('name');
+                            \$table->string('slug')->unique();        // sous-domaine ou préfixe d'URL
+                            \$table->string('domain')->nullable()->unique();   // domaine personnalisé
+                            \$table->timestamps();
+                        });
+                    }
+
+                    public function down(): void
+                    {
+                        Schema::dropIfExists('{$table}');
+                    }
+                };
+
+                PHP);
+            echo "✓ database/migrations/$file\n";
+        }
+
+        echo <<<TEXT
+
+            Étapes suivantes :
+              1. TENANCY_ENABLED=true dans .env, puis ./bin/niang migrate
+              2. Dans chaque table par locataire : \$table->foreignId('tenant_id')->constrained('{$table}');
+                 et dans son modèle : protected static bool \$tenantScoped = true;
+              3. Routes des locataires dans un groupe avec App\Middleware\IdentifyTenant :
+                 \$router->domain('{tenant}.exemple.sn', fn (\$router) => \$router->group(
+                     ['middleware' => [IdentifyTenant::class]], function (\$router) { ... }));
+              4. Commandes et seeders : Tenancy::run(\$tenant, fn () => ...) ; administration : Tenancy::central(...)
+
+            TEXT;
+    }
+
     private function makeNotification(?string $name): void
     {
         if (!$name) {
@@ -1320,6 +1380,10 @@ class Commander
             }
         }
 
+        if (Tenancy::enabled()) {
+            $needed[] = (string) Config::get('tenancy.table', 'tenants');
+        }
+
         $results = [];
 
         foreach ($needed as $table) {
@@ -1327,7 +1391,8 @@ class Commander
                 DB::connection()->query("SELECT 1 FROM $table WHERE 1 = 0");
                 $results[] = $this->doctorCheck(true, "Table $table présente", '');
             } catch (\Throwable) {
-                $results[] = $this->doctorCheck(false, '', "Table $table absente — lancez `./bin/niang migrate`");
+                $hint = $table === Config::get('tenancy.table', 'tenants') && Tenancy::enabled() ? '`./bin/niang tenancy:install` puis ' : '';
+                $results[] = $this->doctorCheck(false, '', "Table $table absente — lancez {$hint}`./bin/niang migrate`");
             }
         }
 
@@ -1799,6 +1864,7 @@ class Commander
           env                      Affiche l'environnement courant (APP_ENV)
           cors:check [origine]     Vérifie config/cors.php ; simule un préflight depuis une origine
           make:notification <Nom>  Génère une notification dans app/Notifications
+          tenancy:install          Multi-locataire : migration de la table des locataires et étapes suivantes
           new <nom>                Crée un nouveau projet et y installe un thème de site (--type=<slug> pour éviter la question)
           np:install               Installe le raccourci global `np` (macOS, Linux, Windows)
           config:cache             Fige config/*.php (production uniquement)

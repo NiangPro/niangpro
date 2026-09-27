@@ -84,7 +84,7 @@ class Queue
             $context = self::enterJobContext($job);
 
             try {
-                $job->handle();
+                self::runJob($job);
                 $processed++;
                 @unlink($claimed);
                 Metrics::recordJob(true);
@@ -252,6 +252,18 @@ class Queue
         return $previous;
     }
 
+    /** @internal exécute le job chez le locataire qui l'a mis en file, s'il y en avait un. */
+    public static function runJob(Job $job): void
+    {
+        if ($job->tenantId !== null && Tenancy::enabled()) {
+            Tenancy::run($job->tenantId, $job->handle(...));
+
+            return;
+        }
+
+        $job->handle();
+    }
+
     /** @internal @param array<string, mixed> $previous */
     public static function leaveJobContext(array $previous): void
     {
@@ -265,6 +277,10 @@ class Queue
 
         if (Trace::active()) {
             $job->requestId ??= Trace::requestId();
+        }
+
+        if (Tenancy::enabled()) {
+            $job->tenantId ??= Tenancy::id();
         }
 
         if (self::driver() === 'redis') {
@@ -341,7 +357,7 @@ class Queue
             $context = self::enterJobContext($job);
 
             try {
-                $job->handle();
+                self::runJob($job);
                 $processed++;
                 DB::statement('DELETE FROM jobs WHERE id = ?', [$row['id']]);
                 Metrics::recordJob(true);

@@ -22,16 +22,31 @@ class Cache
 
     public static function get(string $key, mixed $default = null): mixed
     {
-        $payload = self::read($key);
+        $payload = self::read(self::scoped($key));
         return $payload !== null ? $payload['value'] : $default;
     }
 
     public static function has(string $key): bool
     {
-        return self::read($key) !== null;
+        return self::read(self::scoped($key)) !== null;
     }
 
     public static function put(string $key, mixed $value, ?int $ttlSeconds = null): void
+    {
+        self::write(self::scoped($key), $value, $ttlSeconds);
+    }
+
+    /**
+     * Multi-locataire : chaque locataire a ses propres clés ; Cache::remember('stats', ...) ne
+     * renvoie jamais les statistiques d'un autre. Hors locataire (ou dans Tenancy::central()), clés
+     * communes.
+     */
+    private static function scoped(string $key): string
+    {
+        return Tenancy::cachePrefix() . $key;
+    }
+
+    private static function write(string $key, mixed $value, ?int $ttlSeconds): void
     {
         $expires = $ttlSeconds !== null ? time() + $ttlSeconds : null;
 
@@ -42,7 +57,7 @@ class Cache
 
         if (self::driver() === 'redis') {
             if ($ttlSeconds !== null && $ttlSeconds <= 0) {
-                self::forget($key); // déjà expirée
+                self::delete($key); // déjà expirée
                 return;
             }
 
@@ -75,6 +90,7 @@ class Cache
     /** Retourne la valeur en cache, ou exécute $callback et met le résultat en cache. */
     public static function remember(string $key, ?int $ttlSeconds, \Closure $callback): mixed
     {
+        $key = self::scoped($key);
         $payload = self::read($key);
 
         if ($payload !== null) {
@@ -82,7 +98,7 @@ class Cache
         }
 
         $value = $callback();
-        self::put($key, $value, $ttlSeconds);
+        self::write($key, $value, $ttlSeconds);
 
         return $value;
     }
@@ -94,6 +110,8 @@ class Cache
      */
     public static function increment(string $key, int $by = 1): int
     {
+        $key = self::scoped($key);
+
         return match (self::driver()) {
             'array' => self::incrementInMemory($key, $by),
             'redis' => self::incrementInRedis($key, $by),
@@ -108,6 +126,11 @@ class Cache
     }
 
     public static function forget(string $key): void
+    {
+        self::delete(self::scoped($key));
+    }
+
+    private static function delete(string $key): void
     {
         if (self::driver() === 'array') {
             unset(self::$memory[sha1($key)]);
@@ -214,7 +237,7 @@ class Cache
             }
 
             if ($row['expiration'] !== null && (int) $row['expiration'] < time()) {
-                self::forget($key);
+                self::delete($key);
                 return null;
             }
 

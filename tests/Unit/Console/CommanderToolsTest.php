@@ -8,7 +8,7 @@ use Niang\Core\Console\Commander;
 use Niang\Core\RouteCache;
 use PHPUnit\Framework\TestCase;
 
-/** about, env, optimize:clear, cors:check, make:notification. */
+/** about, env, optimize:clear, cors:check, make:notification, tenancy:install. */
 class CommanderToolsTest extends TestCase
 {
     private string $basePath;
@@ -22,6 +22,7 @@ class CommanderToolsTest extends TestCase
     protected function tearDown(): void
     {
         @unlink("{$this->basePath}/app/Notifications/CommandeExpedieeNotification.php");
+        array_map('unlink', glob("{$this->basePath}/database/migrations/*_create_np_test_tenants_table.php") ?: []);
         @rmdir("{$this->basePath}/app/Notifications");
         RouteCache::clear();
         ConfigCache::clear();
@@ -120,5 +121,20 @@ class CommanderToolsTest extends TestCase
         $this->assertSame(0, $code, implode("\n", $lint));
         $this->assertStringContainsString('extends Notification', (string) file_get_contents($path));
         $this->assertStringContainsString('existe déjà', $this->command('makeNotification', 'CommandeExpediee'));
+    }
+
+    public function test_tenancy_install_writes_the_migration_once(): void
+    {
+        $this->config = ['tenancy.table' => 'np_test_tenants'];
+
+        $first = $this->command('tenancyInstall');
+        $second = $this->command('tenancyInstall');
+        $files = glob("{$this->basePath}/database/migrations/*_create_np_test_tenants_table.php") ?: [];
+
+        $this->assertCount(1, $files);
+        $this->assertStringContainsString("Schema::create('np_test_tenants'", (string) file_get_contents($files[0]));
+        $this->assertStringContainsString("->string('slug')->unique()", (string) file_get_contents($files[0]));
+        $this->assertStringContainsString('IdentifyTenant', $first);
+        $this->assertStringContainsString('Migration déjà présente', $second);
     }
 }

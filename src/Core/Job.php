@@ -12,5 +12,8 @@ abstract class Job
     /** Requête qui a mis ce job en file (renseigné par Queue) : repris dans les logs du worker. */
     public ?string $requestId = null;
 
+    /** Locataire courant quand le job a été mis en file (renseigné par Queue) : rétabli par le worker. */
+    public int|string|null $tenantId = null;
+
     abstract public function handle(): void;
 }

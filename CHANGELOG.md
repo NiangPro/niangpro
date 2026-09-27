@@ -9,6 +9,16 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Multi-locataire, base partagée** (roadmap §50, `config/tenancy.php`, désactivé par défaut) : un modèle
+  `protected static bool $tenantScoped = true;` est filtré sur `tenant_id` pour le locataire courant (lectures,
+  mises à jour, suppressions, relations et pivots), la colonne est imposée à la création et ne change jamais.
+  Locataire identifié par le middleware `IdentifyTenant` : sous-domaine ou préfixe d'URL (paramètre de route
+  `{tenant}`), domaine personnalisé ou en-tête `X-Tenant`. Cache séparé par locataire, logs marqués, jobs
+  exécutés chez le locataire qui les a mis en file ; métriques communes à la plateforme. Sûr par défaut : un
+  modèle par locataire sans locataire courant lève `TenancyException` au lieu de renvoyer toutes les lignes ;
+  `Tenancy::run()` et `Tenancy::central()` pour les commandes et l'administration. `niang tenancy:install`,
+  contrôle par `doctor`. Testé sur SQLite et MySQL, et de bout en bout sur un vrai serveur.
+
 - **Métriques Prometheus** (roadmap §53) : `GET /metrics` (jeton `METRICS_TOKEN` obligatoire, 404 sans lui),
   activé par `METRICS_ENABLED`. Requêtes par méthode et classe de statut, histogramme des durées, jobs traités
   et échoués, compteurs de l'application déclarés dans `config/metrics.php` (`Metrics::increment()`) et jauges

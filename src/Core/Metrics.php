@@ -40,16 +40,16 @@ final class Metrics
         $method = in_array($method, self::METHODS, true) ? $method : 'OTHER';
         $class = intdiv(max(100, min(599, $status)), 100) . 'xx';
 
-        Cache::increment(self::PREFIX . "requests:$method:$class");
-        Cache::increment(self::PREFIX . 'duration:bucket:' . self::bucketFor($seconds));
-        Cache::increment(self::PREFIX . 'duration:sum_us', (int) round($seconds * 1_000_000));
+        self::add("requests:$method:$class");
+        self::add('duration:bucket:' . self::bucketFor($seconds));
+        self::add('duration:sum_us', (int) round($seconds * 1_000_000));
     }
 
     /** @internal appelé par Queue après chaque job traité (ou échoué) par un worker */
     public static function recordJob(bool $succeeded): void
     {
         if (self::enabled()) {
-            Cache::increment(self::PREFIX . ($succeeded ? 'jobs:processed' : 'jobs:failed'));
+            self::add($succeeded ? 'jobs:processed' : 'jobs:failed');
         }
     }
 
@@ -64,7 +64,7 @@ final class Metrics
         }
 
         if (self::enabled()) {
-            Cache::increment(self::PREFIX . "app:$counter", $by);
+            self::add("app:$counter", $by);
         }
     }
 
@@ -92,9 +92,11 @@ final class Metrics
     /** Remet tous les compteurs à zéro (Prometheus gère une remise à zéro comme un redémarrage). */
     public static function flush(): void
     {
-        foreach (self::keys() as $key) {
-            Cache::forget($key);
-        }
+        Tenancy::central(function (): void {
+            foreach (self::keys() as $key) {
+                Cache::forget($key);
+            }
+        });
     }
 
     /**
@@ -129,8 +131,16 @@ final class Metrics
         return '/' . trim((string) Config::get('metrics.path', '/metrics'), '/');
     }
 
-    /** Le texte au format d'exposition Prometheus 0.0.4. */
+    /**
+     * Le texte au format d'exposition Prometheus 0.0.4. Hors de tout locataire : les compteurs sont
+     * ceux de toute la plateforme, et une jauge compte les lignes de tous les locataires.
+     */
     public static function render(): string
+    {
+        return Tenancy::central(self::renderAll(...));
+    }
+
+    private static function renderAll(): string
     {
         $out = [];
 
@@ -201,6 +211,12 @@ final class Metrics
         }
 
         return '+Inf';
+    }
+
+    /** Compteurs communs à toute la plateforme, jamais préfixés par locataire. */
+    private static function add(string $key, int $by = 1): void
+    {
+        Tenancy::central(fn () => Cache::increment(self::PREFIX . $key, $by));
     }
 
     private static function read(string $key): int

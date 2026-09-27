@@ -17,6 +17,7 @@ use Niang\Core\Notification;
 use Niang\Core\Queue;
 use Niang\Core\RateLimiter;
 use Niang\Core\Session;
+use Niang\Core\Tenancy;
 use Niang\Core\Trace;
 use PHPUnit\Framework\TestCase as BaseTestCase;
 
@@ -56,6 +57,7 @@ abstract class TestCase extends BaseTestCase
         Gate::reset();
         Trace::reset();
         Metrics::reset();
+        Tenancy::reset();
         Log::flushSharedContext();
         unset($_COOKIE[Auth::REMEMBER_COOKIE]);
 
