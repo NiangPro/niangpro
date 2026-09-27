@@ -84,14 +84,34 @@ class PaginationTest extends TestCase
         $this->assertSame(['n4', 'n3', 'n2'], array_column($second->items, 'name'));
     }
 
-    public function test_a_tampered_cursor_is_only_a_bound_value(): void
+    public function test_a_forged_or_tampered_cursor_starts_over(): void
     {
-        $injection = CursorPaginator::encode('1) OR 1=1 --');
-        $page = $this->items()->cursorPaginate(3, $injection);
+        $first = $this->items()->cursorPaginate(3);
+        [$payload] = explode('.', (string) $first->nextCursor);
 
-        $this->assertLessThanOrEqual(3, count($page->items), 'jamais plus d\'une page, quoi que contienne le curseur');
+        $forged = [
+            rtrim(strtr(base64_encode('"1) OR 1=1 --"'), '+/', '-_'), '='),   // ancien format, sans signature
+            rtrim(strtr(base64_encode('"1) OR 1=1 --"'), '+/', '-_'), '=') . '.' . explode('.', (string) $first->nextCursor)[1],
+            $payload . '.AAAAAAAAAAAAAAAAAAAAAA',
+            'illisible!!',
+        ];
+
+        foreach ($forged as $cursor) {
+            $page = $this->items()->cursorPaginate(3, $cursor);
+            $this->assertSame(['n1', 'n2', 'n3'], array_column($page->items, 'name'), "curseur rejeté : on repart du début ($cursor)");
+        }
+
         $this->assertSame(7, $this->items()->count(), 'table intacte');
-        $this->assertSame(['n1', 'n2', 'n3'], array_column($this->items()->cursorPaginate(3, 'illisible!!')->items, 'name'), 'curseur illisible : on repart du début');
+    }
+
+    public function test_a_cursor_value_is_always_bound_never_interpreted(): void
+    {
+        // Même signé (donc émis par l'application), un curseur n'est qu'une valeur liée : ici sur une
+        // colonne texte, pour que les trois moteurs acceptent la comparaison.
+        $page = $this->items()->cursorPaginate(3, CursorPaginator::encode("n1' OR '1'='1"), 'name');
+
+        $this->assertLessThanOrEqual(3, count($page->items));
+        $this->assertSame(7, $this->items()->count(), 'table intacte');
     }
 
     public function test_the_cursor_column_is_validated(): void

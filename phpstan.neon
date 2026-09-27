@@ -11,7 +11,7 @@ parameters:
         # analysées : les vues, routes, configs et migrations sont des fichiers de gabarit, comme
         # resources/views/, routes/ et config/ à la racine, qui ne le sont pas non plus.
         - resources/scaffold/*/views/*
-        - resources/scaffold/*/*/resources/*
+        - resources/scaffold/*/*/resources/views/*
         - resources/scaffold/*/*/routes/*
         - resources/scaffold/*/*/config/*
         - resources/scaffold/*/*/database/*

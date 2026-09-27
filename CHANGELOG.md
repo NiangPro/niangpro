@@ -580,6 +580,13 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Fixed
 
+- **Curseurs de pagination signés** : un curseur fabriqué pouvait envoyer n'importe quelle valeur à la base
+  (toujours liée, jamais interprétée), mais PostgreSQL refusait par exemple un texte comparé à une colonne
+  entière : erreur 500 au lieu de la première page (relevé par la CI PostgreSQL). Les curseurs portent désormais
+  une signature HMAC (clé dérivée d'`APP_KEY`) ; un curseur modifié repart du début.
+- **PHPStan sous Windows** : l'exclusion des vues des thèmes (`*/*/resources/*`) attrapait aussi
+  `app/Resources/` (système de fichiers insensible à la casse), si bien que les classes du thème api étaient
+  inconnues. Exclusion limitée à `resources/views/`.
 - **En-têtes de requête en minuscules ignorés** : `Request::header()` était sensible à la casse, alors que
   `getallheaders()` rend les noms tels que le client les envoie (HTTP/2 : toujours en minuscules). Un
   `authorization: Bearer ...` n'était pas vu et le jeton API était refusé (reproduit sur un vrai serveur).
