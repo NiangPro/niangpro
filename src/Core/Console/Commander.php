@@ -33,6 +33,7 @@ class Commander
         // Comme Application : sans ça, les commandes liraient des valeurs par défaut au lieu de
         // config/*.php (ex. cache:clear viderait les fichiers alors que CACHE_DRIVER=database).
         Config::load($basePath);
+        \Niang\Core\Application::wire();
     }
 
     /** @param list<string> $argv */

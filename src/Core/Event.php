@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Niang\Core;
 
 use Niang\Core\Contracts\ShouldQueue;
-use Niang\Core\Jobs\CallQueuedListener;
 use Psr\EventDispatcher\StoppableEventInterface;
 
 /**
@@ -24,6 +23,20 @@ use Psr\EventDispatcher\StoppableEventInterface;
  */
 class Event
 {
+    /** @var (\Closure(string, list<mixed>): void)|null met en file un écouteur ShouldQueue (voir queueUsing()) */
+    private static ?\Closure $queue = null;
+
+    /**
+     * Comment différer un écouteur ShouldQueue (branché par le framework sur Queue). Sans file
+     * d'attente installée, il est exécuté immédiatement, comme un écouteur ordinaire.
+     *
+     * @param (\Closure(string, list<mixed>): void)|null $queue null : plus de file d'attente
+     */
+    public static function queueUsing(?\Closure $queue): void
+    {
+        self::$queue = $queue;
+    }
+
     /** @var array<string, list<\Closure|string>> closure ou nom de classe exposant handle() */
     private static array $listeners = [];
 
@@ -110,8 +123,8 @@ class Event
     /** @param list<mixed> $payload */
     private static function call(\Closure|string $listener, array $payload): void
     {
-        if (is_string($listener) && is_a($listener, ShouldQueue::class, true)) {
-            Queue::push(new CallQueuedListener($listener, $payload));
+        if (is_string($listener) && is_a($listener, ShouldQueue::class, true) && self::$queue !== null) {
+            (self::$queue)($listener, $payload);
             return;
         }
 

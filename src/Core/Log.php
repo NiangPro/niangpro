@@ -28,6 +28,20 @@ class Log
     /** @var array<string, mixed> ajouté à chaque message (voir withContext()) */
     private static array $shared = [];
 
+    /** @var array<string, \Closure(): array<string, mixed>> fournisseurs de contexte, par nom (voir contextUsing()) */
+    private static array $providers = [];
+
+    /**
+     * Ajoute à chaque message le contexte renvoyé par $provider, calculé au moment du message
+     * (identifiant de la requête en cours, locataire...). Un nom déjà utilisé est remplacé.
+     *
+     * @param \Closure(): array<string, mixed> $provider
+     */
+    public static function contextUsing(string $name, \Closure $provider): void
+    {
+        self::$providers[$name] = $provider;
+    }
+
     public static function log(string $level, string $message, array $context = []): void
     {
         if (!self::shouldLog($level)) {
@@ -35,7 +49,13 @@ class Log
         }
 
         $context = self::normalize(self::redact($context));
-        $shared = self::normalize(self::redact(self::$shared + (Trace::active() ? Trace::context() : [])));
+        $provided = [];
+
+        foreach (self::$providers as $provider) {
+            $provided += $provider();
+        }
+
+        $shared = self::normalize(self::redact(self::$shared + $provided));
         $message = self::interpolate($message, $context + $shared);
 
         if (self::format() === 'json') {

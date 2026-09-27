@@ -35,10 +35,24 @@ class Application
         $this->container->singleton(LoggerInterface::class, $logger);
         $this->container->singleton(EventDispatcherInterface::class, new Events\Dispatcher());
 
+        self::wire();
         $this->configureErrorHandling();
         $this->bootProviders();
 
         self::fire(new Events\ApplicationBooted($this));
+    }
+
+    /**
+     * @internal branche les composants entre eux par leurs points d'extension (ADR 0012) : chacun
+     * reste utilisable seul, c'est le framework qui les assemble. Appelé aussi par la CLI.
+     */
+    public static function wire(): void
+    {
+        Log::contextUsing('trace', static fn (): array => Trace::active() ? Trace::context() : []);
+        Http\Client::headersUsing('trace', static fn (): array => Trace::active() ? ['traceparent' => Trace::traceparent()] : []);
+        Event::queueUsing(static function (string $listener, array $payload): void {
+            Queue::push(new Jobs\CallQueuedListener($listener, $payload));
+        });
     }
 
     /** Événement du framework, émis seulement s'il est écouté (aucun coût sinon). */

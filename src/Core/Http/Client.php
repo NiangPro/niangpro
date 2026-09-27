@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Niang\Core\Http;
 
-use Niang\Core\Trace;
-
 /**
  * Client HTTP minimal, sans extension (flux HTTP de PHP), pour les appels sortants du framework :
  * webhooks, OAuth. http et https uniquement, redirections non suivies, délai d'attente borné.
@@ -16,6 +14,20 @@ use Niang\Core\Trace;
  */
 final class Client
 {
+    /** @var array<string, \Closure(): array<string, string>> */
+    private static array $headerProviders = [];
+
+    /**
+     * En-têtes ajoutés à chaque appel sortant, calculés au moment de l'appel (ex. traceparent pendant
+     * une requête). Un nom déjà utilisé est remplacé.
+     *
+     * @param \Closure(): array<string, string> $provider
+     */
+    public static function headersUsing(string $name, \Closure $provider): void
+    {
+        self::$headerProviders[$name] = $provider;
+    }
+
     /**
      * @param array<string, string> $headers
      * @return array{status: int, headers: array<string, string>, body: string}
@@ -30,9 +42,15 @@ final class Client
 
         $defaults = ['User-Agent' => 'NiangPro'];
 
-        // Pendant une requête, le service appelé rejoint la même trace (W3C Trace Context).
-        if (Trace::active() && !array_filter(array_keys($headers), fn ($name) => strcasecmp((string) $name, 'traceparent') === 0)) {
-            $defaults['traceparent'] = Trace::traceparent();
+        foreach (self::$headerProviders as $provider) {
+            $defaults += $provider();
+        }
+
+        // Un en-tête fourni par l'appelant l'emporte, quelle que soit sa casse.
+        foreach (array_keys($defaults) as $name) {
+            if (array_filter(array_keys($headers), fn ($given) => strcasecmp((string) $given, $name) === 0)) {
+                unset($defaults[$name]);
+            }
         }
 
         $lines = [];
