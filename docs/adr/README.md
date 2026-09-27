@@ -15,5 +15,6 @@ nouvel ADR, qui remplace l'ancien (statut « Remplacé par 00XX »).
 | [0007](0007-drivers-without-redis.md) | Pilotes fichier et base de données avant Redis | Accepté |
 | [0008](0008-projects-are-framework-copies.md) | Un projet créé est une copie du framework | Accepté |
 | [0009](0009-redis-without-extension.md) | Pilotes Redis avec un client écrit à la main | Accepté (complète 0007) |
+| [0010](0010-observability-without-sdk.md) | Observabilité sans SDK : W3C Trace Context, logs JSON, Prometheus | Accepté |
 
 Modèle : copiez un fichier existant, numéro suivant, statut « Proposé » tant qu'il est en discussion.
