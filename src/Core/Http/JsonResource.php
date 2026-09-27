@@ -2,7 +2,9 @@
 
 namespace Niang\Core\Http;
 
+use Niang\Core\Database\CursorPaginator;
 use Niang\Core\Database\Paginator;
+use Niang\Core\Database\SimplePaginator;
 
 /**
  * Enveloppe un enregistrement dans {"data": ...} — surchargez toArray() pour choisir exactement
@@ -26,7 +28,7 @@ abstract class JsonResource
         return Response::json(['data' => $this->toArray()], $status);
     }
 
-    public static function collection(array|Paginator $items): JsonResourceCollection
+    public static function collection(array|Paginator|SimplePaginator|CursorPaginator $items): JsonResourceCollection
     {
         return new JsonResourceCollection(static::class, $items);
     }

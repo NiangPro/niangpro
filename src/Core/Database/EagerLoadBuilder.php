@@ -41,6 +41,20 @@ class EagerLoadBuilder
         return $record ? $this->loadRelations([$record])[0] : null;
     }
 
+    public function simplePaginate(int $perPage = 15, int $page = 1): SimplePaginator
+    {
+        $paginator = $this->query->simplePaginate($perPage, $page);
+
+        return new SimplePaginator($this->loadRelations($paginator->items), $paginator->perPage, $paginator->currentPage, $paginator->hasMorePages());
+    }
+
+    public function cursorPaginate(int $perPage = 15, ?string $cursor = null, string $column = 'id', string $direction = 'asc'): CursorPaginator
+    {
+        $paginator = $this->query->cursorPaginate($perPage, $cursor, $column, $direction);
+
+        return new CursorPaginator($this->loadRelations($paginator->items), $paginator->perPage, $paginator->nextCursor);
+    }
+
     public function paginate(int $perPage = 15, int $page = 1): Paginator
     {
         $paginator = $this->query->paginate($perPage, $page);

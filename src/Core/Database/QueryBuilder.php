@@ -359,6 +359,38 @@ class QueryBuilder
         return new Paginator($items, $total, $perPage, $page);
     }
 
+    /** Page $page sans COUNT(*) : une ligne de plus est lue pour savoir s'il reste une page. */
+    public function simplePaginate(int $perPage = 15, int $page = 1): SimplePaginator
+    {
+        $page = max(1, $page);
+        $rows = (clone $this)->limit($perPage + 1)->offset(($page - 1) * $perPage)->get();
+
+        return new SimplePaginator(array_slice($rows, 0, $perPage), $perPage, $page, count($rows) > $perPage);
+    }
+
+    /**
+     * Page suivant $cursor (valeur de $request->input('cursor')), triée par $column — une colonne
+     * UNIQUE (id par défaut), sinon des lignes de même valeur pourraient être sautées. Le tri
+     * existant est remplacé par celui de $column. La colonne vient du code, jamais du curseur.
+     */
+    public function cursorPaginate(int $perPage = 15, ?string $cursor = null, string $column = 'id', string $direction = 'asc'): CursorPaginator
+    {
+        self::assertIdentifier($column);
+        $query = (clone $this)->orderBy($column, $direction);
+        $after = CursorPaginator::decode($cursor);
+
+        if ($after !== null) {
+            $query->where($column, strtolower($direction) === 'desc' ? '<' : '>', $after);
+        }
+
+        $rows = $query->limit($perPage + 1)->get();
+        $items = array_slice($rows, 0, $perPage);
+        $key = self::unqualified($column);
+        $next = count($rows) > $perPage && $items !== [] ? CursorPaginator::encode($items[count($items) - 1][$key] ?? null) : null;
+
+        return new CursorPaginator($items, $perPage, $next);
+    }
+
     public function count(string $column = '*'): int
     {
         return (int) $this->aggregate('COUNT', $column);

@@ -632,6 +632,24 @@ Dans la vue :
 <?= $paginator->links('/blog') ?>
 ```
 
+Pour les grandes tables, deux variantes sans `COUNT(*)` :
+
+```php
+// « Précédent / Suivant » seulement : une ligne de plus est lue pour savoir s'il reste une page
+$page = Post::simplePaginate(20, (int) $request->input('page', 1));
+
+// Par curseur : reprend après le dernier id vu (WHERE id > ?) au lieu d'un OFFSET
+$page = Post::cursorPaginate(20, $request->input('cursor'));             // tri par id croissant
+$page = Post::cursorPaginate(20, $request->input('cursor'), 'id', 'desc');
+// $page->items, $page->nextCursor (null en fin de liste), $page->links('/fil')
+```
+
+Un `OFFSET` ralentit au fil des pages (la base parcourt toutes les lignes sautées) et, si une ligne
+arrive entre deux pages, en répète ou en saute une ; le curseur n'a aucun des deux défauts, mais ne
+permet pas d'aller à la page 7 directement. Triez par une colonne **unique** (`id` par défaut). Le curseur
+est une valeur opaque, toujours liée comme paramètre ; la colonne vient du code, jamais du curseur.
+`JsonResource::collection()` accepte les trois (méta `current_page`/`per_page`, ou `next_cursor`).
+
 ## API : JSON Resources & CORS
 
 `JsonResource` enveloppe un enregistrement dans `{"data": ...}` — surchargez `toArray()` pour

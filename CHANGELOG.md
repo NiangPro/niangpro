@@ -9,6 +9,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **`simplePaginate()` et `cursorPaginate()`** (roadmap §20) sur le Query Builder, les modèles et
+  `with()`. Sans `COUNT(*)` ; le curseur reprend après la dernière valeur vue (colonne unique, `asc` ou
+  `desc`), sans sauter ni répéter de ligne quand la table change entre deux pages. Curseur opaque
+  (base64url), toujours lié comme paramètre ; un curseur illisible repart du début. Pris en charge par
+  `JsonResource::collection()`. Testé sur SQLite et MySQL.
+
 - **Cache : `increment()` / `decrement()` et pilote `array`** (roadmap §23-24). Incrément atomique
   (verrou sur fichier ; compare-and-swap en base, sans verrou explicite, sur les trois moteurs), TTL
   conservé, valeur non entière refusée. `CACHE_DRIVER=array` et `SESSION_DRIVER=array`

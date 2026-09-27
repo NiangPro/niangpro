@@ -257,6 +257,16 @@ abstract class Model
         return static::query()->paginate($perPage, $page);
     }
 
+    public static function simplePaginate(int $perPage = 15, int $page = 1): SimplePaginator
+    {
+        return static::query()->simplePaginate($perPage, $page);
+    }
+
+    public static function cursorPaginate(int $perPage = 15, ?string $cursor = null, string $column = 'id', string $direction = 'asc'): CursorPaginator
+    {
+        return static::query()->cursorPaginate($perPage, $cursor, $column, $direction);
+    }
+
     /**
      * Charge une ou plusieurs relations en une seule requête chacune, pour éviter le N+1 :
      * Post::with(['comments', 'tags'])->get(). Les clés utilisables sont celles déclarées par
