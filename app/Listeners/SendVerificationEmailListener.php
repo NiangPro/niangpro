@@ -17,7 +17,7 @@ class SendVerificationEmailListener implements ShouldQueue
     public function handle(array $user): void
     {
         $hours = (int) config('auth.email_verification_expire_hours', 24);
-        $signedUrl = signedRoute('verification.verify', ['id' => $user['id']], $hours * 3600);
+        $signedUrl = url(signedRoute('verification.verify', ['id' => $user['id']], $hours * 3600));
 
         Mail::to($user['email'])->send(new VerifyEmailMailable($signedUrl));
     }

@@ -9,6 +9,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Suite de tests de sécurité** (roadmap §55) : `tests/Security/` (suite PHPUnit `Security`, 34 tests)
+  — injection SQL, XSS, CSRF, redirection ouverte, en-tête Host, fixation de session, cookies,
+  traversée de chemin, fichiers envoyés, affectation de masse, IDOR, limitation de débit, en-têtes. Le
+  test du lien de réinitialisation échoue bien sans le correctif ci-dessous (vérifié).
+- **Helper `url()`** : URL absolue construite avec `APP_URL`, jamais avec l'en-tête Host.
+
 - **Pluriels dans les traductions** (roadmap §43) : `Lang::choice()` et le helper `trans_choice()`,
   formes séparées par `|`, valeurs `{n}` et plages `[min,max]` explicites, sinon règle de la langue
   (français, portugais, wolof, peul : 0 et 1 au singulier ; anglais et autres : 1 seulement).
@@ -470,6 +476,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Fixed
 
+- **Liens des emails de réinitialisation et de vérification relatifs** (`/reset-password/...`) : non
+  cliquables dans une boîte mail. Ils sont désormais absolus, construits avec `APP_URL`.
 - **`Cache::put()` : avertissement « mkdir(): File exists »** quand deux requêtes simultanées créaient
   le dossier du cache en même temps. Création désormais tolérante.
 - **N+1 dans `CheckoutController::store()` (thème `ecommerce`)** (audit de performance) : la

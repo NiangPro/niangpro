@@ -39,6 +39,24 @@ if (!function_exists('route')) {
     }
 }
 
+if (!function_exists('url')) {
+    /**
+     * URL absolue, construite à partir d'APP_URL — jamais de l'en-tête Host de la requête, qu'un
+     * attaquant choisit librement : un lien envoyé par email pointerait sinon vers son site.
+     * Indispensable dans un email, où un chemin relatif (« /reset-password/... ») ne mène nulle part.
+     */
+    function url(string $path = ''): string
+    {
+        if (preg_match('#^https?://#i', $path) === 1) {
+            return $path;
+        }
+
+        $base = rtrim((string) Env::get('APP_URL', ''), '/');
+
+        return $base . '/' . ltrim($path, '/');
+    }
+}
+
 if (!function_exists('signedRoute')) {
     /** route() + UrlSignature::sign() : lien cliquable sans authentification préalable, expirable. */
     function signedRoute(string $name, array $params = [], ?int $expiresInSeconds = null): string

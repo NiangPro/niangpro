@@ -25,7 +25,7 @@ tests : ils tournent sur SQLite en mémoire (`.env.testing`).
 Les mêmes vérifications que la CI :
 
 ```bash
-composer test       # PHPUnit : Unit, Feature et Database (dont les suites des 6 thèmes)
+composer test       # PHPUnit : Unit, Feature, Database et Security (dont les suites des 6 thèmes)
 composer lint       # style PSR-12 (php-cs-fixer) ; composer lint:fix corrige
 composer analyse    # PHPStan
 ```
@@ -89,4 +89,5 @@ app/, routes/      l'application de démonstration, copiée dans chaque nouveau 
 resources/scaffold les thèmes de site proposés par create-project
 tests/Unit         classes isolées        tests/Feature   requêtes HTTP simulées
 tests/Database     SQL réellement exécuté (SQLite, MySQL, PostgreSQL en CI)
+tests/Security     une attaque par test : toute faille corrigée y ajoute le sien
 ```

@@ -1480,7 +1480,14 @@ composer test       # PHPUnit
 composer lint        # PHP-CS-Fixer (dry-run)
 composer lint:fix     # PHP-CS-Fixer (applique)
 composer analyse      # PHPStan niveau 6
+vendor/bin/phpunit --testsuite=Security   # la suite de sécurité seule
 ```
+
+`tests/Security/` regroupe les attaques de la roadmap (§55) : injection SQL (valeurs, identifiants,
+opérateurs, curseurs), XSS (`e()`, `json_for_html()`), CSRF, redirection ouverte, en-tête Host (liens
+envoyés par email construits avec `APP_URL`), fixation de session, cookies `HttpOnly`/`SameSite`,
+traversée de chemin, fichiers déguisés, noms de fichiers aléatoires, HTML/SVG jamais affichés, affectation
+de masse, IDOR, limitation de débit, en-têtes de sécurité.
 
 Couverture de code (extension `pcov` ou `xdebug`), vérifiée en CI : un seuil global (78 %) et un seuil par
 composant critique (Router, Container, Database, Auth, Validation, HTTP, sécurité), définis dans
