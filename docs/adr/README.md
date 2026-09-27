@@ -17,5 +17,6 @@ nouvel ADR, qui remplace l'ancien (statut « Remplacé par 00XX »).
 | [0009](0009-redis-without-extension.md) | Pilotes Redis avec un client écrit à la main | Accepté (complète 0007) |
 | [0010](0010-observability-without-sdk.md) | Observabilité sans SDK : W3C Trace Context, logs JSON, Prometheus | Accepté |
 | [0011](0011-shared-database-tenancy.md) | Multi-locataire : base partagée d'abord | Accepté |
+| [0012](0012-package-boundaries.md) | Frontières des paquets avant la séparation (§46) | Accepté |
 
 Modèle : copiez un fichier existant, numéro suivant, statut « Proposé » tant qu'il est en discussion.
