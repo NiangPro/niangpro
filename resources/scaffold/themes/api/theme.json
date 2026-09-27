@@ -1,0 +1,14 @@
+{
+    "label": "API REST (JSON, jetons, CORS, OpenAPI)",
+    "order": 70,
+    "setup": ["migrate", "openapi"],
+    "next_steps": [
+        "./bin/niang migrate",
+        "./bin/niang openapi",
+        "./bin/niang serve"
+    ],
+    "notes": [
+        "Créez un compte : curl -X POST http://127.0.0.1:8000/api/v1/register -H 'Content-Type: application/json' -d '{\"name\":\"Awa\",\"email\":\"awa@example.com\",\"password\":\"secret123\",\"device_name\":\"curl\"}'",
+        "La description OpenAPI de l'API est servie sur /openapi.json : régénérez-la avec ./bin/niang openapi après chaque changement de route."
+    ]
+}

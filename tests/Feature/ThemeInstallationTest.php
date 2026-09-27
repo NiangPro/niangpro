@@ -31,7 +31,7 @@ class ThemeInstallationTest extends TestCase
     public function test_the_catalog_ships_the_documented_site_types_in_order_with_minimal_last(): void
     {
         $this->assertSame(
-            ['vitrine', 'ecommerce', 'blog', 'portfolio', 'landing', 'auth', 'minimal'],
+            ['vitrine', 'ecommerce', 'blog', 'portfolio', 'landing', 'auth', 'api', 'minimal'],
             array_keys((new ProjectScaffolder())->catalog())
         );
     }

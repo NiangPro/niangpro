@@ -66,12 +66,15 @@ class ProductionConfigTest extends TestCase
 
     public function test_the_debug_toolbar_never_shows_in_production(): void
     {
+        // Une page HTML à soi : l'accueil d'un thème peut être du JSON (starter « api »).
+        $this->app->router->get('/sec-page', fn () => Response::html('<!doctype html><html><body><p>page</p></body></html>'));
+
         $this->env('APP_ENV', 'local');
         $this->env('APP_DEBUG', 'true');
-        $this->get('/')->assertSee('requête(s) SQL');
+        $this->get('/sec-page')->assertSee('requête(s) SQL');
 
         $this->env('APP_ENV', 'production');
-        $this->get('/')->assertDontSee('requête(s) SQL');
+        $this->get('/sec-page')->assertDontSee('requête(s) SQL');
     }
 
     public function test_production_refuses_to_serve_without_a_valid_app_key(): void

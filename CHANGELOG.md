@@ -9,6 +9,13 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Starter « api »** (roadmap §63) : API REST JSON versionnée (`/api/v1`) — inscription et connexion par jeton
+  (double authentification comprise), déconnexion de l'appareil, `/me`, ressource d'exemple `notes` (CRUD paginé,
+  isolée par compte : 404 pour les notes d'un autre), CORS avec préflight, limitation de débit, erreurs toujours en
+  JSON, description OpenAPI générée à la création du projet (`public/openapi.json`). Vérifié sur un vrai serveur
+  et avec `openapi-spec-validator`.
+- **`TestResponse::assertJson()`** compare les objets imbriqués en sous-ensemble, à toute profondeur.
+
 - **Erreurs d'API toujours en JSON** : sous `app.api_prefix` (`/api` par défaut), `Request::wantsJson()` est vrai même sans en-tête `Accept` ; une 404, 405 ou 422 d'une API ne renvoie plus une page HTML.
 
 - **`ApiToken::revoke()` et `ApiToken::revokeAll()`** : déconnexion d'un appareil ou de tous, sans SQL écrit à la main.
