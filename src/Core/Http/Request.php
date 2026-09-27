@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Niang\Core\Http;
 
+use Niang\Core\Config;
+
 class Request
 {
     public function __construct(
@@ -218,10 +220,25 @@ class Request
         return $this->method === strtoupper($method);
     }
 
+    /**
+     * Vrai pour un client qui attend du JSON (Accept, Content-Type), et pour toute URL de l'API
+     * (app.api_prefix, '/api' par défaut) : une erreur 404, 405 ou 422 d'une API répond en JSON même
+     * si le client n'a pas envoyé d'en-tête Accept.
+     */
     public function wantsJson(): bool
     {
-        $accept = $this->header('Accept', '');
+        $accept = (string) $this->header('Accept', '');
+
         return str_contains($accept, 'application/json')
-            || str_contains($this->header('Content-Type', ''), 'application/json');
+            || str_contains((string) $this->header('Content-Type', ''), 'application/json')
+            || $this->isApi();
+    }
+
+    public function isApi(): bool
+    {
+        $prefix = rtrim((string) Config::get('app.api_prefix', '/api'), '/');
+        $path = '/' . trim($this->uri, '/');
+
+        return $prefix !== '' && ($path === $prefix || str_starts_with($path, "$prefix/"));
     }
 }

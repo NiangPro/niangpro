@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Http;
 
+use Niang\Core\Config;
 use Niang\Core\Http\Request;
 use PHPUnit\Framework\TestCase;
 
@@ -46,5 +47,24 @@ class RequestTest extends TestCase
         $this->assertSame('Bearer abc', $request->header('Authorization'));
         $this->assertSame('bar', $request->header('x-foo'));
         $this->assertSame('défaut', $request->header('Accept', 'défaut'));
+    }
+
+    public function test_api_urls_want_json_even_without_an_accept_header(): void
+    {
+        Config::set('app.api_prefix', '/api');
+
+        $this->assertTrue(Request::create('GET', '/api')->wantsJson());
+        $this->assertTrue(Request::create('GET', '/api/v1/notes')->wantsJson());
+        $this->assertFalse(Request::create('GET', '/apiculture')->wantsJson());
+        $this->assertFalse(Request::create('GET', '/blog')->wantsJson());
+        $this->assertTrue(Request::create('GET', '/blog', headers: ['Accept' => 'application/json'])->wantsJson());
+
+        Config::set('app.api_prefix', '');
+
+        try {
+            $this->assertFalse(Request::create('GET', '/api/v1/notes')->wantsJson());
+        } finally {
+            Config::set('app.api_prefix', '/api');
+        }
     }
 }

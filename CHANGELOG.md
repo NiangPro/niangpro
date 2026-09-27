@@ -9,6 +9,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Erreurs d'API toujours en JSON** : sous `app.api_prefix` (`/api` par défaut), `Request::wantsJson()` est vrai même sans en-tête `Accept` ; une 404, 405 ou 422 d'une API ne renvoie plus une page HTML.
+
 - **`ApiToken::revoke()` et `ApiToken::revokeAll()`** : déconnexion d'un appareil ou de tous, sans SQL écrit à la main.
 
 - **Starter « auth »** (roadmap §63), choisi à la création du projet : inscription, connexion, mot de passe
