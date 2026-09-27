@@ -49,4 +49,11 @@ dépôts Composer) n'interviendra qu'à zéro dépendance interdite, sans change
   (`niangpro/<nom>`, dépendances NiangPro en `self.version` : versions synchronisées). Le `composer.json`
   racine charge tous les paquets (PSR-4 sur plusieurs dossiers) et les déclare en `replace`. Le paquet
   d'assemblage s'appelle `niangpro/foundation` (`niangpro/framework` reste le nom du projet racine).
-- Publication de dépôts séparés : à venir.
+- Publication : dépôt unique pour le développement, miroirs en lecture seule pour l'installation. À chaque
+  push sur `main` et à chaque tag, `.github/workflows/split.yml` extrait chaque `packages/<nom>` avec
+  `git subtree split` (`tools/split-packages.sh`) et le pousse vers `NiangPro/niangpro-<nom>`, où il a son
+  `composer.json` à la racine, comme Packagist l'exige. Une seule version pour tous les paquets (tags
+  synchronisés, dépendances en `self.version`). L'historique des miroirs commence au déplacement dans
+  `packages/` ; l'historique complet reste ici. Vérifié avec des dépôts locaux : installation d'un paquet et
+  de ses dépendances depuis 14 dépôts séparés, par tag.
+- Chaque paquet s'installe seul (`tools/check-standalone-packages.php`, job CI « Paquets installés seuls »).

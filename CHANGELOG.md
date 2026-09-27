@@ -24,6 +24,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
   Les fonctions globales sont réparties entre `core` (`base_path()`, `config()`, `__()`, `e()`, `url()`...) et
   `http` (`route()`, `view()`, `csrf_field()`, `old()`...) ; le test d'architecture vérifie aussi les appels de
   fonctions, pour qu'un paquet installé seul n'appelle pas une fonction qu'il n'a pas.
+- **Paquets installables séparément** : chaque paquet s'installe seul avec ses propres dépendances (vérifié en CI
+  sous PHP 8.1 pour les 14). Publication préparée : `.github/workflows/split.yml` pousse chaque paquet dans son
+  dépôt miroir à chaque push sur `main` et à chaque tag (`tools/split-packages.sh`), dès que le secret
+  `SPLIT_TOKEN` est configuré.
 
 - **Starter « saas »** (roadmap §63), bâti sur le multi-locataire : organisations sous `/o/<slug>` (une organisation
   est un locataire), membres et rôles (propriétaire, administrateur, membre ; il reste toujours un propriétaire),

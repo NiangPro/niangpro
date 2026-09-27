@@ -1,0 +1,55 @@
+name: Publication des paquets
+
+# Roadmap §46 : chaque dossier de packages/ est publié dans son propre dépôt en lecture seule
+# (NiangPro/niangpro-<nom>), historique compris, pour être installable seul avec Composer. Les
+# changements se font toujours dans ce dépôt ; les dépôts des paquets ne sont que des miroirs.
+#
+# Prérequis (à faire une fois, par le propriétaire du dépôt) :
+#  1. créer les dépôts vides NiangPro/niangpro-<nom> (un par dossier de packages/) ;
+#  2. créer un jeton GitHub avec le droit d'écrire dans ces dépôts, et l'enregistrer comme secret
+#     SPLIT_TOKEN de ce dépôt (Settings → Secrets and variables → Actions) ;
+#  3. déclarer chaque dépôt sur Packagist (niangpro/<nom>), avec le hook GitHub de Packagist.
+# Sans SPLIT_TOKEN, le workflow s'arrête sans erreur : rien n'est publié.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+concurrency:
+  group: split
+  cancel-in-progress: false
+
+jobs:
+  split:
+    name: Publier chaque paquet dans son dépôt
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Jeton de publication configuré ?
+        id: token
+        env:
+          SPLIT_TOKEN: ${{ secrets.SPLIT_TOKEN }}
+        run: |
+          if [ -z "$SPLIT_TOKEN" ]; then
+            echo "::notice::SPLIT_TOKEN absent : publication des paquets ignorée (voir l'en-tête de ce workflow)."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.token.outputs.ready == 'true'
+        with:
+          fetch-depth: 0   # git subtree split a besoin de tout l'historique
+
+      - name: Découper et pousser
+        if: steps.token.outputs.ready == 'true'
+        env:
+          SPLIT_TOKEN: ${{ secrets.SPLIT_TOKEN }}
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          tag=""
+          case "$GITHUB_REF" in refs/tags/*) tag="${GITHUB_REF#refs/tags/}" ;; esac
+          tools/split-packages.sh "https://x-access-token:${SPLIT_TOKEN}@github.com/NiangPro/niangpro-{package}.git" main "$tag"
