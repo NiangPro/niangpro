@@ -1806,6 +1806,25 @@ s'arrête dès qu'un écouteur appelle `$event->stopPropagation()`. Un écouteur
 par la file (il doit donc être sérialisable). Les événements nommés restent pris en charge :
 `Event::listen('user.registered', ...)` puis `Event::dispatch('user.registered', $user)`.
 
+**Événements du framework** : pour une extension ou un paquet qui doit intervenir à chaque requête sans
+toucher au code de l'application.
+
+| Événement | Moment | Contenu |
+| --- | --- | --- |
+| `Events\ApplicationBooted` | après le `boot()` de tous les Service Providers | `$app` |
+| `Events\RequestReceived` | début de `handle()`, avant maintenance et routeur | `$request` |
+| `Events\RouteMatched` | route trouvée, avant les middlewares | `$request`, `$route` |
+| `Events\ResponsePrepared` | réponse prête, juste avant l'envoi (encore modifiable) | `$request`, `$response` |
+| `Events\RequestTerminated` | après l'envoi (avec PHP-FPM, le visiteur n'attend plus) | `$request`, `$response` |
+
+```php
+Event::listen(ResponsePrepared::class, fn (ResponsePrepared $e) => $e->response->header('X-Version', '2.1'));
+```
+
+Émis seulement s'ils sont écoutés : aucun coût sinon. Un écouteur qui lève une exception pendant
+`RequestReceived` donne une page d'erreur normale. Il n'y a pas d'`ApplicationStarting` : aucun écouteur ne
+pourrait être enregistré avant le démarrage des Service Providers.
+
 **PSR-14** : injectez `Psr\EventDispatcher\EventDispatcherInterface` (résolu par le conteneur en
 `Niang\Core\Events\Dispatcher`) dans du code qui ne doit pas dépendre de la façade ; mêmes écouteurs.
 

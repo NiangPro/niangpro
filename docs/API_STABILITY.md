@@ -28,7 +28,8 @@ documenté). Ce document dit ce qui est couvert par cette promesse.
 - **Sécurité et authentification** : `Auth`, `Gate`, `Hash`, `Crypt`, `Csrf`, `Cookie`, `UrlSignature`,
   `ApiToken`, `AppKey`, `RateLimiter`, `TwoFactor`, `Totp`, `Session`.
 - **Services** : `Cache`, `Queue`, `Job`, `Contracts\ShouldQueue`, `Event`, `Events\Dispatcher`,
-  `Events\StoppableEvent`, `Log`, `Logger`, `Mail`, `Mailable`, `MailAttachment`, `PendingMail`,
+  `Events\StoppableEvent`, événements du framework (`Events\ApplicationBooted`, `Events\RequestReceived`,
+  `Events\RouteMatched`, `Events\ResponsePrepared`, `Events\RequestTerminated`), `Log`, `Logger`, `Mail`, `Mailable`, `MailAttachment`, `PendingMail`,
   `Storage`, `Notification`, `Contracts\NotificationChannel`, `Scheduling\Schedule`, `Lang`, `View`.
 - **Tests** : `Testing\TestCase`, `Testing\TestResponse`, `Testing\RefreshDatabase`.
 - **Console** : `Console\Command` (commandes sur mesure) et les commandes `niang` documentées.

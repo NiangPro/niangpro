@@ -9,6 +9,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Événements du framework** (roadmap §49) : `ApplicationBooted`, `RequestReceived`, `RouteMatched`,
+  `ResponsePrepared` (réponse modifiable) et `RequestTerminated` (après l'envoi, `fastcgi_finish_request()`
+  quand il existe). Émis seulement s'ils sont écoutés.
+
 - **`/health/live` et `/health/ready`** (roadmap §53) dans le squelette et les 5 thèmes : vivacité sans
   dépendance (une base indisponible ne fait pas redémarrer un conteneur) et disponibilité (mêmes
   vérifications que `/health`, 503 si une dépendance manque). Accessibles en mode maintenance. README :

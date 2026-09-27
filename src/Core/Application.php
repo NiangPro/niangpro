@@ -35,6 +35,16 @@ class Application
 
         $this->configureErrorHandling();
         $this->bootProviders();
+
+        self::fire(new Events\ApplicationBooted($this));
+    }
+
+    /** Événement du framework, émis seulement s'il est écouté (aucun coût sinon). */
+    private static function fire(object $event): void
+    {
+        if (Event::hasListeners($event::class)) {
+            Event::dispatch($event);
+        }
     }
 
     /**
@@ -105,7 +115,18 @@ class Application
         set_error_handler([self::class, 'logDeprecation'], E_DEPRECATED | E_USER_DEPRECATED);
 
         Session::start();
-        $this->handle(Request::capture())->send();
+        $request = Request::capture();
+        $response = $this->handle($request);
+        $response->send();
+
+        if (Event::hasListeners(Events\RequestTerminated::class)) {
+            // Le visiteur a sa réponse : le travail des écouteurs ne le fait plus attendre.
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            }
+
+            Event::dispatch(new Events\RequestTerminated($request, $response));
+        }
     }
 
     /** @var array<string, true> messages déjà consignés pendant cette requête */
@@ -166,6 +187,8 @@ class Application
         DB::resetQueryCount();
 
         try {
+            // Dans le try : un écouteur qui échoue donne une page d'erreur, pas une requête plantée.
+            self::fire(new Events\RequestReceived($request));
             $response = MaintenanceMode::intercept($request) ?? $this->router->dispatch($request, $this->container);
         } catch (\Throwable $e) {
             $response = Handler::render($e, $request, $startedAt);
@@ -173,6 +196,8 @@ class Application
 
         $response = $this->applySecurityHeaders($response)->withQueuedCookies(Cookie::pullQueued());
         $response = DebugToolbar::inject($response, $startedAt);
+
+        self::fire(new Events\ResponsePrepared($request, $response));
 
         return $this->compressIfSupported($response, $request);
     }

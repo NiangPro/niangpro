@@ -245,6 +245,11 @@ class Router
 
         if ($route !== null) {
             $request->params = $params;
+
+            if (Event::hasListeners(Events\RouteMatched::class)) {
+                Event::dispatch(new Events\RouteMatched($request, $route));
+            }
+
             $response = $this->runRoute($route, $request, $container);
 
             return $usedGetForHead ? $response->content('') : $response;
