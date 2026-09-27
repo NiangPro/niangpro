@@ -165,11 +165,7 @@ class Application
      */
     public static function debug(): bool
     {
-        if (Env::get('APP_ENV') === 'production') {
-            return false;
-        }
-
-        return Env::get('APP_DEBUG', 'true') === 'true';
+        return Env::debug();
     }
 
     /** @return list<string> ce qui empêche de servir des requêtes en production (vide hors production) */

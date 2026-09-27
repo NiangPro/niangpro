@@ -32,7 +32,7 @@ class DebugToolbar
 
     private static function shouldInject(Response $response): bool
     {
-        return Application::debug()
+        return Env::debug()
             && !$response->isStreamed() // un fichier ou un flux n'est jamais lu ni modifié ici
             && str_starts_with((string) $response->getHeader('Content-Type'), 'text/html')
             && str_contains($response->getContent(), '</body>');

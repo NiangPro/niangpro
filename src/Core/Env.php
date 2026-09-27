@@ -6,6 +6,16 @@ namespace Niang\Core;
 
 class Env
 {
+    /** Mode debug : APP_DEBUG=true (défaut hors production), jamais en production quoi qu'indique APP_DEBUG. */
+    public static function debug(): bool
+    {
+        if (self::get('APP_ENV') === 'production') {
+            return false;
+        }
+
+        return self::get('APP_DEBUG', 'true') === 'true';
+    }
+
     private static bool $loaded = false;
 
     public static function load(string $path): void

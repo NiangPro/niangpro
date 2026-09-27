@@ -9,17 +9,17 @@
  */
 return [
     'framework' => [
-        'match' => ['^Application$', '^Exceptions\\\\Handler$', '^Console\\\\', '^Testing\\\\', '^HealthCheck$'],
+        'match' => ['^(Application|Controller|ServiceProvider|HealthCheck)$', '^Exceptions\\\\Handler$', '^Events\\\\ApplicationBooted$', '^Console\\\\', '^Testing\\\\'],
         'requires' => ['*'],
     ],
     'http' => [
         'match' => [
-            '^(Router|RouteRegistration|RouteCache|Middleware|Controller|Cookie|Session|ArraySessionHandler|Csrf|Cors|MaintenanceMode|View|ViteAssets)$',
+            '^(Router|RouteRegistration|RouteCache|Middleware|Cookie|Session|ArraySessionHandler|Csrf|Cors|MaintenanceMode|View|ViteAssets)$',
             '^Http\\\\(?!Client$)', '^Validation\\\\', '^Events\\\\(RequestReceived|RouteMatched|ResponsePrepared|RequestTerminated)$',
-            '^Exceptions\\\\(HttpException|NotFoundException)$',
         ],
         'requires' => ['core'],
-        'suggests' => ['database', 'redis'],
+        // Pilotes de session (database, redis) et UploadedFile::store() (storage).
+        'suggests' => ['database', 'redis', 'storage'],
     ],
     'database' => [
         'match' => ['^Database\\\\', '^DatabaseSessionHandler$', '^Exceptions\\\\(DatabaseException|MassAssignmentException)$'],
@@ -36,7 +36,7 @@ return [
         'suggests' => ['database', 'redis'],
     ],
     'queue' => [
-        'match' => ['^(Queue|Job)$', '^Jobs\\\\CallQueuedListener$', '^Queue\\\\', '^Scheduling\\\\', '^Contracts\\\\ShouldQueue$'],
+        'match' => ['^(Queue|Job)$', '^Jobs\\\\CallQueuedListener$', '^Queue\\\\', '^Scheduling\\\\'],
         'requires' => ['core'],
         'suggests' => ['database', 'redis'],
     ],
@@ -51,7 +51,7 @@ return [
         'suggests' => ['http'],
     ],
     'auth' => [
-        'match' => ['^(Auth|Gate|Permission|ApiToken|TwoFactor|Totp|OAuth|AuthorizationException|Hash)$', '^OAuth\\\\', '^Exceptions\\\\(AuthenticationException|OAuthException)$'],
+        'match' => ['^(Auth|Gate|Permission|ApiToken|TwoFactor|Totp|OAuth|Hash)$', '^OAuth\\\\', '^Exceptions\\\\(AuthenticationException|OAuthException)$'],
         'requires' => ['core', 'http', 'database'],
     ],
     'tenancy' => [
@@ -64,6 +64,7 @@ return [
     ],
     'openapi' => ['match' => ['^OpenApi$'], 'requires' => ['core', 'http']],
     'debug' => ['match' => ['^DebugToolbar$'], 'requires' => ['core', 'http'], 'suggests' => ['database']],
-    // Tout le reste : conteneur, configuration, événements, logs, langues, chiffrement, client HTTP sortant.
+    // Tout le reste : conteneur, configuration, événements, logs, langues, chiffrement, client HTTP sortant,
+    // et les types génériques partagés (ShouldQueue, HttpException, NotFoundException, AuthorizationException).
     'core' => ['match' => ['.*'], 'requires' => []],
 ];
