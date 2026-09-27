@@ -165,6 +165,8 @@ jobs:
           php-version: '8.4'
           extensions: pdo_sqlite
           coverage: pcov
+          # Sans ça, pcov ne mesure qu'un dossier (src/) : app/ apparaîtrait à 0 % bien que testé.
+          ini-values: pcov.directory=., pcov.exclude="~/vendor/~"
 
       - name: Installer les dépendances
         run: composer install --prefer-dist --no-progress
