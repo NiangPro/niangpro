@@ -74,6 +74,8 @@ class PackageBoundariesTest extends TestCase
         $classes = $this->classes();
         $violations = [];
 
+        $functions = $this->helperFunctions();
+
         foreach ($classes as $class => [$from, $file]) {
             $allowed = [$from, ...$this->packages[$from]['requires'], ...($this->packages[$from]['suggests'] ?? [])];
 
@@ -82,6 +84,14 @@ class PackageBoundariesTest extends TestCase
 
                 if (!in_array($to, $allowed, true)) {
                     $violations["$from: $class → $target ($to)"] = true;
+                }
+            }
+
+            foreach ($this->functionCalls($file, $functions) as $function) {
+                $to = $functions[$function];
+
+                if (!in_array($to, $allowed, true)) {
+                    $violations["$from: $class → $function() ($to)"] = true;
                 }
             }
         }
@@ -107,8 +117,9 @@ class PackageBoundariesTest extends TestCase
             foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($src, \FilesystemIterator::SKIP_DOTS)) as $file) {
                 $relative = substr($file->getPathname(), strlen($src) + 1, -4);
 
-                if ($file->getExtension() === 'php' && $relative !== 'helpers') {
-                    $classes[str_replace('/', '\\', $relative)] = [$package, $file->getPathname()];
+                if ($file->getExtension() === 'php') {
+                    // helpers.php : vérifié comme une classe, sous le nom « <paquet>/helpers ».
+                    $classes[$relative === 'helpers' ? "$package/helpers" : str_replace('/', '\\', $relative)] = [$package, $file->getPathname()];
                 }
             }
         }
@@ -116,6 +127,55 @@ class PackageBoundariesTest extends TestCase
         ksort($classes);
 
         return $classes;
+    }
+
+    /** @return array<string, string> fonction globale => paquet qui la définit (son helpers.php) */
+    private function helperFunctions(): array
+    {
+        $functions = [];
+
+        foreach (glob($this->root() . '/*/src/helpers.php') ?: [] as $file) {
+            preg_match_all("/function_exists\\('([A-Za-z_]+)'\\)/", (string) file_get_contents($file), $m);
+
+            foreach ($m[1] as $name) {
+                $functions[$name] = basename(dirname($file, 2));
+            }
+        }
+
+        return $functions;
+    }
+
+    /**
+     * Fonctions globales des helpers appelées dans $file (pas les méthodes du même nom, ni les
+     * définitions, ni les commentaires).
+     *
+     * @param array<string, string> $functions
+     * @return list<string>
+     */
+    private function functionCalls(string $file, array $functions): array
+    {
+        $tokens = array_values(array_filter(
+            token_get_all((string) file_get_contents($file)),
+            fn ($t) => !is_array($t) || !in_array($t[0], [T_WHITESPACE, T_COMMENT, T_DOC_COMMENT], true)
+        ));
+        $calls = [];
+
+        foreach ($tokens as $i => $token) {
+            if (!is_array($token) || !in_array($token[0], [T_STRING, T_NAME_FULLY_QUALIFIED], true)) {
+                continue;
+            }
+
+            $name = ltrim($token[1], '\\');
+            $next = $tokens[$i + 1] ?? null;
+            $previous = $tokens[$i - 1] ?? null;
+            $isMember = is_array($previous) && in_array($previous[0], [T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_DOUBLE_COLON, T_FUNCTION, T_NEW, T_CONST], true);
+
+            if ($next === '(' && !$isMember && isset($functions[$name])) {
+                $calls[$name] = true;
+            }
+        }
+
+        return array_keys($calls);
     }
 
     /**

@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Préchargement OPcache des classes du framework (packages/*/src/**\/*.php) : à brancher via
+ * Préchargement OPcache des classes du framework (packages/<nom>/src/, récursivement) : à brancher via
  * `opcache.preload=/chemin/vers/preload.php` dans le php.ini du serveur — un réglage de
  * déploiement, jamais quelque chose que `niang optimize` (une requête CLI ponctuelle) peut
  * activer lui-même. Voir docs/ROADMAP_TECHNIQUE.md, section OPcache / production, pour le

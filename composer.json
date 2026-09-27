@@ -67,7 +67,8 @@
             "App\\": "app/"
         },
         "files": [
-            "packages/foundation/src/helpers.php"
+            "packages/core/src/helpers.php",
+            "packages/http/src/helpers.php"
         ]
     },
     "autoload-dev": {

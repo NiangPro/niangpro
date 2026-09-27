@@ -21,6 +21,9 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
   (`Niang\Core\...`) : rien à modifier dans une application. `base_path()` trouve la racine du projet quel que soit
   l'emplacement du framework (premier parent avec `composer.json` et `vendor/`). Vérifié avec un vrai
   `composer create-project` (thèmes vitrine, blog, saas).
+  Les fonctions globales sont réparties entre `core` (`base_path()`, `config()`, `__()`, `e()`, `url()`...) et
+  `http` (`route()`, `view()`, `csrf_field()`, `old()`...) ; le test d'architecture vérifie aussi les appels de
+  fonctions, pour qu'un paquet installé seul n'appelle pas une fonction qu'il n'a pas.
 
 - **Starter « saas »** (roadmap §63), bâti sur le multi-locataire : organisations sous `/o/<slug>` (une organisation
   est un locataire), membres et rôles (propriétaire, administrateur, membre ; il reste toujours un propriétaire),

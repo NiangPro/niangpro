@@ -1,13 +1,11 @@
 <?php
 
-use Niang\Core\Csrf;
+// Fonctions globales de base : chemins, configuration, langues, échappement. Les helpers des vues et
+// des requêtes (route(), view(), csrf_field()...) sont dans le paquet http.
+
 use Niang\Core\Env;
 use Niang\Core\Exceptions\HttpException;
-use Niang\Core\Http\Response;
 use Niang\Core\Lang;
-use Niang\Core\Session;
-use Niang\Core\UrlSignature;
-use Niang\Core\View;
 
 if (!function_exists('base_path')) {
     function base_path(string $path = ''): string
@@ -15,8 +13,8 @@ if (!function_exists('base_path')) {
         static $base;
 
         // La racine du projet : le premier dossier parent qui a un composer.json et un vendor/ — que
-        // ce fichier soit dans packages/foundation/src/ (dépôt du framework, projet copié) ou dans
-        // vendor/niangpro/foundation/src/ (framework installé comme dépendance).
+        // ce fichier soit dans packages/core/src/ (dépôt du framework, projet copié) ou dans
+        // vendor/niangpro/core/src/ (framework installé comme dépendance).
         if ($base === null) {
             $base = dirname(__DIR__, 3);
 
@@ -43,13 +41,6 @@ if (!function_exists('config')) {
     function config(string $key, mixed $default = null): mixed
     {
         return \Niang\Core\Config::get($key, $default);
-    }
-}
-
-if (!function_exists('route')) {
-    function route(string $name, array $params = []): string
-    {
-        return \Niang\Core\Router::url($name, $params);
     }
 }
 
@@ -86,58 +77,6 @@ if (!function_exists('url')) {
     }
 }
 
-if (!function_exists('signedRoute')) {
-    /** route() + UrlSignature::sign() : lien cliquable sans authentification préalable, expirable. */
-    function signedRoute(string $name, array $params = [], ?int $expiresInSeconds = null): string
-    {
-        return UrlSignature::sign(route($name, $params), $expiresInSeconds);
-    }
-}
-
-if (!function_exists('view')) {
-    function view(string $view, array $data = []): Response
-    {
-        return \Niang\Core\View::make($view, $data);
-    }
-}
-
-if (!function_exists('layout')) {
-    /** À appeler en haut d'une vue : son contenu rendu sera injecté en tant que $content dans $view. */
-    function layout(string $view, array $data = []): void
-    {
-        View::useLayout($view, $data);
-    }
-}
-
-if (!function_exists('component')) {
-    function component(string $view, array $data = []): string
-    {
-        return View::component($view, $data);
-    }
-}
-
-if (!function_exists('field')) {
-    /**
-     * Raccourci pour component('components/field', [...]) : les deux clés 'name' et 'label' sont
-     * obligatoires à chaque appel et reviennent dans presque toutes les vues de formulaire — les
-     * répéter en tableau associatif à chaque champ est le principal bruit visuel d'un formulaire.
-     *
-     *   <?= field('email', 'Adresse email', ['type' => 'email', 'autocomplete' => 'email']) ?>
-     *
-     * plutôt que :
-     *
-     *   <?= component('components/field', ['name' => 'email', 'label' => 'Adresse email', 'type' => 'email', 'autocomplete' => 'email']) ?>
-     *
-     * $options accepte les mêmes clés que le composant (type, rows, value, autocomplete, required) —
-     * ce n'est qu'un raccourci d'appel, pas un nouveau mécanisme : resources/views/components/field.php
-     * reste le seul endroit qui décide du HTML produit.
-     */
-    function field(string $name, string $label, array $options = []): string
-    {
-        return component('components/field', ['name' => $name, 'label' => $label, ...$options]);
-    }
-}
-
 if (!function_exists('e')) {
     /** Échappement HTML explicite : <?= e($valeur) ?> plutôt que htmlspecialchars() partout. */
     function e(mixed $value): string
@@ -162,49 +101,6 @@ if (!function_exists('trans_choice')) {
     function trans_choice(string $key, int|float $count, array $replace = []): string
     {
         return Lang::choice($key, $count, $replace);
-    }
-}
-
-if (!function_exists('json_response')) {
-    function json_response(mixed $data, int $status = 200): Response
-    {
-        return Response::json($data, $status);
-    }
-}
-
-if (!function_exists('csrf_token')) {
-    function csrf_token(): string
-    {
-        return Csrf::token();
-    }
-}
-
-if (!function_exists('csrf_field')) {
-    function csrf_field(): string
-    {
-        return Csrf::field();
-    }
-}
-
-if (!function_exists('old')) {
-    function old(string $key, mixed $default = null): mixed
-    {
-        return Session::getFlash('old', [])[$key] ?? $default;
-    }
-}
-
-if (!function_exists('flashed')) {
-    function flashed(string $key, mixed $default = null): mixed
-    {
-        return Session::getFlash($key, $default);
-    }
-}
-
-if (!function_exists('errors')) {
-    function errors(?string $key = null): mixed
-    {
-        $errors = Session::getFlash('errors', []);
-        return $key ? ($errors[$key] ?? []) : $errors;
     }
 }
 
@@ -258,20 +154,6 @@ if (!function_exists('json_for_html')) {
         }
 
         return htmlspecialchars($json, ENT_QUOTES, 'UTF-8');
-    }
-}
-
-if (!function_exists('vite_asset')) {
-    /**
-     * URL réelle d'un asset construit par Vite (voir Niang\Core\ViteAssets et le README, section
-     * Vite) — NiangPro n'embarque aucun outillage de build, ce helper se contente de lire ce que
-     * Vite a produit dans public/build/ (ou de basculer sur son serveur de dev via public/hot).
-     * N'exige rien d'installé pour que le reste du framework fonctionne : seul l'appel explicite
-     * de ce helper suppose que Vite est configuré, sans quoi il échoue avec un message clair.
-     */
-    function vite_asset(string $entry): string
-    {
-        return (new \Niang\Core\ViteAssets(base_path('public')))->asset($entry);
     }
 }
 

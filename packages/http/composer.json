@@ -23,6 +23,9 @@
     "autoload": {
         "psr-4": {
             "Niang\\Core\\": "src/"
-        }
+        },
+        "files": [
+            "src/helpers.php"
+        ]
     }
 }
