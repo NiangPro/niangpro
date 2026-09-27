@@ -170,7 +170,7 @@ class DatabaseDriversTest extends TestCase
 
     public function test_an_unknown_cache_driver_is_rejected(): void
     {
-        $this->useCacheDriver('redis');
+        $this->useCacheDriver('memcached');
 
         $this->expectException(ConfigurationException::class);
         Cache::get('x');

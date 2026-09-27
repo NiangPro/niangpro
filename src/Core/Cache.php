@@ -40,6 +40,17 @@ class Cache
             return;
         }
 
+        if (self::driver() === 'redis') {
+            if ($ttlSeconds !== null && $ttlSeconds <= 0) {
+                self::forget($key); // déjà expirée
+                return;
+            }
+
+            $arguments = ['SET', self::redisKey($key), serialize($value)];
+            Redis::command(...($ttlSeconds !== null ? [...$arguments, 'EX', $ttlSeconds] : $arguments));
+            return;
+        }
+
         if (self::usesDatabase()) {
             $hash = sha1($key);
             DB::transaction(function () use ($hash, $value, $expires): void {
@@ -85,6 +96,7 @@ class Cache
     {
         return match (self::driver()) {
             'array' => self::incrementInMemory($key, $by),
+            'redis' => self::incrementInRedis($key, $by),
             'database' => self::incrementInDatabase($key, $by),
             default => self::incrementInFile($key, $by),
         };
@@ -99,6 +111,11 @@ class Cache
     {
         if (self::driver() === 'array') {
             unset(self::$memory[sha1($key)]);
+            return;
+        }
+
+        if (self::driver() === 'redis') {
+            Redis::command('DEL', self::redisKey($key));
             return;
         }
 
@@ -121,6 +138,19 @@ class Cache
             return;
         }
 
+        if (self::driver() === 'redis') {
+            // Seulement les clés du cache de cette application (préfixe), jamais FLUSHDB.
+            $cursor = '0';
+            do {
+                [$cursor, $keys] = Redis::command('SCAN', $cursor, 'MATCH', self::redisKey('*', false), 'COUNT', 500);
+                if ($keys !== []) {
+                    Redis::command('DEL', ...$keys);
+                }
+            } while ($cursor !== '0');
+
+            return;
+        }
+
         if (self::usesDatabase()) {
             DB::statement('DELETE FROM cache_entries');
             return;
@@ -131,14 +161,14 @@ class Cache
         }
     }
 
-    /** @internal partagé avec RateLimiter : 'file', 'database' ou 'array'. */
+    /** @internal partagé avec RateLimiter : 'file', 'database', 'array' ou 'redis'. */
     public static function driver(): string
     {
         // Env en repli : la CLI (niang cache:clear, niang health) ne charge pas config/*.php.
         $driver = (string) Config::get('cache.driver', Env::get('CACHE_DRIVER', 'file'));
 
-        if (!in_array($driver, ['file', 'database', 'array'], true)) {
-            throw new ConfigurationException("CACHE_DRIVER inconnu : « $driver » (attendu : file, database ou array).");
+        if (!in_array($driver, ['file', 'database', 'array', 'redis'], true)) {
+            throw new ConfigurationException("CACHE_DRIVER inconnu : « $driver » (attendu : file, database, array ou redis).");
         }
 
         return $driver;
@@ -152,6 +182,19 @@ class Cache
     /** @return array{value: mixed, expires: ?int}|null */
     private static function read(string $key): ?array
     {
+        if (self::driver() === 'redis') {
+            $raw = Redis::command('GET', self::redisKey($key));
+
+            if (!is_string($raw)) {
+                return null;
+            }
+
+            $value = @unserialize($raw);
+
+            // serialize(false) === 'b:0;' : false est une valeur légitime, pas un échec de lecture.
+            return $value === false && $raw !== serialize(false) ? null : ['value' => $value, 'expires' => null];
+        }
+
         if (self::driver() === 'array') {
             $payload = self::$memory[sha1($key)] ?? null;
 
@@ -213,6 +256,45 @@ class Cache
         self::$memory[sha1($key)] = ['value' => $value, 'expires' => $payload['expires'] ?? null];
 
         return $value;
+    }
+
+    /**
+     * Script Lua : lecture, contrôle, écriture en une seule opération atomique côté Redis ; le TTL
+     * existant est conservé (KEEPTTL, Redis 6 et plus). La valeur est stockée sérialisée (« i:5; »).
+     */
+    private static function incrementInRedis(string $key, int $by): int
+    {
+        $script = <<<'LUA'
+            local raw = redis.call('GET', KEYS[1])
+            local current = 0
+            if raw then
+                local number = string.match(raw, '^i:(%-?%d+);$')
+                if not number then return redis.error_reply('NIANG_NOT_INTEGER') end
+                current = tonumber(number)
+            end
+            local value = current + tonumber(ARGV[1])
+            if raw then
+                redis.call('SET', KEYS[1], 'i:' .. value .. ';', 'KEEPTTL')
+            else
+                redis.call('SET', KEYS[1], 'i:' .. value .. ';')
+            end
+            return value
+            LUA;
+
+        try {
+            return (int) Redis::connection()->eval($script, [self::redisKey($key)], [$by]);
+        } catch (Exceptions\RedisException $e) {
+            if (str_contains($e->getMessage(), 'NIANG_NOT_INTEGER')) {
+                throw new \InvalidArgumentException("Cache::increment('$key') : la valeur existante n'est pas un entier.");
+            }
+
+            throw $e;
+        }
+    }
+
+    private static function redisKey(string $key, bool $hash = true): string
+    {
+        return Redis::connection()->key('cache:' . ($hash ? sha1($key) : $key));
     }
 
     /** Verrou exclusif sur un fichier compagnon pendant tout le cycle lecture-écriture. */

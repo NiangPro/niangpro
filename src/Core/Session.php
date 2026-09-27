@@ -77,7 +77,7 @@ class Session
         self::$started = false;
     }
 
-    /** SESSION_DRIVER : 'file' (stockage natif de PHP), 'database' (DatabaseSessionHandler) ou 'array' (tests). */
+    /** SESSION_DRIVER : 'file' (stockage natif de PHP), 'database', 'redis' ou 'array' (tests). */
     private static function useConfiguredDriver(): void
     {
         $driver = (string) Config::get('session.driver', 'file');
@@ -91,8 +91,8 @@ class Session
             return;
         }
 
-        if ($driver !== 'database') {
-            throw new ConfigurationException("SESSION_DRIVER inconnu : « $driver » (attendu : file, database ou array).");
+        if ($driver !== 'database' && $driver !== 'redis') {
+            throw new ConfigurationException("SESSION_DRIVER inconnu : « $driver » (attendu : file, database, redis ou array).");
         }
 
         // lifetime 0 = cookie jusqu'à la fermeture du navigateur : côté serveur, on garde alors la
@@ -100,7 +100,7 @@ class Session
         $minutes = (int) Config::get('session.lifetime', 120);
         $seconds = $minutes > 0 ? $minutes * 60 : (int) ini_get('session.gc_maxlifetime');
 
-        session_set_save_handler(new DatabaseSessionHandler($seconds), true);
+        session_set_save_handler($driver === 'redis' ? new RedisSessionHandler($seconds) : new DatabaseSessionHandler($seconds), true);
     }
 
     /** Devine si la requête courante est en HTTPS, sauf si config/session.php force explicitement une valeur. */

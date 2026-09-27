@@ -24,6 +24,17 @@ class RateLimiter
      */
     public static function attempt(string $key, int $maxAttempts, int $decaySeconds): bool
     {
+        if (Cache::driver() === 'redis') {
+            // INCR et EXPIRE dans un même script : atomique, même entre plusieurs serveurs.
+            $count = Redis::connection()->eval(
+                "local c = redis.call('INCR', KEYS[1]) if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end return c",
+                [self::redisKey($key)],
+                [$decaySeconds]
+            );
+
+            return (int) $count <= $maxAttempts;
+        }
+
         if (Cache::driver() === 'database') {
             return self::attemptInDatabase(sha1($key), $maxAttempts, $decaySeconds);
         }
@@ -62,6 +73,10 @@ class RateLimiter
 
     public static function availableIn(string $key): int
     {
+        if (Cache::driver() === 'redis') {
+            return max(0, (int) Redis::command('TTL', self::redisKey($key)));
+        }
+
         if (Cache::driver() === 'database') {
             $row = DB::selectOne('SELECT reset_at FROM rate_limits WHERE limit_key = ?', [sha1($key)], 'write');
             return $row ? max(0, (int) $row['reset_at'] - time()) : 0;
@@ -104,6 +119,11 @@ class RateLimiter
     /** Remet le compteur à zéro, ex. après une connexion réussie : RateLimiter::clear($cle). */
     public static function clear(string $key): void
     {
+        if (Cache::driver() === 'redis') {
+            Redis::command('DEL', self::redisKey($key));
+            return;
+        }
+
         if (Cache::driver() === 'database') {
             DB::statement('DELETE FROM rate_limits WHERE limit_key = ?', [sha1($key)]);
             return;
@@ -125,6 +145,11 @@ class RateLimiter
         foreach (glob(base_path('storage/framework/ratelimits/*.json')) ?: [] as $file) {
             unlink($file);
         }
+    }
+
+    private static function redisKey(string $key): string
+    {
+        return Redis::connection()->key('ratelimit:' . sha1($key));
     }
 
     private static function path(string $key): string

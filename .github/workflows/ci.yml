@@ -239,6 +239,38 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  redis:
+    name: Pilotes Redis
+    runs-on: ubuntu-latest
+
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-retries=10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite
+          coverage: none
+
+      - name: Installer les dépendances
+        run: composer install --prefer-dist --no-progress
+
+      - name: Cache, sessions, file et limitation de débit dans Redis
+        env:
+          NP_REDIS_HOST: 127.0.0.1
+          NP_REDIS_PORT: 6379
+        run: ./vendor/bin/phpunit tests/Unit/Redis
+
   s3:
     name: Stockage S3 (moto)
     runs-on: ubuntu-latest

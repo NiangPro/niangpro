@@ -40,7 +40,8 @@ documenté). Ce document dit ce qui est couvert par cette promesse.
 
 `OpenApi` (format du document généré), `OAuth` et `OAuth\*` (fournisseurs, forme du profil),
 `Permission` (un seul rôle par utilisateur aujourd'hui), `Response::eventStream()` et
-`Http\ServerSentEvent`, `Http\Client`, le disque `s3` de `Storage` (`Storage::temporaryUrl()`).
+`Http\ServerSentEvent`, `Http\Client`, le disque `s3` de `Storage` (`Storage::temporaryUrl()`), `Redis` et les
+pilotes `redis`.
 
 ## Interne
 
@@ -48,7 +49,8 @@ documenté). Ce document dit ce qui est couvert par cette promesse.
 `Console\ThemePackageInstaller`, `Console\ThemeSetup`, `Database\Grammar\*`, `Database\Migrator`,
 `Database\EagerLoadBuilder` (utilisez-le via `Model::with()`), `RouteCache`, `ConfigCache`,
 `DebugToolbar`, `DatabaseSessionHandler`, `ArraySessionHandler`, `SmtpTransport` (passez par `Mail`),
-`Storage\S3Client` et `Storage\SigV4` (passez par `Storage`),
+`Storage\S3Client` et `Storage\SigV4` (passez par `Storage`), `Redis\Connection` (passez par `Redis`),
+`Queue\RedisQueue`, `RedisSessionHandler`,
 `Jobs\*`, `Notifications\*` (canaux intégrés), `ContextualBindingBuilder` (via `Container::when()`),
 `Exceptions\Handler`, `Scheduling\CronExpression`, `Scheduling\ScheduledTask`, `ViteAssets` (via
 `vite_asset()`), et toute méthode marquée `@internal`.

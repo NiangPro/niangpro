@@ -9,6 +9,13 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Pilotes Redis** (cache, sessions, file d'attente, limitation de débit), sans extension : client RESP
+  écrit à la main (`Niang\Core\Redis`, `config/redis.php`), AUTH, SELECT, TLS, préfixe de clés. Opérations
+  atomiques par scripts Lua ; `Cache::flush()` n'efface que les clés de l'application. File : jobs prêts,
+  différés et réservés, reprise après `retry_after`, mêmes commandes `queue:*`. `doctor` vérifie Redis. Tests
+  contre un vrai Redis (ignorés sans serveur ; job CI `redis`) ; vérifié avec 3 workers simultanés (60 jobs,
+  chacun exécuté une fois) et 4 process d'incrément (1000 exactement).
+
 - **Disque S3 pour `Storage`** (roadmap §30), sans SDK : AWS S3 et services compatibles (R2, MinIO,
   Wasabi...). `FILESYSTEM_DISK=s3`, `config/filesystems.php`, `Storage::temporaryUrl()` (URL pré-signée
   sur S3, signée sur le disque local), envoi des fichiers téléversés sur S3, `doctor` vérifie la

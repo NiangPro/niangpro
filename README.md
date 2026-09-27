@@ -1073,6 +1073,19 @@ framework ; `niang doctor` signale une table manquante). `CACHE_DRIVER` pilote a
 dont l'incrément reste atomique (un seul `UPDATE` conditionnel). Aucun verrou par session en base :
 si deux requêtes simultanées du même visiteur modifient la session, la dernière écriture l'emporte.
 
+### Redis
+
+Pour le cache, les sessions, la file d'attente et la limitation de débit, `redis` remplace `file` ou
+`database` : `CACHE_DRIVER=redis`, `SESSION_DRIVER=redis`, `QUEUE_DRIVER=redis`, avec `REDIS_HOST`,
+`REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB` et `REDIS_PREFIX` (toutes les clés de l'application commencent par
+ce préfixe ; `Cache::flush()` n'efface qu'elles, jamais la base Redis entière). Un hôte en `tls://` chiffre la
+connexion (Upstash, ElastiCache...).
+
+Le client Redis est écrit à la main (protocole RESP), sans extension ni bibliothèque. Les opérations qui
+doivent être atomiques (incrément de cache, limitation de débit, réservation d'un job) sont des scripts Lua
+exécutés par Redis. Utilisable directement : `Redis::command('INCR', Redis::connection()->key('visites'))`.
+`niang doctor` vérifie que Redis répond. Redis 6 ou plus.
+
 ## Tâches planifiées
 
 Les tâches se déclarent dans `routes/schedule.php` ; une seule ligne cron les lance toutes :

@@ -1246,6 +1246,21 @@ class Commander
             $results[] = ['warn', 'Site en maintenance (niang up pour le rouvrir)'];
         }
 
+        $redisUsers = array_keys(array_filter([
+            'CACHE_DRIVER' => (string) Config::get('cache.driver', Env::get('CACHE_DRIVER', 'file')),
+            'SESSION_DRIVER' => (string) Config::get('session.driver', Env::get('SESSION_DRIVER', 'file')),
+            'QUEUE_DRIVER' => (string) Config::get('queue.driver', Env::get('QUEUE_DRIVER', 'file')),
+        ], fn (string $driver) => $driver === 'redis'));
+
+        if ($redisUsers !== []) {
+            try {
+                \Niang\Core\Redis::command('PING');
+                $results[] = ['ok', 'Redis répond (' . implode(', ', $redisUsers) . ')'];
+            } catch (\Throwable $e) {
+                $results[] = ['fail', implode(', ', $redisUsers) . '=redis mais Redis ne répond pas : ' . $e->getMessage()];
+            }
+        }
+
         if ((string) Config::get('filesystems.disk', Env::get('FILESYSTEM_DISK', 'local')) === 's3') {
             $missing = array_filter(['key', 'secret', 'region', 'bucket'], fn (string $k) => (string) Config::get("filesystems.s3.$k", '') === '');
             $results[] = $missing === []
@@ -1279,7 +1294,11 @@ class Commander
         foreach ($groups as $group => $tables) {
             // La CLI ne charge pas config/*.php : même repli sur l'environnement que Cache::driver().
             $driver = (string) Config::get("$group.driver", Env::get(strtoupper($group) . '_DRIVER', 'file'));
-            $allowed = $group === 'queue' ? ['file', 'database', 'sync'] : ['file', 'database'];
+            $allowed = match ($group) {
+                'queue' => ['file', 'database', 'redis', 'sync'],
+                'cache' => ['file', 'database', 'redis', 'array'],
+                default => ['file', 'database', 'redis', 'array'],
+            };
 
             if (!in_array($driver, $allowed, true)) {
                 return [$this->doctorCheck(false, '', strtoupper($group) . "_DRIVER inconnu : « $driver » (attendu : " . implode(', ', $allowed) . ')')];

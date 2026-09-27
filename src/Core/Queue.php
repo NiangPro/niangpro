@@ -43,6 +43,10 @@ class Queue
      */
     public static function work(?string $queue = null): int
     {
+        if (self::driver() === 'redis') {
+            return Queue\RedisQueue::work($queue, self::BASE_BACKOFF_SECONDS);
+        }
+
         if (self::driver() === 'database') {
             return self::workDatabase($queue);
         }
@@ -93,6 +97,10 @@ class Queue
     /** @return array<int, array{id: string, queue: string, class: string, error: string, failed_at: string}> */
     public static function failed(): array
     {
+        if (self::driver() === 'redis') {
+            return Queue\RedisQueue::failed();
+        }
+
         if (self::driver() === 'database') {
             return array_map(fn (array $row) => [
                 'id' => $row['job_id'],
@@ -129,6 +137,10 @@ class Queue
     /** Remet un job échoué dans la file, attempts réinitialisé, disponible immédiatement. */
     public static function retry(string $id): bool
     {
+        if (self::driver() === 'redis') {
+            return Queue\RedisQueue::retry($id);
+        }
+
         if (self::driver() === 'database') {
             $row = DB::selectOne('SELECT * FROM failed_jobs WHERE job_id = ?', [$id], 'write');
 
@@ -167,6 +179,10 @@ class Queue
     /** Supprime définitivement tous les jobs échoués. @return int le nombre de jobs supprimés */
     public static function flush(): int
     {
+        if (self::driver() === 'redis') {
+            return Queue\RedisQueue::flush();
+        }
+
         if (self::driver() === 'database') {
             return DB::affected('DELETE FROM failed_jobs');
         }
@@ -182,6 +198,10 @@ class Queue
 
     public static function pending(): int
     {
+        if (self::driver() === 'redis') {
+            return Queue\RedisQueue::pending();
+        }
+
         if (self::driver() === 'database') {
             return (int) (DB::selectOne('SELECT COUNT(*) AS n FROM jobs', [], 'write')['n'] ?? 0);
         }
@@ -192,6 +212,11 @@ class Queue
     /** @internal vide la file (en attente et échouée) — appelé par TestCase entre deux tests. */
     public static function reset(): void
     {
+        if (self::driver() === 'redis') {
+            Queue\RedisQueue::reset();
+            return;
+        }
+
         if (self::driver() === 'database') {
             DB::statement('DELETE FROM jobs');
             DB::statement('DELETE FROM failed_jobs');
@@ -208,6 +233,12 @@ class Queue
     private static function store(Job $job, string $queue, int $availableAt): string
     {
         $id = uniqid('job_', true);
+
+        if (self::driver() === 'redis') {
+            Queue\RedisQueue::store(['id' => $id, 'queue' => $queue, 'attempts' => 0, 'available_at' => $availableAt, 'job' => base64_encode(serialize($job))]);
+
+            return $id;
+        }
 
         if (self::driver() === 'database') {
             DB::statement(
@@ -229,13 +260,13 @@ class Queue
         return $id;
     }
 
-    /** 'file', 'database' ou 'sync' ; une valeur inconnue est une erreur, pas un repli silencieux. */
+    /** 'file', 'database', 'redis' ou 'sync' ; une valeur inconnue est une erreur, pas un repli silencieux. */
     public static function driver(): string
     {
         $driver = (string) Config::get('queue.driver', Env::get('QUEUE_DRIVER', 'file'));
 
-        if (!in_array($driver, ['file', 'database', 'sync'], true)) {
-            throw new ConfigurationException("QUEUE_DRIVER inconnu : « $driver » (attendu : file, database ou sync).");
+        if (!in_array($driver, ['file', 'database', 'sync', 'redis'], true)) {
+            throw new ConfigurationException("QUEUE_DRIVER inconnu : « $driver » (attendu : file, database, redis ou sync).");
         }
 
         return $driver;
