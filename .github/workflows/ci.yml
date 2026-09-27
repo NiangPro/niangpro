@@ -345,6 +345,12 @@ jobs:
             page: /projets
           - site_type: landing
             page: /mentions-legales
+          - site_type: auth
+            page: /register
+          - site_type: api
+            page: /openapi.json
+          - site_type: saas
+            page: /register
 
     steps:
       - uses: actions/checkout@v4
@@ -355,21 +361,29 @@ jobs:
           extensions: pdo_sqlite
           coverage: none
 
-      # Simule l'expérience réelle d'installation (composer create-project niangpro/framework),
-      # mais à partir du commit courant plutôt que de Packagist : dépôt Composer de type "path",
-      # copie réelle du répertoire (symlink:false) plutôt qu'un lien qui masquerait des soucis de
-      # packaging. "dev-main --stability=dev" est nécessaire : un paquet "path" n'a pas de version
-      # stable tant qu'il n'est pas tagué, incompatible avec le "minimum-stability: stable" du
-      # projet sans ces deux options. "versions" force cette version : sur une pull request, le
-      # checkout est un HEAD détaché sans branche main, et Composer ne la devinerait pas.
-      - name: composer create-project depuis le commit courant (pas Packagist)
+      # Simule l'expérience réelle d'installation en v2 : `composer create-project niangpro/niangpro`,
+      # le framework installé dans vendor/. Le squelette est construit à partir du commit courant
+      # (tools/build-skeleton.php) et les deux paquets viennent de dépôts « path » en copie réelle
+      # (symlink:false), en version 2.0.0 : pas de Packagist, pas de minimum-stability à contourner.
+      - name: Construire le squelette niangpro/niangpro
+        run: php tools/build-skeleton.php /tmp/niang-skeleton
+
+      - name: composer create-project niangpro/niangpro depuis le commit courant (pas Packagist)
         env:
           NIANG_SITE_TYPE: ${{ matrix.site_type }}
         run: >
           composer create-project
-          --repository '{"type":"path","url":".","options":{"symlink":false,"versions":{"niangpro/framework":"dev-main"}}}'
-          niangpro/framework /tmp/niang-demo dev-main
-          --no-interaction --prefer-dist --no-dev
+          --repository '{"type":"path","url":"/tmp/niang-skeleton","options":{"symlink":false,"versions":{"niangpro/niangpro":"2.0.0"}}}'
+          --repository '{"type":"path","url":"'"$GITHUB_WORKSPACE"'","options":{"symlink":false,"versions":{"niangpro/framework":"2.0.0"}}}'
+          --add-repository
+          niangpro/niangpro /tmp/niang-demo 2.0.0
+          --no-interaction --prefer-dist
+
+      - name: Le framework est dans vendor/, pas dans le projet
+        run: |
+          test -f /tmp/niang-demo/vendor/niangpro/framework/packages/foundation/src/Application.php
+          test ! -e /tmp/niang-demo/packages
+          test ! -e /tmp/niang-demo/src
 
       # Ni .env ni storage/ n'existent dans un checkout propre (tous deux hors du dépôt) : le
       # projet créé doit fonctionner tel quel, sans étape manuelle — voir le README, qui ne
@@ -388,6 +402,11 @@ jobs:
         run: |
           ./bin/niang migrate
           ./bin/niang db:seed
+
+      # Les tests livrés avec le projet (ceux du thème installé), contre le framework de vendor/.
+      - name: Tests du projet créé
+        working-directory: /tmp/niang-demo
+        run: ./vendor/bin/phpunit
 
       - name: Démarrer le serveur intégré
         working-directory: /tmp/niang-demo
