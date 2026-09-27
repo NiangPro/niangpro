@@ -348,8 +348,11 @@ class Router
             array_reverse($route['middleware']),
             function (\Closure $next, string $middleware) use ($container) {
                 return function (Request $request) use ($next, $middleware, $container) {
-                    $instance = $container->make($middleware);
-                    return $instance->handle($request, $next);
+                    // « Classe:arg1,arg2 » : les arguments suivent $next dans handle().
+                    [$class, $arguments] = array_pad(explode(':', $middleware, 2), 2, null);
+                    $instance = $container->make($class);
+
+                    return $instance->handle($request, $next, ...($arguments === null ? [] : explode(',', $arguments)));
                 };
             },
             fn (Request $request) => $this->callAction($route['action'], $this->bindModels($route['bindings'] ?? [], $request), $container)

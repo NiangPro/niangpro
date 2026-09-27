@@ -260,6 +260,18 @@ class Auth
         return self::id() !== null;
     }
 
+    /** Rôle de l'utilisateur connecté (config/permissions.php) : Auth::hasRole('admin'), ou ['admin', 'editor']. */
+    public static function hasRole(string|array $roles): bool
+    {
+        return Permission::hasRole(self::user(), $roles);
+    }
+
+    /** Gate::allows() pour l'utilisateur connecté : règle, Policy ou permission de rôle. */
+    public static function can(string $ability, mixed ...$args): bool
+    {
+        return Gate::allows($ability, ...$args);
+    }
+
     public static function guest(): bool
     {
         return !self::check();

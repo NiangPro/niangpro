@@ -955,6 +955,34 @@ $this->authorize('post.delete', $post); // résout PostPolicy::delete(Auth::user
 `Gate::define()` reste prioritaire si une ability du même nom existe des deux côtés — utile pour
 surcharger ponctuellement une règle de policy sans y toucher.
 
+### Rôles et permissions
+
+Pour ne pas écrire une règle par action : un rôle par utilisateur (colonne `users.role`, fournie par le
+module d'administration des thèmes boutique et blog, sinon `$table->string('role')->default('user')`),
+et les permissions de chaque rôle dans `config/permissions.php` :
+
+```php
+'roles' => [
+    'admin' => ['*'],                                // tout
+    'editor' => ['posts.*', 'comments.moderate'],    // posts.create, posts.update...
+    'user' => [],
+],
+```
+
+```php
+Auth::hasRole('admin');            // ou ['admin', 'editor']
+Auth::can('posts.update');         // = Gate::allows('posts.update')
+
+// Route protégée : plusieurs abilities séparées par des virgules sont toutes exigées
+$router->delete('/posts/{id}', [PostController::class, 'destroy'], [Authorize::class . ':posts.delete']);
+```
+
+`Gate::allows()` consulte d'abord les règles `define()` puis les Policies ; les permissions de rôle ne
+décident que si aucune des deux ne répond pour cette ability. Un invité n'a aucune permission ;
+`Authorize` le renvoie vers `/login` (401 en JSON) et répond 403 à un utilisateur sans la permission.
+Plus généralement, un middleware de route reçoit des arguments après `:` (`MonMiddleware::class .
+':a,b'` → `handle($request, $next, 'a', 'b')`).
+
 ## Rate limiting
 
 `ThrottleRequests::class` limite par défaut à 10 requêtes/minute par IP et par route (utile sur

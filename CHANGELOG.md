@@ -9,6 +9,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Rôles et permissions** (roadmap §22) : `config/permissions.php` (rôle → permissions, jokers `*`
+  et `posts.*`), `Niang\Core\Permission`, `Auth::hasRole()`, `Auth::can()`, middleware
+  `App\Middleware\Authorize` (`Authorize::class . ':posts.delete'`). Sans table supplémentaire : le
+  rôle est la colonne `users.role`. Les middlewares de route acceptent des arguments
+  (`Classe:arg1,arg2`). `Gate::reset()`, appelée par `TestCase::setUp()`.
+
 - **Liaison de modèle sur les routes** (roadmap §12) : `->bind(['post' => Post::class])` ou
   `Post::class . ':slug'` ; le contrôleur reçoit la ligne (`array $post`), ou la requête répond 404.
   Recherche par le modèle (suppression douce, `$casts`), après les middlewares, valeur toujours liée.
@@ -323,6 +329,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Changed
 
+- **`Gate::allows()` sur une ability sans règle ni Policy** consulte désormais les permissions du rôle
+  de l'utilisateur au lieu de répondre toujours `false`. Sans colonne `role` (ou sans rôle déclaré dans
+  `config/permissions.php`), rien ne change ; un utilisateur `admin` (permission `*`) obtient en
+  revanche toute ability non définie. Les règles `define()` et les Policies gardent la priorité.
 - **Rupture : `Model::$timestamps` vaut `true` par défaut.** Un modèle dont la table n'a pas
   `created_at`/`updated_at` doit déclarer `protected static bool $timestamps = false;` (fait pour
   `Tag` et `PasswordResetToken`). Les migrations générées par `make:migration` ont déjà

@@ -10,6 +10,7 @@ namespace Niang\Core;
  * Les enregistrements restant de simples tableaux (pas d'objets), il n'y a pas de classe à
  * inspecter pour deviner la policy : le préfixe de l'ability ('post.delete' -> 'post') le dit
  * explicitement, résolu vers la méthode du même nom sur la policy enregistrée.
+ * Sans règle ni Policy pour l'ability, les permissions de rôle (Permission) décident.
  */
 class Gate
 {
@@ -45,7 +46,15 @@ class Gate
             }
         }
 
-        return false;
+        // Aucune règle ni Policy : les permissions du rôle de l'utilisateur (config/permissions.php).
+        return Permission::can(Auth::user(), $ability);
+    }
+
+    /** @internal efface règles et Policies — appelée par TestCase entre deux tests. */
+    public static function reset(): void
+    {
+        self::$abilities = [];
+        self::$policies = [];
     }
 
     public static function denies(string $ability, mixed ...$args): bool
