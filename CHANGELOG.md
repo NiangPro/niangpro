@@ -9,6 +9,14 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **2.0 : le framework devient une dépendance** (roadmap §46, ADR 0013, remplace 0008). `composer create-project
+  niangpro/niangpro mon-app` crée l'application ; le framework, `niangpro/framework`, est installé dans `vendor/`
+  et se met à jour avec `composer update niangpro/framework`. Le squelette est construit à partir de ce dépôt
+  (`tools/build-skeleton.php`) et publié dans son dépôt miroir avec les paquets. `niang new` passe par
+  `composer create-project` (dans le dépôt du framework : squelette local et framework relié). La CI crée un projet
+  par type de site avec le framework dans `vendor/` et lance ses tests. **Passer un projet 1.x en 2.0 :
+  [UPGRADE.md](UPGRADE.md)**, vérifié sur un projet 1.5.0 créé depuis Packagist (162 tests verts après migration).
+
 - **Frontières des paquets (roadmap §46, ADR 0012)** : `src/Core` peut être découpé en paquets (core, database,
   redis, http, cache, queue, mail, storage, auth, tenancy, observability, openapi, debug, framework) sans aucune
   dépendance circulaire, vérifié par `tests/Unit/Architecture/PackageBoundariesTest`. Les composants se
