@@ -601,6 +601,7 @@ de contexte. Un fichier par jour dans `storage/logs/`. Les exceptions non interc
 consignées automatiquement.
 
 ```dotenv
+LOG_CHANNEL=daily   # daily (un fichier par jour), single, errorlog, syslog ou stderr (Docker)
 LOG_LEVEL=warning   # niveau minimal écrit (debug par défaut) : warning ignore debug, info et notice
 LOG_DAYS=14         # jours de fichiers conservés ; 0 = ne jamais supprimer
 ```

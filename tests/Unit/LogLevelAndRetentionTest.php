@@ -125,4 +125,57 @@ class LogLevelAndRetentionTest extends TestCase
         $this->assertSame('valeur', Config::get('nouveau.section.cle'));
         $this->assertSame(14, Config::get('logging.days'), 'les autres clés de la section sont conservées');
     }
+
+    public function test_single_channel_writes_one_file(): void
+    {
+        Config::set('logging.channel', 'single');
+        $file = base_path('storage/logs/niangpro.log');
+        $offset = is_file($file) ? (int) filesize($file) : 0;
+
+        Log::warning('np-canal-single');
+        clearstatcache();
+
+        $this->assertStringContainsString('WARNING: np-canal-single', substr((string) file_get_contents($file), $offset));
+    }
+
+    public function test_errorlog_channel_uses_php_error_log(): void
+    {
+        Config::set('logging.channel', 'errorlog');
+        $target = tempnam(sys_get_temp_dir(), 'np-errorlog');
+        $previous = ini_set('error_log', $target);
+
+        try {
+            Log::error('np-canal-errorlog {id}', ['id' => 7, 'password' => 'secret']);
+        } finally {
+            ini_set('error_log', (string) $previous);
+        }
+
+        $written = (string) file_get_contents($target);
+        unlink($target);
+        $this->assertStringContainsString('ERROR: np-canal-errorlog 7', $written);
+        $this->assertStringNotContainsString('"secret"', $written, 'masquage appliqué sur tous les canaux');
+    }
+
+    public function test_stderr_channel_writes_to_standard_error(): void
+    {
+        $script = sprintf(
+            'require %s; Niang\\Core\\Config::load(%s); Niang\\Core\\Config::set("logging.channel", "stderr"); Niang\\Core\\Log::info("np-canal-stderr");',
+            var_export(base_path('vendor/autoload.php'), true),
+            var_export(base_path(), true)
+        );
+        $process = proc_open([PHP_BINARY, '-r', $script], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        $stdout = stream_get_contents($pipes[1]);
+        $stderr = stream_get_contents($pipes[2]);
+        proc_close($process);
+
+        $this->assertSame('', $stdout);
+        $this->assertStringContainsString('INFO: np-canal-stderr', $stderr);
+    }
+
+    public function test_an_unknown_channel_falls_back_to_daily(): void
+    {
+        Config::set('logging.channel', 'papier');
+
+        $this->assertSame('daily', Log::channel());
+    }
 }

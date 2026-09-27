@@ -9,6 +9,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Canaux de journalisation** (roadmap §27) : `LOG_CHANNEL` = `daily` (défaut, inchangé), `single`,
+  `errorlog` (journal du serveur web ou de PHP-FPM), `syslog` (priorité selon le niveau, identifiant
+  `LOG_SYSLOG_IDENT`) ou `stderr` (conteneurs). Niveau minimal et masquage des secrets s'appliquent à
+  tous. Un canal inconnu retombe sur `daily`. `syslog` n'est vérifié que par le retour de `syslog()` :
+  le journal unifié de macOS n'affiche pas ces messages.
+
 - **Commandes `about`, `env`, `optimize:clear`, `cors:check`, `make:notification`** (roadmap §33 et
   §36). `about` lit la version réelle installée (Composer) ; `optimize:clear` défait exactement ce que
   fait `optimize` ; `cors:check` signale `*` en production, `*` avec les cookies (toutes les origines
