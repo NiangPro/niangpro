@@ -333,9 +333,19 @@ Schema::rename('anciens_posts', 'posts');
 En SQLite, les clés étrangères sont activées (`PRAGMA foreign_keys = ON`) — comme en MySQL/PostgreSQL,
 une insertion référençant une ligne inexistante est rejetée.
 
-Limite assumée : `->change()` (modifier le type d'une colonne existante) n'est pas encore supporté —
-les trois moteurs divergent trop pour une traduction fiable (SQLite ne le permet même pas nativement
-sans reconstruire la table). Pour l'instant, gérez ce cas via une nouvelle migration qui recrée la colonne.
+Modifier une colonne existante : la nouvelle définition remplace entièrement l'ancienne (type, `NULL`,
+valeur par défaut).
+
+```php
+Schema::table('posts', function ($table) {
+    $table->string('title', 500)->nullable()->change();
+    $table->integer('views')->default(0)->change();
+});
+```
+
+MySQL : `MODIFY COLUMN` ; PostgreSQL : `ALTER COLUMN` (type avec conversion `USING`, `NULL`, défaut) ; SQLite,
+qui ne sait pas modifier une colonne : reconstruction de la table selon la procédure officielle (données, index
+et clés étrangères conservés). `->unique()` ne se combine pas avec `change()` : ajoutez l'index à part.
 
 ## Seeders & factories
 

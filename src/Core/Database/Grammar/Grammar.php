@@ -81,6 +81,21 @@ abstract class Grammar
         };
     }
 
+    /**
+     * Instructions qui modifient une colonne existante. $createSql et $indexSql (SQLite seulement) : la
+     * définition actuelle de la table et de ses index, lus dans sqlite_master.
+     *
+     * @param list<string> $indexSql
+     * @return list<string>
+     */
+    abstract public function compileChange(string $table, \Niang\Core\Database\ColumnDefinition $column, ?string $createSql = null, array $indexSql = []): array;
+
+    /** Colonne compilée sans UNIQUE (voir Blueprint::changedColumns()). */
+    protected function compileChangedColumn(\Niang\Core\Database\ColumnDefinition $column): string
+    {
+        return $this->compileColumn($column->name(), $column->type(), $column->params(), $column->isNullable(), $column->hasDefault(), $column->defaultValue(), false);
+    }
+
     public function compileRenameColumn(string $table, string $from, string $to): string
     {
         return sprintf(

@@ -35,6 +35,33 @@ class PostgresGrammar extends Grammar
         };
     }
 
+    /**
+     * PostgreSQL modifie une colonne par étapes : type (avec conversion USING), NULL, défaut. Une
+     * colonne enum() reçoit sa contrainte CHECK ; une ancienne contrainte CHECK n'est pas retirée.
+     */
+    public function compileChange(string $table, \Niang\Core\Database\ColumnDefinition $column, ?string $createSql = null, array $indexSql = []): array
+    {
+        $alter = 'ALTER TABLE ' . $this->wrap($table) . ' ALTER COLUMN ' . $this->wrap($column->name());
+        $type = $this->typeKeyword($column->type(), $column->params());
+        $default = $column->defaultValue();
+
+        if ($column->type() === 'boolean' && ($default === 0 || $default === 1)) {
+            $default = (bool) $default;
+        }
+
+        $statements = [
+            "$alter TYPE $type USING " . $this->wrap($column->name()) . "::$type",
+            $alter . ($column->isNullable() ? ' DROP NOT NULL' : ' SET NOT NULL'),
+            $alter . ($column->hasDefault() ? ' SET DEFAULT ' . $this->compileDefault($default) : ' DROP DEFAULT'),
+        ];
+
+        if ($column->type() === 'enum') {
+            $statements[] = 'ALTER TABLE ' . $this->wrap($table) . ' ADD' . $this->compileEnumCheck($column->name(), $column->params()['values'] ?? []);
+        }
+
+        return $statements;
+    }
+
     /** PostgreSQL : TRUE/FALSE (un BOOLEAN n'accepte pas 1/0 comme valeur par défaut). */
     protected function compileDefault(mixed $value): string
     {

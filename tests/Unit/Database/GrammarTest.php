@@ -147,4 +147,22 @@ class GrammarTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         (new Blueprint('orders'))->enum('status', []);
     }
+
+    public function test_change_column_sql_per_engine(): void
+    {
+        $column = (new \Niang\Core\Database\ColumnDefinition('title', 'string', ['length' => 500]))->nullable()->default('x')->change();
+
+        $this->assertSame(['ALTER TABLE `posts` MODIFY COLUMN `title` VARCHAR(500) DEFAULT \'x\''], (new MySqlGrammar())->compileChange('posts', $column));
+        $this->assertSame([
+            'ALTER TABLE "posts" ALTER COLUMN "title" TYPE VARCHAR(500) USING "title"::VARCHAR(500)',
+            'ALTER TABLE "posts" ALTER COLUMN "title" DROP NOT NULL',
+            'ALTER TABLE "posts" ALTER COLUMN "title" SET DEFAULT \'x\'',
+        ], (new PostgresGrammar())->compileChange('posts', $column));
+
+        $sqlite = (new SQLiteGrammar())->compileChange('posts', $column, 'CREATE TABLE "posts" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "title" VARCHAR(255) NOT NULL, "price" NUMERIC DEFAULT (1,2), UNIQUE ("title"))', ['CREATE INDEX x ON posts (title)']);
+        $this->assertSame('PRAGMA foreign_keys = OFF', $sqlite[0]);
+        $this->assertSame('CREATE TABLE "__np_change_posts" ("id" INTEGER PRIMARY KEY AUTOINCREMENT, "title" VARCHAR(500) DEFAULT \'x\', "price" NUMERIC DEFAULT (1,2), UNIQUE ("title"))', $sqlite[1]);
+        $this->assertSame('CREATE INDEX x ON posts (title)', $sqlite[5]);
+        $this->assertSame('PRAGMA foreign_keys = ON', end($sqlite));
+    }
 }

@@ -202,13 +202,29 @@ class Blueprint
         return sprintf('CREATE TABLE IF NOT EXISTS %s (%s)', $grammar->wrap($this->table), implode(', ', $parts));
     }
 
-    /** @return string[] une instruction ADD COLUMN par colonne (limite portable entre moteurs). */
+    /** @return string[] une instruction ADD COLUMN par colonne ajoutée (limite portable entre moteurs). */
     public function toAlterSql(Grammar $grammar): array
     {
-        return array_map(
+        return array_values(array_map(
             fn (ColumnDefinition $column) => "ALTER TABLE {$grammar->wrap($this->table)} ADD COLUMN " . $column->compile($grammar),
-            $this->columns
-        );
+            array_filter($this->columns, fn (ColumnDefinition $column) => !$column->isChange())
+        ));
+    }
+
+    /** @return list<ColumnDefinition> colonnes marquées ->change() */
+    public function changedColumns(): array
+    {
+        $changed = array_values(array_filter($this->columns, fn (ColumnDefinition $column) => $column->isChange()));
+
+        foreach ($changed as $column) {
+            if ($column->type() === 'id' || $column->isUnique()) {
+                throw new \InvalidArgumentException(
+                    "change() sur « {$column->name()} » : ni id() ni ->unique() (ajoutez l'index avec \$table->unique('{$column->name()}') à part)."
+                );
+            }
+        }
+
+        return $changed;
     }
 
     /** @return string[] une instruction CREATE INDEX par index déclaré via ->index(). */

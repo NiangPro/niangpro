@@ -9,6 +9,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Modifier une colonne : `->change()`** (roadmap §4.4), sur les trois moteurs. SQLite, qui n'a pas
+  d'`ALTER COLUMN`, reconstruit la table (procédure officielle : données, index et clés étrangères conservés,
+  clés étrangères suspendues le temps de l'opération). Testé sur SQLite et MySQL (dont la clé étrangère d'une
+  table enfant, toujours appliquée après reconstruction).
+
 - **Pilotes Redis** (cache, sessions, file d'attente, limitation de débit), sans extension : client RESP
   écrit à la main (`Niang\Core\Redis`, `config/redis.php`), AUTH, SELECT, TLS, préfixe de clés. Opérations
   atomiques par scripts Lua ; `Cache::flush()` n'efface que les clés de l'application. File : jobs prêts,
