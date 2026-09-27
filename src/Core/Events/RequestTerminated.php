@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Events;
 
 /** Événement du framework (roadmap §49) : Après l'envoi de la réponse (le visiteur ne l'attend plus si fastcgi_finish_request() est disponible) : nettoyage, statistiques. */

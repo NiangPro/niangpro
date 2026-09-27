@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Events;
 
 use Psr\EventDispatcher\StoppableEventInterface;

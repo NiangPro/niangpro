@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core;
 
 /** Retourné par Container::when() : when(A::class)->needs(Contrat::class)->give(Implementation::class). */

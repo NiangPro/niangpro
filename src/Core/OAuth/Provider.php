@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\OAuth;
 
 use Niang\Core\Exceptions\OAuthException;

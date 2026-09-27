@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Events;
 
 /** Événement du framework (roadmap §49) : Route trouvée, paramètres renseignés, avant les middlewares et l'action. */

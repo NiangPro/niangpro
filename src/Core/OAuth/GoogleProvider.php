@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\OAuth;
 
 /** Google (OpenID Connect) : https://console.cloud.google.com/apis/credentials */

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Contracts;
 
 use Niang\Core\Notification;

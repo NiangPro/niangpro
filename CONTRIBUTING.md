@@ -48,6 +48,8 @@ DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_DATABASE=niangpro_test DB_USERNAME=root
 ## Ce qu'on attend d'une contribution
 
 - **Des tests** qui échouent sans votre changement. Un bug corrigé sans test reviendra.
+- **`declare(strict_types=1);`** en tête de tout fichier de `src/Core/` (vérifié par un test). Pas dans
+  `app/` ni les thèmes : c'est du code copié chez l'utilisateur, où MySQL renvoie les entiers en chaînes.
 - **Aucune nouvelle dépendance à l'exécution** dans `composer.json` `require` (seules les interfaces
   PSR y figurent). Une dépendance de développement se discute dans l'issue d'abord.
 - **Rétrocompatibilité** : une API publique ne change pas de signature dans une version mineure ;

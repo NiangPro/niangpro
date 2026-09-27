@@ -387,6 +387,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Changed
 
+- **`declare(strict_types=1)` dans les 126 fichiers du cœur** (roadmap §56), vérifié par
+  `tests/Unit/CodingStandardsTest.php`. Suites complètes vertes sur SQLite et sur MySQL (qui renvoie les
+  entiers en chaînes), parcours HTTP réel vérifié. `app/` et les thèmes restent en mode souple : c'est du
+  code d'application copié chez l'utilisateur.
 - **PHPStan passe du niveau 6 au niveau 7** (roadmap §56 : « niveau élevé »), sur `src`, `app`, `tests` et
   les thèmes, sans nouvelle exclusion. `DB::select()` et `QueryBuilder::get()` déclarent une liste de lignes.
 - **`Gate::allows()` sur une ability sans règle ni Policy** consulte désormais les permissions du rôle
