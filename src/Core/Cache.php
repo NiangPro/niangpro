@@ -17,6 +17,9 @@ use Niang\Core\Exceptions\ConfigurationException;
  */
 class Cache
 {
+    /** @var (\Closure(): string)|null voir prefixUsing() */
+    private static ?\Closure $prefix = null;
+
     /** @var array<string, array{value: mixed, expires: ?int}> pilote 'array' */
     private static array $memory = [];
 
@@ -43,7 +46,18 @@ class Cache
      */
     private static function scoped(string $key): string
     {
-        return Tenancy::cachePrefix() . $key;
+        return (self::$prefix !== null ? (self::$prefix)() : '') . $key;
+    }
+
+    /**
+     * Préfixe ajouté à chaque clé, calculé à chaque accès (le framework y branche le locataire
+     * courant). null : aucun préfixe.
+     *
+     * @param (\Closure(): string)|null $prefix
+     */
+    public static function prefixUsing(?\Closure $prefix): void
+    {
+        self::$prefix = $prefix;
     }
 
     private static function write(string $key, mixed $value, ?int $ttlSeconds): void

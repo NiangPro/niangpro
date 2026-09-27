@@ -53,6 +53,31 @@ class Application
         Event::queueUsing(static function (string $listener, array $payload): void {
             Queue::push(new Jobs\CallQueuedListener($listener, $payload));
         });
+
+        // Multi-locataire : clés de cache, portée des modèles, jobs exécutés chez leur locataire.
+        Cache::prefixUsing(static fn (): string => Tenancy::cachePrefix());
+        Database\Model::tenantScopeUsing(static function (string $model): ?array {
+            $id = Tenancy::scopeFor($model);
+
+            return $id === null ? null : [Tenancy::column(), $id];
+        });
+        Queue::stampUsing('tenancy', static function (Job $job): void {
+            if (Tenancy::enabled() && Tenancy::id() !== null) {
+                $job->context['tenant'] ??= Tenancy::id();
+            }
+        });
+        Queue::wrapUsing('tenancy', static function (Job $job, \Closure $next): void {
+            isset($job->context['tenant']) && Tenancy::enabled() ? Tenancy::run($job->context['tenant'], $next) : $next();
+        });
+
+        // Traces et métriques : request_id dans les logs des jobs, compteurs globaux à la plateforme.
+        Queue::stampUsing('trace', static function (Job $job): void {
+            if (Trace::active()) {
+                $job->context['log']['request_id'] ??= Trace::requestId();
+            }
+        });
+        Queue::afterUsing('metrics', static fn (Job $job, bool $succeeded) => Metrics::recordJob($succeeded));
+        Metrics::isolateUsing(static fn (\Closure $callback): mixed => Tenancy::central($callback));
     }
 
     /** Événement du framework, émis seulement s'il est écouté (aucun coût sinon). */

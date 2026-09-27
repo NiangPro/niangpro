@@ -19,6 +19,15 @@ use Niang\Core\Exceptions\ConfigurationException;
  */
 class Queue
 {
+    /** @var array<string, \Closure(Job): void> */
+    private static array $stampers = [];
+
+    /** @var array<string, \Closure(Job, \Closure(): void): void> */
+    private static array $wrappers = [];
+
+    /** @var array<string, \Closure(Job, bool): void> */
+    private static array $afterListeners = [];
+
     private const BASE_BACKOFF_SECONDS = 10;
 
     public static function push(Job $job, string $queue = 'default'): string
@@ -87,7 +96,7 @@ class Queue
                 self::runJob($job);
                 $processed++;
                 @unlink($claimed);
-                Metrics::recordJob(true);
+                self::jobFinished($job, true);
             } catch (\Throwable $e) {
                 @unlink($claimed);
                 self::handleFailure($envelope, $job, $e);
@@ -244,24 +253,58 @@ class Queue
     public static function enterJobContext(Job $job): array
     {
         $previous = Log::sharedContext();
-
-        if ($job->requestId !== null) {
-            Log::withContext(['request_id' => $job->requestId]);
-        }
+        Log::withContext((array) ($job->context['log'] ?? []));
 
         return $previous;
     }
 
-    /** @internal exécute le job chez le locataire qui l'a mis en file, s'il y en avait un. */
+    /** @internal exécute le job à travers les enveloppes enregistrées (wrapUsing()), la première à l'extérieur. */
     public static function runJob(Job $job): void
     {
-        if ($job->tenantId !== null && Tenancy::enabled()) {
-            Tenancy::run($job->tenantId, $job->handle(...));
+        $run = $job->handle(...);
 
-            return;
+        foreach (array_reverse(self::$wrappers) as $wrapper) {
+            $next = $run;
+            $run = static fn () => $wrapper($job, $next);
         }
 
-        $job->handle();
+        $run();
+    }
+
+    /** @internal appelé après chaque exécution par un worker (réussie ou non), tous pilotes confondus. */
+    public static function jobFinished(Job $job, bool $succeeded): void
+    {
+        foreach (self::$afterListeners as $listener) {
+            $listener($job, $succeeded);
+        }
+    }
+
+    /**
+     * Modifie chaque job au moment de sa mise en file (ex. y noter la requête ou le locataire
+     * d'origine dans $job->context). Un nom déjà utilisé est remplacé.
+     *
+     * @param \Closure(Job): void $stamp
+     */
+    public static function stampUsing(string $name, \Closure $stamp): void
+    {
+        self::$stampers[$name] = $stamp;
+    }
+
+    /**
+     * Entoure l'exécution de chaque job par un worker : $wrapper reçoit le job et la suite à appeler
+     * (ex. exécuter le job chez son locataire).
+     *
+     * @param \Closure(Job, \Closure(): void): void $wrapper
+     */
+    public static function wrapUsing(string $name, \Closure $wrapper): void
+    {
+        self::$wrappers[$name] = $wrapper;
+    }
+
+    /** @param \Closure(Job, bool): void $listener appelé après chaque exécution (métriques...) */
+    public static function afterUsing(string $name, \Closure $listener): void
+    {
+        self::$afterListeners[$name] = $listener;
     }
 
     /** @internal @param array<string, mixed> $previous */
@@ -275,12 +318,8 @@ class Queue
     {
         $id = uniqid('job_', true);
 
-        if (Trace::active()) {
-            $job->requestId ??= Trace::requestId();
-        }
-
-        if (Tenancy::enabled()) {
-            $job->tenantId ??= Tenancy::id();
+        foreach (self::$stampers as $stamp) {
+            $stamp($job);
         }
 
         if (self::driver() === 'redis') {
@@ -360,7 +399,7 @@ class Queue
                 self::runJob($job);
                 $processed++;
                 DB::statement('DELETE FROM jobs WHERE id = ?', [$row['id']]);
-                Metrics::recordJob(true);
+                self::jobFinished($job, true);
             } catch (\Throwable $e) {
                 self::handleDatabaseFailure($row, $job, $e);
             } finally {
@@ -375,7 +414,7 @@ class Queue
     {
         $attempts = (int) $row['attempts'] + 1;
 
-        Metrics::recordJob(false);
+        self::jobFinished($job, false);
         Log::error('Job échoué : ' . $e->getMessage(), ['job' => $job::class, 'attempts' => $attempts]);
 
         if ($attempts >= $job->tries) {
@@ -407,7 +446,7 @@ class Queue
     {
         $envelope['attempts']++;
 
-        Metrics::recordJob(false);
+        self::jobFinished($job, false);
         Log::error('Job échoué : ' . $e->getMessage(), ['job' => $job::class, 'attempts' => $envelope['attempts']]);
 
         if ($envelope['attempts'] >= $job->tries) {

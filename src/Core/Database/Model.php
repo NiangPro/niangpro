@@ -6,7 +6,6 @@ namespace Niang\Core\Database;
 
 use Niang\Core\Exceptions\DatabaseException;
 use Niang\Core\Exceptions\MassAssignmentException;
-use Niang\Core\Tenancy;
 
 abstract class Model
 {
@@ -54,6 +53,26 @@ abstract class Model
      */
     protected static bool $tenantScoped = false;
 
+    /** @var (\Closure(string): (array{0: string, 1: int|string}|null))|null voir tenantScopeUsing() */
+    private static ?\Closure $tenantScope = null;
+
+    /**
+     * Portée des modèles $tenantScoped : pour une classe de modèle, [colonne, valeur] à imposer, ou
+     * null (aucun filtre). Branché par le framework sur Niang\Core\Tenancy ; sans lui, aucun filtre.
+     *
+     * @param (\Closure(string): (array{0: string, 1: int|string}|null))|null $scope
+     */
+    public static function tenantScopeUsing(?\Closure $scope): void
+    {
+        self::$tenantScope = $scope;
+    }
+
+    /** @return array{0: string, 1: int|string}|null */
+    private static function tenantScope(string $model): ?array
+    {
+        return self::$tenantScope !== null && $model::$tenantScoped ? (self::$tenantScope)($model) : null;
+    }
+
     public static function table(): string
     {
         if (static::$table !== '') {
@@ -76,9 +95,9 @@ abstract class Model
     public static function withTrashed(): QueryBuilder
     {
         $query = (new QueryBuilder(static::table()))->forModel(static::class);
-        $tenant = static::$tenantScoped ? Tenancy::scopeFor(static::class) : null;
+        $scope = self::tenantScope(static::class);
 
-        return $tenant !== null ? $query->where(static::table() . '.' . Tenancy::column(), $tenant) : $query;
+        return $scope !== null ? $query->where(static::table() . '.' . $scope[0], $scope[1]) : $query;
     }
 
     /** Uniquement les lignes supprimées en douceur (une corbeille). */
@@ -122,11 +141,11 @@ abstract class Model
     /** Comme create(), sans filtre $fillable — jamais avec des données venues directement de la requête. */
     public static function forceCreate(array $data): string
     {
-        $tenant = static::$tenantScoped ? Tenancy::scopeFor(static::class) : null;
+        $scope = self::tenantScope(static::class);
 
-        if ($tenant !== null) {
+        if ($scope !== null) {
             // Imposé, jamais pris dans $data : impossible de créer une ligne chez un autre locataire.
-            $data[Tenancy::column()] = $tenant;
+            $data[$scope[0]] = $scope[1];
         }
 
         if (static::$timestamps) {
@@ -140,8 +159,10 @@ abstract class Model
     /** Comme update(), sans filtre $fillable — jamais avec des données venues directement de la requête. */
     public static function forceUpdate(int|string $id, array $data): bool
     {
-        if (static::$tenantScoped && Tenancy::scopeFor(static::class) !== null) {
-            unset($data[Tenancy::column()]);   // une ligne ne change pas de locataire
+        $scope = self::tenantScope(static::class);
+
+        if ($scope !== null) {
+            unset($data[$scope[0]]);   // une ligne ne change pas de locataire
         }
 
         if (static::$timestamps) {
@@ -445,8 +466,8 @@ abstract class Model
      */
     private static function tenantCondition(string $related): array
     {
-        $tenant = $related::$tenantScoped ? Tenancy::scopeFor($related) : null;
+        $scope = self::tenantScope($related);
 
-        return $tenant === null ? ['', []] : [' AND ' . $related::table() . '.' . Tenancy::column() . ' = ?', [$tenant]];
+        return $scope === null ? ['', []] : [' AND ' . $related::table() . '.' . $scope[0] . ' = ?', [$scope[1]]];
     }
 }

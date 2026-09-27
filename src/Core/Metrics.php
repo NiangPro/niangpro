@@ -29,6 +29,30 @@ final class Metrics
     /** @var array<string, array{help: string, callback: \Closure(): (int|float)}> */
     private static array $gauges = [];
 
+    /** @var (\Closure(\Closure(): mixed): mixed)|null voir isolateUsing() */
+    private static ?\Closure $isolate = null;
+
+    /**
+     * Enveloppe de chaque lecture ou écriture des métriques : le framework y place le contexte
+     * « toute la plateforme » (hors locataire), pour que les compteurs restent globaux.
+     *
+     * @param (\Closure(\Closure(): mixed): mixed)|null $isolate
+     */
+    public static function isolateUsing(?\Closure $isolate): void
+    {
+        self::$isolate = $isolate;
+    }
+
+    /**
+     * @template T
+     * @param \Closure(): T $callback
+     * @return T
+     */
+    private static function isolated(\Closure $callback): mixed
+    {
+        return self::$isolate !== null ? (self::$isolate)($callback) : $callback();
+    }
+
     public static function enabled(): bool
     {
         return (bool) Config::get('metrics.enabled', false);
@@ -92,7 +116,7 @@ final class Metrics
     /** Remet tous les compteurs à zéro (Prometheus gère une remise à zéro comme un redémarrage). */
     public static function flush(): void
     {
-        Tenancy::central(function (): void {
+        self::isolated(function (): void {
             foreach (self::keys() as $key) {
                 Cache::forget($key);
             }
@@ -137,7 +161,7 @@ final class Metrics
      */
     public static function render(): string
     {
-        return Tenancy::central(self::renderAll(...));
+        return self::isolated(self::renderAll(...));
     }
 
     private static function renderAll(): string
@@ -216,7 +240,7 @@ final class Metrics
     /** Compteurs communs à toute la plateforme, jamais préfixés par locataire. */
     private static function add(string $key, int $by = 1): void
     {
-        Tenancy::central(fn () => Cache::increment(self::PREFIX . $key, $by));
+        self::isolated(fn () => Cache::increment(self::PREFIX . $key, $by));
     }
 
     private static function read(string $key): int
