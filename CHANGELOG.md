@@ -9,6 +9,14 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Frontières des paquets (roadmap §46, ADR 0012)** : `src/Core` peut être découpé en paquets (core, database,
+  redis, http, cache, queue, mail, storage, auth, tenancy, observability, openapi, debug, framework) sans aucune
+  dépendance circulaire, vérifié par `tests/Unit/Architecture/PackageBoundariesTest`. Les composants se
+  branchent désormais entre eux par des points d'extension publics, assemblés dans `Application::wire()` :
+  `Log::contextUsing()`, `Http\Client::headersUsing()`, `Event::queueUsing()`, `Cache::prefixUsing()`,
+  `Model::tenantScopeUsing()`, `Metrics::isolateUsing()`, `Queue::stampUsing()` / `wrapUsing()` / `afterUsing()`,
+  `Container::resolveUsing()`. `Env::debug()` porte la règle du mode debug.
+
 - **Starter « saas »** (roadmap §63), bâti sur le multi-locataire : organisations sous `/o/<slug>` (une organisation
   est un locataire), membres et rôles (propriétaire, administrateur, membre ; il reste toujours un propriétaire),
   invitations par email à usage unique et limitées à l'adresse invitée, projets d'exemple isolés par organisation,

@@ -41,7 +41,9 @@ dépôts Composer) n'interviendra qu'à zéro dépendance interdite, sans change
 
 ## Conséquences
 
-- 22 dépendances interdites au départ, à supprimer une par une, chaque étape testée.
+- 22 dépendances interdites au départ, supprimées en quatre étapes testées (reclassement de types génériques ;
+  points d'extension de `Log`, `Http\Client` et `Event` ; de `Cache`, `Model`, `Metrics` et `Queue` ;
+  résolveurs du `Container`). `PackageBoundariesTest` exige désormais zéro.
 - Les points d'extension ajoutés servent aussi aux applications (contexte de log, portée des modèles...).
 - La séparation physique et la publication de dépôts séparés restent à décider (hébergement, versions
   synchronisées ou non).
