@@ -9,6 +9,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **`ApiToken::revoke()` et `ApiToken::revokeAll()`** : déconnexion d'un appareil ou de tous, sans SQL écrit à la main.
+
 - **Starter « auth »** (roadmap §63), choisi à la création du projet : inscription, connexion, mot de passe
   oublié, vérification d'email, OAuth, double authentification, tableau de bord et page « Mon compte » (profil,
   mot de passe, suppression du compte et de ses jetons). Module `account` réutilisable par d'autres thèmes.
