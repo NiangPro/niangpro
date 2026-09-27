@@ -75,7 +75,7 @@ class Session
         self::$started = false;
     }
 
-    /** SESSION_DRIVER : 'file' garde le stockage natif de PHP, 'database' passe par DatabaseSessionHandler. */
+    /** SESSION_DRIVER : 'file' (stockage natif de PHP), 'database' (DatabaseSessionHandler) ou 'array' (tests). */
     private static function useConfiguredDriver(): void
     {
         $driver = (string) Config::get('session.driver', 'file');
@@ -84,8 +84,13 @@ class Session
             return;
         }
 
+        if ($driver === 'array') {
+            session_set_save_handler(new ArraySessionHandler(), true);
+            return;
+        }
+
         if ($driver !== 'database') {
-            throw new ConfigurationException("SESSION_DRIVER inconnu : « $driver » (attendu : file ou database).");
+            throw new ConfigurationException("SESSION_DRIVER inconnu : « $driver » (attendu : file, database ou array).");
         }
 
         // lifetime 0 = cookie jusqu'à la fermeture du navigateur : côté serveur, on garde alors la

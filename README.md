@@ -922,9 +922,19 @@ concaténation de valeurs utilisateur dans le SQL, nulle part.
 Cache::remember('posts.index', 60, fn () => Post::all()); // TTL 60s
 Cache::put('clé', $valeur, 300);
 Cache::forget('clé');
+
+Cache::increment('visites.accueil');      // 1, 2, 3... (0 si absente) ; decrement() aussi
+Cache::increment('stock.42', -3);
 ```
 
-Fichier (`storage/framework/cache/`) par défaut, pas de dépendance à Redis/Memcached.
+`increment()` et `decrement()` sont atomiques : deux requêtes simultanées ne perdent pas d'incrément
+(verrou sur fichier, ou compare-and-swap en base). Le TTL d'une valeur existante est conservé ; une valeur
+qui n'est pas un entier lève une erreur plutôt que d'être écrasée.
+
+Trois pilotes (`CACHE_DRIVER`) : `file` (défaut, `storage/framework/cache/`), `database` (voir ci-dessous)
+et `array` (mémoire du process, vidée à chaque requête : pour les tests et la CLI). Pas de dépendance à
+Redis/Memcached. `SESSION_DRIVER=array` existe aussi pour les tests (jamais pour un site : le visiteur
+serait déconnecté à chaque page). Avec `CACHE_DRIVER=array`, la limitation de débit reste sur fichier.
 
 ### Plusieurs serveurs web (sessions, cache et limitation de débit partagés)
 

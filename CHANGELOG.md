@@ -9,6 +9,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Cache : `increment()` / `decrement()` et pilote `array`** (roadmap §23-24). Incrément atomique
+  (verrou sur fichier ; compare-and-swap en base, sans verrou explicite, sur les trois moteurs), TTL
+  conservé, valeur non entière refusée. `CACHE_DRIVER=array` et `SESSION_DRIVER=array`
+  (`ArraySessionHandler`) : mémoire du process, pour les tests et la CLI. Vérifié avec 4 process
+  simultanés × 250 incréments : 1000 exactement, sur fichier comme sur MySQL.
+
 - **File d'attente en base de données et en mode synchrone** (roadmap §25) : `QUEUE_DRIVER=database`
   (tables `jobs` et `failed_jobs`, nouvelle migration) ou `sync`. Réservation atomique par `UPDATE`
   conditionnel, job d'un worker arrêté rendu à la file après `QUEUE_RETRY_AFTER`, mêmes retentatives
@@ -402,6 +408,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Fixed
 
+- **`Cache::put()` : avertissement « mkdir(): File exists »** quand deux requêtes simultanées créaient
+  le dossier du cache en même temps. Création désormais tolérante.
 - **N+1 dans `CheckoutController::store()` (thème `ecommerce`)** (audit de performance) : la
   revalidation du stock au moment de payer faisait un `Product::find()` par ligne du panier —
   mesuré : un panier de 3 articles distincts coûtait 2 requêtes `SELECT` de plus qu'un panier à un
