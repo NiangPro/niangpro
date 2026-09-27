@@ -45,7 +45,7 @@ class DeprecationTest extends TestCase
 
         $document = (string) file_get_contents(base_path('docs/API_STABILITY.md'));
 
-        foreach (glob(base_path('src/Core/{,*/}*.php'), GLOB_BRACE) ?: [] as $file) {
+        foreach (glob(base_path('packages/*/src/{,*/}*.php'), GLOB_BRACE) ?: [] as $file) {
             if (preg_match('/^ \* @experimental/m', (string) file_get_contents($file)) === 1) {
                 $class = basename($file, '.php');
                 $this->assertStringContainsString($class, $document, "$class est @experimental mais absent de docs/API_STABILITY.md");

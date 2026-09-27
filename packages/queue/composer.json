@@ -1,0 +1,25 @@
+{
+    "name": "niangpro/queue",
+    "description": "File d'attente, jobs et tâches planifiées.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "NiangProgrammeur"
+        }
+    ],
+    "homepage": "https://github.com/NiangPro/niangpro",
+    "require": {
+        "php": ">=8.1",
+        "niangpro/core": "self.version"
+    },
+    "suggest": {
+        "niangpro/database": "Pilotes et ponts optionnels vers database.",
+        "niangpro/redis": "Pilotes et ponts optionnels vers redis."
+    },
+    "autoload": {
+        "psr-4": {
+            "Niang\\Core\\": "src/"
+        }
+    }
+}

@@ -45,5 +45,8 @@ dépôts Composer) n'interviendra qu'à zéro dépendance interdite, sans change
   points d'extension de `Log`, `Http\Client` et `Event` ; de `Cache`, `Model`, `Metrics` et `Queue` ;
   résolveurs du `Container`). `PackageBoundariesTest` exige désormais zéro.
 - Les points d'extension ajoutés servent aussi aux applications (contexte de log, portée des modèles...).
-- La séparation physique et la publication de dépôts séparés restent à décider (hébergement, versions
-  synchronisées ou non).
+- Séparation physique faite : un dossier `packages/<nom>/` par paquet, avec son `composer.json`
+  (`niangpro/<nom>`, dépendances NiangPro en `self.version` : versions synchronisées). Le `composer.json`
+  racine charge tous les paquets (PSR-4 sur plusieurs dossiers) et les déclare en `replace`. Le paquet
+  d'assemblage s'appelle `niangpro/foundation` (`niangpro/framework` reste le nom du projet racine).
+- Publication de dépôts séparés : à venir.

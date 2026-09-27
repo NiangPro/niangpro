@@ -13,7 +13,21 @@ if (!function_exists('base_path')) {
     function base_path(string $path = ''): string
     {
         static $base;
-        $base ??= dirname(__DIR__);
+
+        // La racine du projet : le premier dossier parent qui a un composer.json et un vendor/ — que
+        // ce fichier soit dans packages/foundation/src/ (dépôt du framework, projet copié) ou dans
+        // vendor/niangpro/foundation/src/ (framework installé comme dépendance).
+        if ($base === null) {
+            $base = dirname(__DIR__, 3);
+
+            for ($dir = __DIR__; dirname($dir) !== $dir; $dir = dirname($dir)) {
+                if (is_file("$dir/composer.json") && is_dir("$dir/vendor")) {
+                    $base = $dir;
+                    break;
+                }
+            }
+        }
+
         return $path ? $base . '/' . ltrim($path, '/') : $base;
     }
 }

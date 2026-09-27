@@ -1,12 +1,12 @@
 parameters:
     level: 7
     paths:
-        - src
+        - packages
         - app
         - tests
         - resources/scaffold
     excludePaths:
-        - src/helpers.php
+        - packages/foundation/src/helpers.php
         # Dans resources/scaffold, seules les classes PHP des thèmes (contrôleurs, modèles, tests) sont
         # analysées : les vues, routes, configs et migrations sont des fichiers de gabarit, comme
         # resources/views/, routes/ et config/ à la racine, qui ne le sont pas non plus.

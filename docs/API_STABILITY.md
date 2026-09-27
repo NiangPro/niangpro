@@ -34,7 +34,7 @@ documenté). Ce document dit ce qui est couvert par cette promesse.
 - **Tests** : `Testing\TestCase`, `Testing\TestResponse`, `Testing\RefreshDatabase`.
 - **Console** : `Console\Command` (commandes sur mesure) et les commandes `niang` documentées.
 - **Exceptions** : toutes les classes de `Exceptions\` sauf `Handler`.
-- **Helpers globaux** de `src/helpers.php`.
+- **Helpers globaux** de `packages/foundation/src/helpers.php`.
 
 ## Expérimental
 

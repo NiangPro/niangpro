@@ -24,7 +24,24 @@ class ComposerHooks
      */
     public static function postCreateProject(object $event): void
     {
-        self::handle($event, dirname(__DIR__, 3), SiteTypePrompt::stdinIsInteractive(), new ProjectScaffolder());
+        // Pas de base_path() ici : Composer ne charge pas les fichiers « files » de l'autoload (les
+        // helpers) pour exécuter un script. La racine du projet est le parent de son vendor/.
+        $root = self::projectRoot($event) ?? dirname(__DIR__, 4);
+
+        self::handle($event, $root, SiteTypePrompt::stdinIsInteractive(), new ProjectScaffolder("$root/resources/scaffold"));
+    }
+
+    /** @param object $event un Composer\Script\Event */
+    private static function projectRoot(object $event): ?string
+    {
+        if (!method_exists($event, 'getComposer')) {
+            return null;
+        }
+
+        $composer = $event->getComposer();
+        $vendor = is_object($composer) && method_exists($composer, 'getConfig') ? $composer->getConfig()->get('vendor-dir') : null;
+
+        return is_string($vendor) && $vendor !== '' ? dirname($vendor) : null;
     }
 
     /**

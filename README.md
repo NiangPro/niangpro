@@ -76,7 +76,7 @@ app/Models/           Vos modèles (Active Record minimal)
 routes/web.php        Toutes vos routes
 resources/views/      Vues PHP natives (pas de moteur de template)
 resources/scaffold/   Thèmes de site proposés à la création d'un projet
-src/Core/              Le cœur du framework
+packages/<nom>/src/    Le framework, en paquets (core, http, database, auth...), namespace Niang\Core
 public/index.php      Point d'entrée unique
 ```
 
@@ -1998,7 +1998,7 @@ curl -L https://unpkg.com/htmx.org@2.x.x/dist/htmx.min.js -o public/js/htmx.js
 <script src="/js/htmx.js" defer></script>
 ```
 
-`json_for_html()` (`src/helpers.php`) passe des données PHP à Alpine en toute sécurité — sensible
+`json_for_html()` (`packages/foundation/src/helpers.php`) passe des données PHP à Alpine en toute sécurité — sensible
 en XSS, échappe en deux temps (JSON_HEX_* pour le contenu, puis `htmlspecialchars()` pour
 l'attribut HTML lui-même, qui casserait sinon dès que `$data` est un tableau) :
 
@@ -2028,7 +2028,7 @@ export default {
 
 `npm run build` construit dans `public/build/` (fichiers hashés, servis comme n'importe quel
 fichier statique) ; `npm run dev` démarre le serveur de dev Vite. `vite_asset(string $entry):
-string` (`src/helpers.php`) résout l'URL réelle sans jamais casser un lien à chaque build :
+string` (`packages/foundation/src/helpers.php`) résout l'URL réelle sans jamais casser un lien à chaque build :
 
 ```php
 <script type="module" src="<?= e(vite_asset('resources/js/app.js')) ?>"></script>

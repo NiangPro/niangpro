@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
  */
 class PackageBoundariesTest extends TestCase
 {
-    /** @var array<string, array{match: list<string>, requires: list<string>, suggests?: list<string>}> */
+    /** @var array<string, array{description: string, requires: list<string>, suggests?: list<string>, psr?: list<string>}> */
     private array $packages;
 
     protected function setUp(): void
@@ -27,10 +27,44 @@ class PackageBoundariesTest extends TestCase
             . "\nRemplacez-la par un point d'extension du paquet de bas niveau, branché dans Application::wire().");
     }
 
-    public function test_every_class_belongs_to_a_package(): void
+    public function test_every_package_folder_is_declared(): void
     {
-        foreach ($this->classes() as $class => $file) {
-            $this->assertNotNull($this->packageOf($class), $class);
+        $folders = array_map('basename', glob($this->root() . '/*', GLOB_ONLYDIR) ?: []);
+        sort($folders);
+        $declared = array_keys($this->packages);
+        sort($declared);
+
+        $this->assertSame($declared, $folders);
+    }
+
+    public function test_each_composer_json_matches_the_declared_dependencies(): void
+    {
+        $version = json_decode((string) file_get_contents(dirname($this->root()) . '/composer.json'), true);
+
+        foreach ($this->packages as $name => $package) {
+            $file = $this->root() . "/$name/composer.json";
+            $this->assertFileExists($file);
+            $composer = json_decode((string) file_get_contents($file), true);
+
+            $this->assertSame("niangpro/$name", $composer['name'] ?? null, $file);
+            $this->assertSame($package['description'], $composer['description'] ?? null, $file);
+            $this->assertSame(['Niang\\Core\\' => 'src/'], $composer['autoload']['psr-4'] ?? null, $file);
+
+            $requires = array_keys($composer['require'] ?? []);
+            $expected = ['php', ...array_map(fn ($p) => "niangpro/$p", $package['requires']), ...($package['psr'] ?? [])];
+            sort($requires);
+            sort($expected);
+            $this->assertSame($expected, $requires, "require de $file");
+
+            foreach ($package['psr'] ?? [] as $psr) {
+                $this->assertSame($version['require'][$psr], $composer['require'][$psr], "$psr dans $file : même contrainte que le composer.json racine");
+            }
+
+            $suggests = array_keys($composer['suggest'] ?? []);
+            $expected = array_map(fn ($p) => "niangpro/$p", $package['suggests'] ?? []);
+            sort($suggests);
+            sort($expected);
+            $this->assertSame($expected, $suggests, "suggest de $file");
         }
     }
 
@@ -40,16 +74,11 @@ class PackageBoundariesTest extends TestCase
         $classes = $this->classes();
         $violations = [];
 
-        foreach ($classes as $class => $file) {
-            $from = (string) $this->packageOf($class);
+        foreach ($classes as $class => [$from, $file]) {
             $allowed = [$from, ...$this->packages[$from]['requires'], ...($this->packages[$from]['suggests'] ?? [])];
 
-            if (in_array('*', $allowed, true)) {
-                continue;
-            }
-
             foreach ($this->references($class, $file, $classes) as $target) {
-                $to = (string) $this->packageOf($target);
+                $to = $classes[$target][0];
 
                 if (!in_array($to, $allowed, true)) {
                     $violations["$from: $class → $target ($to)"] = true;
@@ -62,28 +91,25 @@ class PackageBoundariesTest extends TestCase
         return $violations;
     }
 
-    private function packageOf(string $class): ?string
+    private function root(): string
     {
-        foreach ($this->packages as $name => $package) {
-            foreach ($package['match'] as $pattern) {
-                if (preg_match('#' . $pattern . '#', $class) === 1) {
-                    return $name;
-                }
-            }
-        }
-
-        return null;
+        return dirname(__DIR__, 3) . '/packages';
     }
 
-    /** @return array<string, string> nom court (sans Niang\Core\) => fichier */
+    /** @return array<string, array{0: string, 1: string}> nom court (sans Niang\Core\) => [paquet, fichier] */
     private function classes(): array
     {
-        $root = dirname(__DIR__, 3) . '/src/Core';
         $classes = [];
 
-        foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS)) as $file) {
-            if ($file->getExtension() === 'php') {
-                $classes[str_replace('/', '\\', substr($file->getPathname(), strlen($root) + 1, -4))] = $file->getPathname();
+        foreach (glob($this->root() . '/*/src', GLOB_ONLYDIR) ?: [] as $src) {
+            $package = basename(dirname($src));
+
+            foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($src, \FilesystemIterator::SKIP_DOTS)) as $file) {
+                $relative = substr($file->getPathname(), strlen($src) + 1, -4);
+
+                if ($file->getExtension() === 'php' && $relative !== 'helpers') {
+                    $classes[str_replace('/', '\\', $relative)] = [$package, $file->getPathname()];
+                }
             }
         }
 

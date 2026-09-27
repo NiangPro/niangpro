@@ -16,6 +16,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
   `Log::contextUsing()`, `Http\Client::headersUsing()`, `Event::queueUsing()`, `Cache::prefixUsing()`,
   `Model::tenantScopeUsing()`, `Metrics::isolateUsing()`, `Queue::stampUsing()` / `wrapUsing()` / `afterUsing()`,
   `Container::resolveUsing()`. `Env::debug()` porte la règle du mode debug.
+- **Un dossier par paquet** : `src/Core/` est réparti dans `packages/<nom>/src/` (14 paquets `niangpro/<nom>`, chacun
+  avec son `composer.json`, dépendances vérifiées par `PackageBoundariesTest`). Namespaces inchangés
+  (`Niang\Core\...`) : rien à modifier dans une application. `base_path()` trouve la racine du projet quel que soit
+  l'emplacement du framework (premier parent avec `composer.json` et `vendor/`). Vérifié avec un vrai
+  `composer create-project` (thèmes vitrine, blog, saas).
 
 - **Starter « saas »** (roadmap §63), bâti sur le multi-locataire : organisations sous `/o/<slug>` (une organisation
   est un locataire), membres et rôles (propriétaire, administrateur, membre ; il reste toujours un propriétaire),

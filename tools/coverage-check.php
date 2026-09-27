@@ -15,18 +15,18 @@ const GLOBAL_MINIMUM = 78.0;
 
 /** Composant => [seuil en %, fichiers ou dossiers (relatifs à la racine)] */
 const COMPONENTS = [
-    'Router' => [85.0, ['src/Core/Router.php', 'src/Core/RouteRegistration.php', 'src/Core/RouteCache.php']],
-    'Container' => [90.0, ['src/Core/Container.php']],
-    'Database' => [85.0, ['src/Core/Database/']],
+    'Router' => [85.0, ['packages/http/src/Router.php', 'packages/http/src/RouteRegistration.php', 'packages/http/src/RouteCache.php']],
+    'Container' => [90.0, ['packages/core/src/Container.php']],
+    'Database' => [85.0, ['packages/database/src/Database/']],
     'Auth' => [90.0, [
-        'src/Core/Auth.php', 'src/Core/ApiToken.php', 'src/Core/Gate.php', 'src/Core/Hash.php',
-        'src/Core/Totp.php', 'src/Core/TwoFactor.php', 'src/Core/OAuth.php', 'src/Core/OAuth/',
+        'packages/auth/src/Auth.php', 'packages/auth/src/ApiToken.php', 'packages/auth/src/Gate.php', 'packages/auth/src/Hash.php',
+        'packages/auth/src/Totp.php', 'packages/auth/src/TwoFactor.php', 'packages/auth/src/OAuth.php', 'packages/auth/src/OAuth/',
     ]],
-    'Validation' => [90.0, ['src/Core/Validation/']],
-    'HTTP' => [80.0, ['src/Core/Http/']],
+    'Validation' => [90.0, ['packages/http/src/Validation/']],
+    'HTTP' => [80.0, ['packages/core/src/Http/', 'packages/http/src/Http/']],
     'Sécurité' => [90.0, [
-        'src/Core/Crypt.php', 'src/Core/Csrf.php', 'src/Core/UrlSignature.php', 'src/Core/AppKey.php',
-        'src/Core/Cors.php', 'src/Core/RateLimiter.php', 'src/Core/MaintenanceMode.php', 'src/Core/Env.php',
+        'packages/core/src/Crypt.php', 'packages/http/src/Csrf.php', 'packages/core/src/UrlSignature.php', 'packages/core/src/AppKey.php',
+        'packages/http/src/Cors.php', 'packages/cache/src/RateLimiter.php', 'packages/http/src/MaintenanceMode.php', 'packages/core/src/Env.php',
     ]],
 ];
 

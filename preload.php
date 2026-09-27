@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Préchargement OPcache des classes du noyau (src/Core/**\/*.php) : à brancher via
+ * Préchargement OPcache des classes du framework (packages/*/src/**\/*.php) : à brancher via
  * `opcache.preload=/chemin/vers/preload.php` dans le php.ini du serveur — un réglage de
  * déploiement, jamais quelque chose que `niang optimize` (une requête CLI ponctuelle) peut
  * activer lui-même. Voir docs/ROADMAP_TECHNIQUE.md, section OPcache / production, pour le
@@ -18,7 +18,7 @@ if (!function_exists('opcache_compile_file')) {
 }
 
 $files = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator(__DIR__ . '/src/Core', FilesystemIterator::SKIP_DOTS)
+    new RecursiveDirectoryIterator(__DIR__ . '/packages', FilesystemIterator::SKIP_DOTS)
 );
 
 foreach ($files as $file) {

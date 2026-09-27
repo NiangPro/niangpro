@@ -46,7 +46,7 @@ class ProjectScaffolder
 
     public function __construct(?string $scaffoldPath = null)
     {
-        $this->scaffoldPath = rtrim($scaffoldPath ?? dirname(__DIR__, 3) . '/resources/scaffold', '/');
+        $this->scaffoldPath = rtrim($scaffoldPath ?? base_path('resources/scaffold'), '/');
     }
 
     /**
