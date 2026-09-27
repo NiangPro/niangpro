@@ -7,6 +7,7 @@ namespace Niang\Core\Queue;
 use Niang\Core\Config;
 use Niang\Core\Job;
 use Niang\Core\Log;
+use Niang\Core\Queue;
 use Niang\Core\Redis;
 
 /**
@@ -89,12 +90,16 @@ final class RedisQueue
                     continue;
                 }
 
+                $context = Queue::enterJobContext($job);
+
                 try {
                     $job->handle();
                     $processed++;
                     self::forget($id, $reserved);
                 } catch (\Throwable $e) {
                     self::fail($envelope, $job, $e, $reserved, $delayed, $baseBackoff);
+                } finally {
+                    Queue::leaveJobContext($context);
                 }
             }
         }

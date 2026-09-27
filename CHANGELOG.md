@@ -9,6 +9,13 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Corrélation et logs structurés** (roadmap §53) : chaque réponse porte un en-tête `X-Request-Id` (repris
+  du répartiteur de charge s'il est raisonnable), ajouté à chaque ligne de log de la requête. Contexte de
+  trace W3C : un `traceparent` entrant est rejoint, et `Http\Client` le propage aux services appelés
+  (webhooks, OAuth, S3). Un job mis en file garde le `request_id` de sa requête dans les logs du worker.
+  `LOG_FORMAT=json` : un objet JSON par ligne (exceptions, objets et UTF-8 invalide pris en charge).
+  `Log::withContext()` ajoute un contexte à tous les messages suivants. Vérifié sur un vrai serveur.
+
 - **Modifier une colonne : `->change()`** (roadmap §4.4), sur les trois moteurs. SQLite, qui n'a pas
   d'`ALTER COLUMN`, reconstruit la table (procédure officielle : données, index et clés étrangères conservés,
   clés étrangères suspendues le temps de l'opération). Testé sur SQLite et MySQL (dont la clé étrangère d'une

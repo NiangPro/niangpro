@@ -10,6 +10,12 @@ return [
     'syslog_ident' => env('LOG_SYSLOG_IDENT', 'niangpro'),
 
     /*
+     * 'line' (défaut, lisible) ou 'json' : un objet par ligne (timestamp, level, message, context,
+     * request_id), pour un agrégateur de logs (Loki, Elasticsearch, CloudWatch, Datadog...).
+     */
+    'format' => env('LOG_FORMAT', 'line'),
+
+    /*
      * Niveau minimal écrit dans storage/logs/ : 'debug' (tout, le défaut) ... 'emergency'. En
      * production, 'info' ou 'warning' évitent de remplir le disque de messages de débogage.
      */

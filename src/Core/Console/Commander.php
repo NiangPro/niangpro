@@ -1276,6 +1276,12 @@ class Commander
             $results[] = ['warn', 'LOG_LEVEL=debug en production — préférez info ou warning pour ne pas remplir le disque'];
         }
 
+        $logFormat = (string) Config::get('logging.format', 'line');
+
+        if (!in_array($logFormat, ['line', 'json'], true)) {
+            $results[] = ['warn', "LOG_FORMAT inconnu : « $logFormat » — format 'line' utilisé (attendu : line, json)"];
+        }
+
         return $results;
     }
 

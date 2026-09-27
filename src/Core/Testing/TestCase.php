@@ -11,10 +11,12 @@ use Niang\Core\Database\Migrator;
 use Niang\Core\Event;
 use Niang\Core\Gate;
 use Niang\Core\Http\Request;
+use Niang\Core\Log;
 use Niang\Core\Notification;
 use Niang\Core\Queue;
 use Niang\Core\RateLimiter;
 use Niang\Core\Session;
+use Niang\Core\Trace;
 use PHPUnit\Framework\TestCase as BaseTestCase;
 
 /**
@@ -51,6 +53,8 @@ abstract class TestCase extends BaseTestCase
         RateLimiter::reset();
         Notification::reset();
         Gate::reset();
+        Trace::reset();
+        Log::flushSharedContext();
         unset($_COOKIE[Auth::REMEMBER_COOKIE]);
 
         // Construit avant Session::start() : charge config/session.php (lifetime, cookie secure...).

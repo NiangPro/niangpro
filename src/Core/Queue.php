@@ -81,6 +81,8 @@ class Queue
                 continue;
             }
 
+            $context = self::enterJobContext($job);
+
             try {
                 $job->handle();
                 $processed++;
@@ -88,6 +90,8 @@ class Queue
             } catch (\Throwable $e) {
                 @unlink($claimed);
                 self::handleFailure($envelope, $job, $e);
+            } finally {
+                self::leaveJobContext($context);
             }
         }
 
@@ -230,9 +234,37 @@ class Queue
         }
     }
 
+    /**
+     * @internal pendant l'exécution d'un job, ses logs portent le request_id de la requête qui l'a
+     * mis en file : une commande et l'email envoyé en arrière-plan se retrouvent ensemble.
+     *
+     * @return array<string, mixed> le contexte à rendre à leaveJobContext()
+     */
+    public static function enterJobContext(Job $job): array
+    {
+        $previous = Log::sharedContext();
+
+        if ($job->requestId !== null) {
+            Log::withContext(['request_id' => $job->requestId]);
+        }
+
+        return $previous;
+    }
+
+    /** @internal @param array<string, mixed> $previous */
+    public static function leaveJobContext(array $previous): void
+    {
+        Log::flushSharedContext();
+        Log::withContext($previous);
+    }
+
     private static function store(Job $job, string $queue, int $availableAt): string
     {
         $id = uniqid('job_', true);
+
+        if (Trace::active()) {
+            $job->requestId ??= Trace::requestId();
+        }
 
         if (self::driver() === 'redis') {
             Queue\RedisQueue::store(['id' => $id, 'queue' => $queue, 'attempts' => 0, 'available_at' => $availableAt, 'job' => base64_encode(serialize($job))]);
@@ -305,12 +337,16 @@ class Queue
                 continue;
             }
 
+            $context = self::enterJobContext($job);
+
             try {
                 $job->handle();
                 $processed++;
                 DB::statement('DELETE FROM jobs WHERE id = ?', [$row['id']]);
             } catch (\Throwable $e) {
                 self::handleDatabaseFailure($row, $job, $e);
+            } finally {
+                self::leaveJobContext($context);
             }
         }
 

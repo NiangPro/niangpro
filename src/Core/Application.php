@@ -196,6 +196,7 @@ class Application
     {
         $startedAt = hrtime(true);
         DB::resetQueryCount();
+        Trace::begin($request);
 
         try {
             // Dans le try : un écouteur qui échoue donne une page d'erreur, pas une requête plantée.
@@ -206,6 +207,7 @@ class Application
         }
 
         $response = $this->applySecurityHeaders($response)->withQueuedCookies(Cookie::pullQueued());
+        $response->header('X-Request-Id', Trace::requestId());
         $response = DebugToolbar::inject($response, $startedAt);
 
         self::fire(new Events\ResponsePrepared($request, $response));
