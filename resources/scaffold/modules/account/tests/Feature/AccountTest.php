@@ -32,7 +32,7 @@ class AccountTest extends TestCase
         }
     }
 
-    public function test_registering_signs_the_member_in_and_opens_the_dashboard(): void
+    public function test_registering_signs_the_member_in_and_opens_the_member_home(): void
     {
         $this->post('/register', [
             '_token' => Csrf::token(),
@@ -40,10 +40,9 @@ class AccountTest extends TestCase
             'email' => 'moussa@example.com',
             'password' => 'secret123',
             'password_confirmation' => 'secret123',
-        ])->assertRedirect('/tableau-de-bord');
+        ])->assertRedirect(User::homePath(null));
 
         $this->assertSame('moussa@example.com', Auth::user()['email']);
-        $this->get('/tableau-de-bord')->assertOk()->assertSee('Moussa Ndiaye');
     }
 
     public function test_logging_in_and_out(): void
@@ -53,7 +52,7 @@ class AccountTest extends TestCase
         $this->post('/login', ['_token' => Csrf::token(), 'email' => 'awa@example.com', 'password' => 'mauvais'])->assertRedirect('/login');
         $this->assertNull(Auth::user());
 
-        $this->post('/login', ['_token' => Csrf::token(), 'email' => 'awa@example.com', 'password' => 'secret123'])->assertRedirect('/tableau-de-bord');
+        $this->post('/login', ['_token' => Csrf::token(), 'email' => 'awa@example.com', 'password' => 'secret123'])->assertRedirect(User::homePath(null));
         $this->assertNotNull(Auth::user());
 
         $this->post('/logout', ['_token' => Csrf::token()])->assertRedirect('/');
@@ -62,7 +61,7 @@ class AccountTest extends TestCase
 
     public function test_member_pages_need_a_login(): void
     {
-        foreach (['/tableau-de-bord', '/compte', '/user/two-factor'] as $uri) {
+        foreach (['/compte', '/user/two-factor', User::homePath(null)] as $uri) {
             $this->get($uri)->assertRedirect('/login');
         }
     }

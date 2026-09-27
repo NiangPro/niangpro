@@ -9,6 +9,15 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Starter « saas »** (roadmap §63), bâti sur le multi-locataire : organisations sous `/o/<slug>` (une organisation
+  est un locataire), membres et rôles (propriétaire, administrateur, membre ; il reste toujours un propriétaire),
+  invitations par email à usage unique et limitées à l'adresse invitée, projets d'exemple isolés par organisation,
+  plans et limites (`config/billing.php`), abonnements derrière l'interface `App\Billing\BillingProvider`
+  (fournisseur « fake » pour le développement, refusé en production). Suppression d'un compte : refusée pour le
+  dernier propriétaire d'une organisation partagée, sinon ses appartenances et organisations solitaires partent
+  avec lui (point d'extension `site.before_account_deletion` du module account). Testé dans un projet créé, sur
+  SQLite et MySQL, et de bout en bout sur un vrai serveur.
+
 - **Starter « api »** (roadmap §63) : API REST JSON versionnée (`/api/v1`) — inscription et connexion par jeton
   (double authentification comprise), déconnexion de l'appareil, `/me`, ressource d'exemple `notes` (CRUD paginé,
   isolée par compte : 404 pour les notes d'un autre), CORS avec préflight, limitation de débit, erreurs toujours en

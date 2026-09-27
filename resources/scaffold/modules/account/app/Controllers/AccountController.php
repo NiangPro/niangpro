@@ -77,15 +77,34 @@ class AccountController extends Controller
             return $this->redirect('/compte')->with('errors', ['delete_password' => ['Mot de passe incorrect.']]);
         }
 
-        DB::transaction(function () use ($user): void {
-            DB::statement('DELETE FROM personal_access_tokens WHERE user_id = ?', [$user['id']]);
-            DB::statement('DELETE FROM password_reset_tokens WHERE email = ?', [$user['email']]);
-            DB::statement('DELETE FROM notifications WHERE notifiable_type = ? AND notifiable_id = ?', [Notification::notifiableType(), (string) $user['id']]);
-            User::forceDestroy($user['id']);
-        });
+        // config('site.before_account_deletion') : callable qui nettoie les données liées au compte, ou
+        // refuse la suppression en renvoyant un message (ex. dernier propriétaire d'une organisation).
+        $hook = config('site.before_account_deletion');
+
+        try {
+            DB::transaction(function () use ($user, $hook): void {
+                $refusal = is_callable($hook) ? $hook($user) : null;
+
+                if (is_string($refusal)) {
+                    throw new \DomainException($refusal);
+                }
+
+                $this->deleteAccount($user);
+            });
+        } catch (\DomainException $e) {
+            return $this->redirect('/compte')->with('errors', ['delete_password' => [$e->getMessage()]]);
+        }
 
         Auth::logout();
 
         return $this->redirect('/')->with('success', 'Votre compte a été supprimé.');
+    }
+
+    private function deleteAccount(array $user): void
+    {
+        DB::statement('DELETE FROM personal_access_tokens WHERE user_id = ?', [$user['id']]);
+        DB::statement('DELETE FROM password_reset_tokens WHERE email = ?', [$user['email']]);
+        DB::statement('DELETE FROM notifications WHERE notifiable_type = ? AND notifiable_id = ?', [Notification::notifiableType(), (string) $user['id']]);
+        User::forceDestroy($user['id']);
     }
 }

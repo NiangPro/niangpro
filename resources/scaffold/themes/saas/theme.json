@@ -1,0 +1,14 @@
+{
+    "label": "SaaS (organisations, membres, abonnements)",
+    "order": 80,
+    "modules": ["account"],
+    "setup": ["migrate"],
+    "next_steps": [
+        "./bin/niang migrate",
+        "./bin/niang serve"
+    ],
+    "notes": [
+        "Créez un compte sur /register, puis votre première organisation : ses pages vivent sous /o/<slug>.",
+        "Paiement : le fournisseur « fake » active les abonnements sans paiement réel. Branchez le vôtre en implémentant App\\Billing\\BillingProvider (voir config/billing.php)."
+    ]
+}

@@ -1,0 +1,5 @@
+/* Thème SaaS : le design system partagé (niang.css) plus la barre d'organisation. */
+.theme-saas .site-header__actions form { margin: 0; }
+.team-bar { border-bottom: 1px solid var(--border); background: var(--surface); }
+.team-bar__inner { display: flex; flex-wrap: wrap; gap: var(--space-4); align-items: center; justify-content: space-between; padding-block: var(--space-3); }
+.team-bar a[aria-current="page"] { font-weight: 600; text-decoration: underline; text-underline-offset: .3em; }
