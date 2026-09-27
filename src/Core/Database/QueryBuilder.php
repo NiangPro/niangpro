@@ -24,6 +24,7 @@ class QueryBuilder
     /** @var list<array{query: QueryBuilder, all: bool}> */
     private array $unions = [];
     private ?string $connection = null;
+    private ?Grammar\Grammar $grammar = null;
 
     /** @var class-string<Model>|null Model dont les $casts s'appliquent aux lignes lues (voir Model::query()). */
     private ?string $model = null;
@@ -45,7 +46,7 @@ class QueryBuilder
 
     public function select(string ...$columns): static
     {
-        $this->columns = implode(', ', $columns);
+        $this->columns = implode(', ', array_map(fn (string $column) => $this->wrapIfIdentifier($column), $columns));
         return $this;
     }
 
@@ -60,7 +61,7 @@ class QueryBuilder
         self::assertIdentifier($column);
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
         $operator = self::assertOperator($operator);
-        $this->wheres[] = [$this->wheres ? 'AND' : '', "$column $operator ?"];
+        $this->wheres[] = [$this->wheres ? 'AND' : '', $this->wrap($column) . " $operator ?"];
         $this->bindings[] = $value;
         return $this;
     }
@@ -70,7 +71,7 @@ class QueryBuilder
         self::assertIdentifier($column);
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
         $operator = self::assertOperator($operator);
-        $this->wheres[] = ['OR', "$column $operator ?"];
+        $this->wheres[] = ['OR', $this->wrap($column) . " $operator ?"];
         $this->bindings[] = $value;
         return $this;
     }
@@ -79,7 +80,7 @@ class QueryBuilder
     {
         self::assertIdentifier($column);
         $placeholders = implode(', ', array_fill(0, count($values), '?'));
-        $this->wheres[] = [$this->wheres ? 'AND' : '', "$column IN ($placeholders)"];
+        $this->wheres[] = [$this->wheres ? 'AND' : '', $this->wrap($column) . " IN ($placeholders)"];
         array_push($this->bindings, ...$values);
         return $this;
     }
@@ -93,7 +94,7 @@ class QueryBuilder
         }
 
         $placeholders = implode(', ', array_fill(0, count($values), '?'));
-        $this->wheres[] = [$this->wheres ? 'AND' : '', "$column NOT IN ($placeholders)"];
+        $this->wheres[] = [$this->wheres ? 'AND' : '', $this->wrap($column) . " NOT IN ($placeholders)"];
         array_push($this->bindings, ...$values);
         return $this;
     }
@@ -141,14 +142,14 @@ class QueryBuilder
     public function whereNull(string $column): static
     {
         self::assertIdentifier($column);
-        $this->wheres[] = [$this->wheres ? 'AND' : '', "$column IS NULL"];
+        $this->wheres[] = [$this->wheres ? 'AND' : '', $this->wrap($column) . ' IS NULL'];
         return $this;
     }
 
     public function whereNotNull(string $column): static
     {
         self::assertIdentifier($column);
-        $this->wheres[] = [$this->wheres ? 'AND' : '', "$column IS NOT NULL"];
+        $this->wheres[] = [$this->wheres ? 'AND' : '', $this->wrap($column) . ' IS NOT NULL'];
         return $this;
     }
 
@@ -156,7 +157,7 @@ class QueryBuilder
     public function whereBetween(string $column, array $range): static
     {
         self::assertIdentifier($column);
-        $this->wheres[] = [$this->wheres ? 'AND' : '', "$column BETWEEN ? AND ?"];
+        $this->wheres[] = [$this->wheres ? 'AND' : '', $this->wrap($column) . ' BETWEEN ? AND ?'];
         $this->bindings[] = $range[0];
         $this->bindings[] = $range[1];
         return $this;
@@ -166,7 +167,7 @@ class QueryBuilder
     public function whereNotBetween(string $column, array $range): static
     {
         self::assertIdentifier($column);
-        $this->wheres[] = [$this->wheres ? 'AND' : '', "$column NOT BETWEEN ? AND ?"];
+        $this->wheres[] = [$this->wheres ? 'AND' : '', $this->wrap($column) . ' NOT BETWEEN ? AND ?'];
         $this->bindings[] = $range[0];
         $this->bindings[] = $range[1];
         return $this;
@@ -176,7 +177,7 @@ class QueryBuilder
     public function whereDate(string $column, string $date): static
     {
         self::assertIdentifier($column);
-        $this->wheres[] = [$this->wheres ? 'AND' : '', "DATE($column) = ?"];
+        $this->wheres[] = [$this->wheres ? 'AND' : '', 'DATE(' . $this->wrap($column) . ') = ?'];
         $this->bindings[] = $date;
         return $this;
     }
@@ -188,7 +189,7 @@ class QueryBuilder
         $operator = self::assertOperator($operator);
         self::assertIdentifier($first);
         self::assertIdentifier($second);
-        $this->wheres[] = [$this->wheres ? 'AND' : '', "$first $operator $second"];
+        $this->wheres[] = [$this->wheres ? 'AND' : '', $this->wrap($first) . " $operator " . $this->wrap($second)];
         return $this;
     }
 
@@ -209,7 +210,7 @@ class QueryBuilder
         self::assertIdentifier($first);
         self::assertIdentifier($second);
         $operator = self::assertOperator($operator);
-        $this->joins[] = "$type $table ON $first $operator $second";
+        $this->joins[] = "$type " . $this->wrap($table) . ' ON ' . $this->wrap($first) . " $operator " . $this->wrap($second);
         return $this;
     }
 
@@ -218,7 +219,7 @@ class QueryBuilder
         self::assertIdentifier($column);
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
         $operator = self::assertOperator($operator);
-        $this->havings[] = "$column $operator ?";
+        $this->havings[] = $this->wrap($column) . " $operator ?";
         $this->havingBindings[] = $value;
         return $this;
     }
@@ -241,7 +242,7 @@ class QueryBuilder
             throw new \InvalidArgumentException("Sens de tri invalide : « $direction » (« asc » ou « desc » attendu).");
         }
 
-        $this->orderByClause = "$column $direction";
+        $this->orderByClause = $this->wrap($column) . " $direction";
         return $this;
     }
 
@@ -251,7 +252,7 @@ class QueryBuilder
             self::assertIdentifier($column);
         }
 
-        $this->groupByColumns = $columns;
+        $this->groupByColumns = array_map(fn (string $column) => $this->wrap($column), $columns);
         return $this;
     }
 
@@ -269,6 +270,28 @@ class QueryBuilder
         if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$/', $value)) {
             throw new \InvalidArgumentException("Identifiant de colonne ou de table invalide : « $value ».");
         }
+    }
+
+    /**
+     * Identifiant entre guillemets du moteur (`rank` en MySQL, "rank" ailleurs) : une colonne nommée
+     * comme un mot réservé (rank, order, group, key...) fonctionne partout. « table.colonne » devient
+     * "table"."colonne", « table.* » garde son *. L'identifiant a déjà été validé (assertIdentifier).
+     */
+    private function wrap(string $identifier): string
+    {
+        if ($identifier === '*') {
+            return '*';
+        }
+
+        $this->grammar ??= DB::grammar();
+
+        return implode('.', array_map(fn (string $part) => $part === '*' ? '*' : $this->grammar->wrap($part), explode('.', $identifier)));
+    }
+
+    /** select() : identifiant (id, posts.title, posts.*) entouré ; expression (COUNT(*) as n) laissée telle quelle. */
+    private function wrapIfIdentifier(string $column): string
+    {
+        return preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*(\.([a-zA-Z_][a-zA-Z0-9_]*|\*))?$/', trim($column)) === 1 ? $this->wrap(trim($column)) : $column;
     }
 
     private const OPERATORS = ['=', '!=', '<>', '<', '<=', '>', '>=', 'LIKE', 'NOT LIKE'];
@@ -351,7 +374,7 @@ class QueryBuilder
 
         // Sur une union, réduire les colonnes d'un seul membre déséquilibrerait l'union.
         if ($this->unions === []) {
-            $this->columns = $key !== null && $key !== $column ? "$column, $key" : $column;
+            $this->columns = $key !== null && $key !== $column ? $this->wrap($column) . ', ' . $this->wrap($key) : $this->wrap($column);
         }
 
         try {
@@ -381,7 +404,7 @@ class QueryBuilder
         }
 
         $query = clone $this;
-        $query->orderByClause ??= 'id ASC';
+        $query->orderByClause ??= $this->wrap('id') . ' ASC';
 
         for ($page = 1; ; $page++) {
             $rows = (clone $query)->limit($size)->offset(($page - 1) * $size)->get();
@@ -491,14 +514,14 @@ class QueryBuilder
     private function aggregate(string $function, string $column): mixed
     {
         if ($this->unions !== []) {
-            $sql = "SELECT $function($column) as aggregate FROM (" . $this->unionSql() . ') AS np_union';
+            $sql = "SELECT $function(" . $this->wrap($column) . ') as aggregate FROM (' . $this->unionSql() . ') AS np_union';
             $result = DB::selectOne($sql, $this->allBindings(), $this->connection ?? 'read');
 
             return $result['aggregate'] ?? 0;
         }
 
         $original = $this->columns;
-        $this->columns = "$function($column) as aggregate";
+        $this->columns = "$function(" . $this->wrap($column) . ') as aggregate';
         $result = DB::selectOne($this->toSql(), $this->allBindings(), $this->connection ?? 'read');
         $this->columns = $original;
         return $result['aggregate'] ?? 0;
@@ -512,8 +535,8 @@ class QueryBuilder
 
         $sql = sprintf(
             'INSERT INTO %s (%s) VALUES (%s)',
-            $this->table,
-            implode(', ', $columns),
+            $this->wrap($this->table),
+            implode(', ', array_map(fn ($column) => $this->wrap((string) $column), $columns)),
             implode(', ', $placeholders)
         );
 
@@ -526,8 +549,8 @@ class QueryBuilder
             self::assertIdentifier((string) $column);
         }
 
-        $assignments = implode(', ', array_map(fn ($column) => "$column = ?", array_keys($data)));
-        $sql = "UPDATE {$this->table} SET $assignments" . $this->whereSql();
+        $assignments = implode(', ', array_map(fn ($column) => $this->wrap((string) $column) . ' = ?', array_keys($data)));
+        $sql = 'UPDATE ' . $this->wrap($this->table) . " SET $assignments" . $this->whereSql();
 
         return DB::statement($sql, [...array_values($data), ...$this->bindings], $this->connection ?? 'write');
     }
@@ -555,15 +578,16 @@ class QueryBuilder
             self::assertIdentifier((string) $name);
         }
 
-        $assignments = ["$column = $column + ?", ...array_map(fn ($name) => "$name = ?", array_keys($extra))];
-        $sql = "UPDATE {$this->table} SET " . implode(', ', $assignments) . $this->whereSql();
+        $wrapped = $this->wrap($column);
+        $assignments = ["$wrapped = $wrapped + ?", ...array_map(fn ($name) => $this->wrap((string) $name) . ' = ?', array_keys($extra))];
+        $sql = 'UPDATE ' . $this->wrap($this->table) . ' SET ' . implode(', ', $assignments) . $this->whereSql();
 
         return DB::statement($sql, [$amount, ...array_values($extra), ...$this->bindings], $this->connection ?? 'write');
     }
 
     public function delete(): bool
     {
-        $sql = "DELETE FROM {$this->table}" . $this->whereSql();
+        $sql = 'DELETE FROM ' . $this->wrap($this->table) . $this->whereSql();
         return DB::statement($sql, $this->bindings, $this->connection ?? 'write');
     }
 
@@ -613,7 +637,7 @@ class QueryBuilder
 
     private function selectSql(): string
     {
-        $sql = 'SELECT ' . ($this->distinct ? 'DISTINCT ' : '') . $this->columns . " FROM {$this->table}";
+        $sql = 'SELECT ' . ($this->distinct ? 'DISTINCT ' : '') . $this->columns . ' FROM ' . $this->wrap($this->table);
 
         foreach ($this->joins as $join) {
             $sql .= " $join";

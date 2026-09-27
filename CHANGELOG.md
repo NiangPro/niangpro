@@ -530,6 +530,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Fixed
 
+- **Colonnes nommées comme un mot réservé SQL** (`rank`, `order`, `group`, `key`...) : le Query Builder
+  n'entourait jamais les identifiants de guillemets, si bien que toute requête sur une telle colonne échouait
+  sous MySQL (erreur de syntaxe 1064). Les tables et colonnes sont désormais entourées selon le moteur
+  (`` `rank` `` en MySQL, `"rank"` ailleurs) ; une expression passée à `select()` (`COUNT(*) as n`) reste
+  telle quelle. `tests/Database/ReservedWordsTest.php` échoue sur l'ancien code avec MySQL (vérifié).
 - **Relevé par PHPStan niveau 7**, chaque cas couvert par `tests/Unit/RobustnessTest.php` (qui échoue sur
   l'ancien code) :
   - `Response::json()` levait une `TypeError` si une donnée contenait de l'UTF-8 invalide (ancienne ligne en
