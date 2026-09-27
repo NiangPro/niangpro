@@ -1246,6 +1246,13 @@ class Commander
             $results[] = ['warn', 'Site en maintenance (niang up pour le rouvrir)'];
         }
 
+        if ((string) Config::get('filesystems.disk', Env::get('FILESYSTEM_DISK', 'local')) === 's3') {
+            $missing = array_filter(['key', 'secret', 'region', 'bucket'], fn (string $k) => (string) Config::get("filesystems.s3.$k", '') === '');
+            $results[] = $missing === []
+                ? ['ok', 'Disque s3 configuré (bucket ' . Config::get('filesystems.s3.bucket') . ')']
+                : ['fail', 'FILESYSTEM_DISK=s3 mais ' . implode(', ', $missing) . ' manquant(s) — voir AWS_* dans .env'];
+        }
+
         $logLevel = strtolower((string) Config::get('logging.level', 'debug'));
 
         if (!in_array($logLevel, Log::LEVELS, true)) {

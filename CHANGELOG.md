@@ -9,6 +9,13 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Disque S3 pour `Storage`** (roadmap §30), sans SDK : AWS S3 et services compatibles (R2, MinIO,
+  Wasabi...). `FILESYSTEM_DISK=s3`, `config/filesystems.php`, `Storage::temporaryUrl()` (URL pré-signée
+  sur S3, signée sur le disque local), envoi des fichiers téléversés sur S3, `doctor` vérifie la
+  configuration. Signature SigV4 vérifiée contre trois exemples publiés par AWS (GET avec `Range`, URL
+  pré-signée, PUT) ; protocole vérifié contre un serveur S3 local (moto), aussi en CI (job `s3`). moto
+  acceptant toute signature, la signature elle-même ne repose que sur les exemples d'AWS.
+
 - **Architecture Decision Records** (roadmap §74) : `docs/adr/`, les cinq décisions demandées (philosophie,
   Grammar, vues natives, ORM en tableaux, PSR) et trois décisions prises depuis (protocoles écrits à la
   main, pilotes sans Redis, projets copies du framework), chacune avec ce qu'elle coûte.

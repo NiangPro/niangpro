@@ -239,6 +239,41 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  s3:
+    name: Stockage S3 (moto)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite
+          coverage: none
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Installer les dépendances
+        run: composer install --prefer-dist --no-progress
+
+      # Serveur compatible S3 local. Il accepte toute signature : la signature SigV4 est vérifiée à part,
+      # contre les exemples publiés par AWS (tests/Unit/Storage/SigV4Test.php).
+      - name: Démarrer moto et créer le bucket
+        run: |
+          pip install "moto[server]" boto3
+          moto_server -p 5055 &
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:5055/ > /dev/null && break; sleep 1; done
+          python -c "import boto3; boto3.client('s3', endpoint_url='http://127.0.0.1:5055', aws_access_key_id='test', aws_secret_access_key='test', region_name='us-east-1').create_bucket(Bucket='niangpro-test')"
+
+      - name: Tests du disque s3
+        env:
+          NP_S3_ENDPOINT: http://127.0.0.1:5055
+          NP_S3_BUCKET: niangpro-test
+        run: ./vendor/bin/phpunit tests/Unit/Storage
+
   packaging-smoke:
     name: Packaging — ${{ matrix.site_type }}
     runs-on: ubuntu-latest

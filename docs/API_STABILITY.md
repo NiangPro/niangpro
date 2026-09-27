@@ -40,7 +40,7 @@ documenté). Ce document dit ce qui est couvert par cette promesse.
 
 `OpenApi` (format du document généré), `OAuth` et `OAuth\*` (fournisseurs, forme du profil),
 `Permission` (un seul rôle par utilisateur aujourd'hui), `Response::eventStream()` et
-`Http\ServerSentEvent`, `Http\Client`.
+`Http\ServerSentEvent`, `Http\Client`, le disque `s3` de `Storage` (`Storage::temporaryUrl()`).
 
 ## Interne
 
@@ -48,6 +48,7 @@ documenté). Ce document dit ce qui est couvert par cette promesse.
 `Console\ThemePackageInstaller`, `Console\ThemeSetup`, `Database\Grammar\*`, `Database\Migrator`,
 `Database\EagerLoadBuilder` (utilisez-le via `Model::with()`), `RouteCache`, `ConfigCache`,
 `DebugToolbar`, `DatabaseSessionHandler`, `ArraySessionHandler`, `SmtpTransport` (passez par `Mail`),
+`Storage\S3Client` et `Storage\SigV4` (passez par `Storage`),
 `Jobs\*`, `Notifications\*` (canaux intégrés), `ContextualBindingBuilder` (via `Container::when()`),
 `Exceptions\Handler`, `Scheduling\CronExpression`, `Scheduling\ScheduledTask`, `ViteAssets` (via
 `vite_asset()`), et toute méthode marquée `@internal`.

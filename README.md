@@ -1140,17 +1140,33 @@ Un job qui échoue est retenté jusqu'à `Job::$tries` fois, avec un backoff exp
 
 ## Stockage de fichiers
 
-Disque local uniquement (`storage/app/`) — un driver S3 demanderait un SDK externe, contraire au
-principe « sans dépendance d'implémentation à l'exécution » du framework :
+Deux disques, choisis par `FILESYSTEM_DISK` : `local` (défaut, `storage/app/`) et `s3` (AWS S3, Cloudflare
+R2, MinIO, Wasabi, Scaleway... tout service compatible S3). Même API sur les deux :
 
 ```php
-Storage::put('avatars/1.png', $contents);
+Storage::put('avatars/1.png', $contents);                  // 3e argument facultatif : type MIME
 Storage::get('avatars/1.png');     // contenu, ou null si absent
 Storage::exists('avatars/1.png');
 Storage::delete('avatars/1.png');
 Storage::size('avatars/1.png');    // en octets, ou null
-Storage::url('avatars/1.png');     // '/storage/avatars/1.png' — à router vers Storage::get() si besoin de le servir
+Storage::url('avatars/1.png');     // local : '/storage/avatars/1.png' ; s3 : URL publique (AWS_URL) ou de l'objet
+Storage::temporaryUrl('factures/1.pdf', 300);  // lien de lecture valable 5 minutes, sans rendre le fichier public
 ```
+
+```dotenv
+FILESYSTEM_DISK=s3
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_DEFAULT_REGION=eu-west-3
+AWS_BUCKET=mon-bucket
+AWS_ENDPOINT=https://<compte>.r2.cloudflarestorage.com   # service compatible ; vide pour AWS
+AWS_URL=https://cdn.exemple.sn                           # facultatif : URL publique (CDN)
+```
+
+Le client S3 est écrit à la main (signature AWS SigV4, vérifiée contre les exemples publiés par AWS et un
+serveur S3 local en CI), sans SDK. `temporaryUrl()` donne une URL pré-signée sur S3, et une URL signée
+(`UrlSignature`) sur le disque local. `$file->store('avatars')` envoie le fichier sur le disque choisi.
+`Storage::path()` n'existe que sur le disque local. `niang doctor` signale une configuration S3 incomplète.
 
 Les chemins contenant `..` sont rejetés (`InvalidArgumentException`) : sans ça, un chemin construit
 à partir d'une entrée utilisateur pourrait écrire ou lire en dehors de `storage/app/`.
