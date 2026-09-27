@@ -201,7 +201,10 @@ class Application
         try {
             // Dans le try : un écouteur qui échoue donne une page d'erreur, pas une requête plantée.
             self::fire(new Events\RequestReceived($request));
-            $response = MaintenanceMode::intercept($request) ?? $this->router->dispatch($request, $this->container);
+            // /metrics avant la maintenance : la supervision continue pendant une mise à jour.
+            $response = Metrics::intercept($request)
+                ?? MaintenanceMode::intercept($request)
+                ?? $this->router->dispatch($request, $this->container);
         } catch (\Throwable $e) {
             $response = Handler::render($e, $request, $startedAt);
         }
@@ -211,6 +214,15 @@ class Application
         $response = DebugToolbar::inject($response, $startedAt);
 
         self::fire(new Events\ResponsePrepared($request, $response));
+
+        if (Metrics::enabled() && '/' . trim($request->uri, '/') !== Metrics::path()) {
+            try {
+                Metrics::recordRequest($request->method, $response->getStatus(), (hrtime(true) - $startedAt) / 1e9);
+            } catch (\Throwable $e) {
+                // Un cache indisponible ne doit pas transformer une réponse réussie en erreur.
+                Log::warning('Métriques non enregistrées : ' . $e->getMessage());
+            }
+        }
 
         return $this->compressIfSupported($response, $request);
     }

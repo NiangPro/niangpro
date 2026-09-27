@@ -41,7 +41,7 @@ documenté). Ce document dit ce qui est couvert par cette promesse.
 `OpenApi` (format du document généré), `OAuth` et `OAuth\*` (fournisseurs, forme du profil),
 `Permission` (un seul rôle par utilisateur aujourd'hui), `Response::eventStream()` et
 `Http\ServerSentEvent`, `Http\Client`, le disque `s3` de `Storage` (`Storage::temporaryUrl()`), `Redis` et les
-pilotes `redis`.
+pilotes `redis`, `Metrics` (noms et étiquettes des métriques), `Trace` (contenu de `Trace::context()`).
 
 ## Interne
 

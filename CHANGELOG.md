@@ -9,6 +9,14 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Métriques Prometheus** (roadmap §53) : `GET /metrics` (jeton `METRICS_TOKEN` obligatoire, 404 sans lui),
+  activé par `METRICS_ENABLED`. Requêtes par méthode et classe de statut, histogramme des durées, jobs traités
+  et échoués, compteurs de l'application déclarés dans `config/metrics.php` (`Metrics::increment()`) et jauges
+  calculées à la lecture (`Metrics::gauge()`). Compteurs dans le cache : partagés entre process, et entre
+  serveurs avec database ou redis. Séries bornées (jamais l'URL). Vérifié sur un vrai serveur à 8 process,
+  350 requêtes concurrentes comptées exactement ; sortie validée par le parseur officiel `prometheus_client`.
+  `doctor` signale `METRICS_ENABLED` sans jeton.
+
 - **Corrélation et logs structurés** (roadmap §53) : chaque réponse porte un en-tête `X-Request-Id` (repris
   du répartiteur de charge s'il est raisonnable), ajouté à chaque ligne de log de la requête. Contexte de
   trace W3C : un `traceparent` entrant est rejoint, et `Http\Client` le propage aux services appelés

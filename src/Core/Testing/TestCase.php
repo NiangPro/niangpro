@@ -12,6 +12,7 @@ use Niang\Core\Event;
 use Niang\Core\Gate;
 use Niang\Core\Http\Request;
 use Niang\Core\Log;
+use Niang\Core\Metrics;
 use Niang\Core\Notification;
 use Niang\Core\Queue;
 use Niang\Core\RateLimiter;
@@ -54,6 +55,7 @@ abstract class TestCase extends BaseTestCase
         Notification::reset();
         Gate::reset();
         Trace::reset();
+        Metrics::reset();
         Log::flushSharedContext();
         unset($_COOKIE[Auth::REMEMBER_COOKIE]);
 

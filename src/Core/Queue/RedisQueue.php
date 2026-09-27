@@ -7,6 +7,7 @@ namespace Niang\Core\Queue;
 use Niang\Core\Config;
 use Niang\Core\Job;
 use Niang\Core\Log;
+use Niang\Core\Metrics;
 use Niang\Core\Queue;
 use Niang\Core\Redis;
 
@@ -96,6 +97,7 @@ final class RedisQueue
                     $job->handle();
                     $processed++;
                     self::forget($id, $reserved);
+                    Metrics::recordJob(true);
                 } catch (\Throwable $e) {
                     self::fail($envelope, $job, $e, $reserved, $delayed, $baseBackoff);
                 } finally {
@@ -188,6 +190,7 @@ final class RedisQueue
     private static function fail(array $envelope, Job $job, \Throwable $e, string $reserved, string $delayed, int $baseBackoff): void
     {
         $envelope['attempts']++;
+        Metrics::recordJob(false);
         Log::error('Job échoué : ' . $e->getMessage(), ['job' => $job::class, 'attempts' => $envelope['attempts']]);
         Redis::command('ZREM', $reserved, $envelope['id']);
 

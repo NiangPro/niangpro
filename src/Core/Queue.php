@@ -87,6 +87,7 @@ class Queue
                 $job->handle();
                 $processed++;
                 @unlink($claimed);
+                Metrics::recordJob(true);
             } catch (\Throwable $e) {
                 @unlink($claimed);
                 self::handleFailure($envelope, $job, $e);
@@ -343,6 +344,7 @@ class Queue
                 $job->handle();
                 $processed++;
                 DB::statement('DELETE FROM jobs WHERE id = ?', [$row['id']]);
+                Metrics::recordJob(true);
             } catch (\Throwable $e) {
                 self::handleDatabaseFailure($row, $job, $e);
             } finally {
@@ -357,6 +359,7 @@ class Queue
     {
         $attempts = (int) $row['attempts'] + 1;
 
+        Metrics::recordJob(false);
         Log::error('Job échoué : ' . $e->getMessage(), ['job' => $job::class, 'attempts' => $attempts]);
 
         if ($attempts >= $job->tries) {
@@ -388,6 +391,7 @@ class Queue
     {
         $envelope['attempts']++;
 
+        Metrics::recordJob(false);
         Log::error('Job échoué : ' . $e->getMessage(), ['job' => $job::class, 'attempts' => $envelope['attempts']]);
 
         if ($envelope['attempts'] >= $job->tries) {

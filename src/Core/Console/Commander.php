@@ -17,6 +17,7 @@ use Niang\Core\Env;
 use Niang\Core\HealthCheck;
 use Niang\Core\Log;
 use Niang\Core\MaintenanceMode;
+use Niang\Core\Metrics;
 use Niang\Core\Queue;
 use Niang\Core\RouteCache;
 use Niang\Core\Router;
@@ -1274,6 +1275,10 @@ class Commander
             $results[] = ['warn', "LOG_LEVEL inconnu : « $logLevel » — tout est journalisé (attendu : " . implode(', ', Log::LEVELS) . ')'];
         } elseif ($logLevel === 'debug' && Env::get('APP_ENV') === 'production') {
             $results[] = ['warn', 'LOG_LEVEL=debug en production — préférez info ou warning pour ne pas remplir le disque'];
+        }
+
+        if (Metrics::enabled() && (string) Config::get('metrics.token', '') === '') {
+            $results[] = ['warn', 'METRICS_ENABLED=true sans METRICS_TOKEN — les métriques sont collectées mais ' . Metrics::path() . ' répond 404'];
         }
 
         $logFormat = (string) Config::get('logging.format', 'line');
