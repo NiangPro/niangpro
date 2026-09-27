@@ -137,8 +137,11 @@ class ComposerHooksTest extends TestCase
 
     public function test_the_composer_json_script_points_to_an_existing_static_method(): void
     {
-        $composer = json_decode((string) file_get_contents(dirname(__DIR__, 3) . '/composer.json'), true);
-        $callable = $composer['scripts']['post-create-project-cmd'];
+        // Dépôt du framework : le hook est déclaré par le squelette ; projet créé : par son composer.json.
+        $root = dirname(__DIR__, 3);
+        $file = is_file("$root/skeleton/composer.json") ? "$root/skeleton/composer.json" : "$root/composer.json";
+        $composer = json_decode((string) file_get_contents($file), true);
+        $callable = $composer['scripts']['post-create-project-cmd'] ?? '';
 
         [$class, $method] = explode('::', $callable);
 

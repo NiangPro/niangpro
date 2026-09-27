@@ -18,7 +18,7 @@ class StagedProject
 {
     use UsesTempDirectory;
 
-    private const COPIED = ['packages', 'app', 'config', 'database', 'lang', 'resources', 'routes', 'public', 'tests', 'bin'];
+    private const COPIED = ['packages', 'skeleton', 'app', 'config', 'database', 'lang', 'resources', 'routes', 'public', 'tests', 'bin'];
     private const COPIED_FILES = ['composer.json', 'phpunit.xml', '.env.testing', '.env.example'];
 
     public readonly string $path;

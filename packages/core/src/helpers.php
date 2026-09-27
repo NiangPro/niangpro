@@ -12,16 +12,20 @@ if (!function_exists('base_path')) {
     {
         static $base;
 
-        // La racine du projet : le premier dossier parent qui a un composer.json et un vendor/ — que
-        // ce fichier soit dans packages/core/src/ (dépôt du framework, projet copié) ou dans
-        // vendor/niangpro/core/src/ (framework installé comme dépendance).
+        // La racine du projet, telle que Composer la connaît (vendor/composer/installed.php, chemin
+        // relatif : juste aussi dans une copie du projet). Repli sans Composer 2 : le premier dossier
+        // parent qui a un composer.json et un vendor/, hors de tout vendor/ (le framework installé comme
+        // dépendance peut lui-même en contenir un).
         if ($base === null) {
-            $base = dirname(__DIR__, 3);
+            $root = class_exists(\Composer\InstalledVersions::class) ? \Composer\InstalledVersions::getRootPackage()['install_path'] : null;
+            $base = is_string($root) && is_dir($root) ? (string) realpath($root) : dirname(__DIR__, 3);
 
-            for ($dir = __DIR__; dirname($dir) !== $dir; $dir = dirname($dir)) {
-                if (is_file("$dir/composer.json") && is_dir("$dir/vendor")) {
-                    $base = $dir;
-                    break;
+            if (!is_string($root) || !is_dir($root)) {
+                for ($dir = __DIR__; dirname($dir) !== $dir; $dir = dirname($dir)) {
+                    if (!str_contains($dir, DIRECTORY_SEPARATOR . 'vendor' . DIRECTORY_SEPARATOR) && is_file("$dir/composer.json") && is_dir("$dir/vendor")) {
+                        $base = $dir;
+                        break;
+                    }
                 }
             }
         }

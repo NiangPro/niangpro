@@ -1,8 +1,15 @@
 {
     "name": "niangpro/framework",
-    "description": "Un micro-framework PHP ultra simple, plus simple que Laravel : routeur, DI, ORM minimal, auth, tests, sans dépendance d'implémentation à l'exécution (seulement les interfaces PSR-11/PSR-3/PSR-7/PSR-15, pour l'interopérabilité).",
-    "type": "project",
-    "keywords": ["framework", "micro-framework", "php", "router", "orm", "minimal"],
+    "description": "Le framework NiangPro (v2) : les 14 paquets niangpro/* réunis. Pour créer une application : composer create-project niangpro/niangpro mon-app.",
+    "type": "library",
+    "keywords": [
+        "framework",
+        "micro-framework",
+        "php",
+        "router",
+        "orm",
+        "minimal"
+    ],
     "license": "MIT",
     "authors": [
         {
@@ -63,8 +70,7 @@
                 "packages/openapi/src/",
                 "packages/debug/src/",
                 "packages/foundation/src/"
-            ],
-            "App\\": "app/"
+            ]
         },
         "files": [
             "packages/core/src/helpers.php",
@@ -73,7 +79,8 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Tests\\": "tests/"
+            "Tests\\": "tests/",
+            "App\\": "app/"
         }
     },
     "minimum-stability": "stable",
@@ -87,7 +94,11 @@
         "test": "phpunit",
         "lint": "php-cs-fixer fix --dry-run --diff",
         "lint:fix": "php-cs-fixer fix",
-        "analyse": "phpstan analyse",
-        "post-create-project-cmd": "Niang\\Core\\Console\\ComposerHooks::postCreateProject"
+        "analyse": "phpstan analyse"
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "2.0.x-dev"
+        }
     }
 }

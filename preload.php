@@ -17,12 +17,18 @@ if (!function_exists('opcache_compile_file')) {
     return;
 }
 
-$files = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator(__DIR__ . '/packages', FilesystemIterator::SKIP_DOTS)
-);
+// packages/ : dépôt du framework ; vendor/niangpro/framework/packages/ : application (framework installé
+// avec Composer).
+foreach ([__DIR__ . '/packages', __DIR__ . '/vendor/niangpro/framework/packages'] as $packages) {
+    if (!is_dir($packages)) {
+        continue;
+    }
 
-foreach ($files as $file) {
-    if ($file->getExtension() === 'php') {
-        opcache_compile_file($file->getPathname());
+    $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($packages, FilesystemIterator::SKIP_DOTS));
+
+    foreach ($files as $file) {
+        if ($file->getExtension() === 'php') {
+            opcache_compile_file($file->getPathname());
+        }
     }
 }
