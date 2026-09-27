@@ -26,4 +26,33 @@ class HealthTest extends TestCase
         $response->assertOk();
         $response->assertJson(['status' => 'ok']);
     }
+
+    public function test_ready_checks_dependencies_like_health(): void
+    {
+        $response = $this->get('/health/ready');
+
+        $response->assertOk();
+        $this->assertSame('ok', $response->json()['services']['database']);
+    }
+
+    public function test_live_only_says_the_process_answers(): void
+    {
+        $response = $this->get('/health/live');
+
+        $response->assertOk();
+        $this->assertSame(['status' => 'ok'], $response->json());
+    }
+
+    public function test_probes_stay_up_during_maintenance(): void
+    {
+        \Niang\Core\MaintenanceMode::activate();
+
+        try {
+            $this->get('/health/live')->assertOk();
+            $this->get('/health/ready')->assertOk();
+            $this->get('/')->assertStatus(503);
+        } finally {
+            \Niang\Core\MaintenanceMode::deactivate();
+        }
+    }
 }

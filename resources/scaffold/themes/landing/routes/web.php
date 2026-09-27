@@ -8,6 +8,8 @@ use App\Controllers\LandingController;
 // Supervision : à brancher sur votre outil de monitoring.
 $router->get('/up', [HealthController::class, 'index']);
 $router->get('/health', [HealthController::class, 'index']);
+$router->get('/health/ready', [HealthController::class, 'index']);
+$router->get('/health/live', [HealthController::class, 'live']);
 
 // Une page à sections ancrées (#fonctionnalites, #fonctionnement, #temoignages, #tarifs, #faq)
 // et une page de mentions légales.

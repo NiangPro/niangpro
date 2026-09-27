@@ -1412,8 +1412,14 @@ réponse hors 2xx lève une `NotificationException`.
 ## Compression & supervision
 
 Les réponses sont automatiquement compressées en gzip si le client l'accepte et que ça vaut le coût.
-`GET /up` renvoie `{"status":"ok","database":true}` (200) si la base de données répond, ou
-`{"status":"degraded","database":false}` (503) sinon — à brancher sur votre outil de supervision.
+
+| Route | Vérifie | Usage |
+| --- | --- | --- |
+| `GET /health` (alias `/up`, `/health/ready`) | base de données, cache, stockage, file d'attente : `{"status":"ok","services":{"database":"ok",...}}`, 503 si l'un échoue | supervision, sonde *readiness* (retirer un serveur du trafic) |
+| `GET /health/live` | rien : le process PHP répond | sonde *liveness* (redémarrer un conteneur bloqué) |
+
+Les quatre routes restent accessibles en mode maintenance. `./bin/niang health` fait la même vérification
+en ligne de commande.
 
 ## Debug toolbar
 

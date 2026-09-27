@@ -17,7 +17,7 @@ final class MaintenanceMode
     private const COOKIE = 'niang_maintenance';
 
     /** Chemins toujours servis, même en maintenance. */
-    private const ALWAYS_UP = ['/up', '/health'];
+    private const ALWAYS_UP = ['/up', '/health', '/health/live', '/health/ready'];
 
     public static function isDown(): bool
     {

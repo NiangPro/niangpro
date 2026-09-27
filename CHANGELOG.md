@@ -9,6 +9,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **`/health/live` et `/health/ready`** (roadmap §53) dans le squelette et les 5 thèmes : vivacité sans
+  dépendance (une base indisponible ne fait pas redémarrer un conteneur) et disponibilité (mêmes
+  vérifications que `/health`, 503 si une dépendance manque). Accessibles en mode maintenance. README :
+  la description de `/up`, périmée, est corrigée.
+
 - **Stabilité de l'API et politique de dépréciation** (roadmap §3.1 et §70) : `docs/API_STABILITY.md`
   (stable, expérimental, interne, déprécié), marqueur `@experimental` sur `OpenApi`, `OAuth`,
   `Permission`, `Response::eventStream()`/`ServerSentEvent` et `Http\Client` (un test vérifie qu'ils
