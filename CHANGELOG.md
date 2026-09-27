@@ -530,6 +530,9 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Fixed
 
+- **En-têtes de requête en minuscules ignorés** : `Request::header()` était sensible à la casse, alors que
+  `getallheaders()` rend les noms tels que le client les envoie (HTTP/2 : toujours en minuscules). Un
+  `authorization: Bearer ...` n'était pas vu et le jeton API était refusé (reproduit sur un vrai serveur).
 - **Colonnes nommées comme un mot réservé SQL** (`rank`, `order`, `group`, `key`...) : le Query Builder
   n'entourait jamais les identifiants de guillemets, si bien que toute requête sur une telle colonne échouait
   sous MySQL (erreur de syntaxe 1064). Les tables et colonnes sont désormais entourées selon le moteur

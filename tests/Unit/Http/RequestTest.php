@@ -37,4 +37,14 @@ class RequestTest extends TestCase
         $this->assertSame([], $post->query);
         $this->assertSame(['title' => 'Bonjour'], $post->body);
     }
+
+    public function test_header_lookup_is_case_insensitive(): void
+    {
+        // HTTP/2 envoie les en-têtes en minuscules ; getallheaders() les rend tels quels.
+        $request = Request::create('GET', '/', headers: ['authorization' => 'Bearer abc', 'X-Foo' => 'bar']);
+
+        $this->assertSame('Bearer abc', $request->header('Authorization'));
+        $this->assertSame('bar', $request->header('x-foo'));
+        $this->assertSame('défaut', $request->header('Accept', 'défaut'));
+    }
 }

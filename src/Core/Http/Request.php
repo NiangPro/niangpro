@@ -194,9 +194,23 @@ class Request
         return $this->params[$key] ?? $default;
     }
 
+    /**
+     * Insensible à la casse (RFC 9110) : getallheaders() rend les noms tels que le client les a
+     * envoyés, et HTTP/2 les envoie toujours en minuscules (« authorization », « x-request-id »).
+     */
     public function header(string $key, mixed $default = null): mixed
     {
-        return $this->headers[$key] ?? $default;
+        if (array_key_exists($key, $this->headers)) {
+            return $this->headers[$key];
+        }
+
+        foreach ($this->headers as $name => $value) {
+            if (strcasecmp((string) $name, $key) === 0) {
+                return $value;
+            }
+        }
+
+        return $default;
     }
 
     public function isMethod(string $method): bool
