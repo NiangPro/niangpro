@@ -1623,9 +1623,19 @@ Auto-wiring par Reflection, sans configuration : type-hintez une dépendance dan
 une méthode de contrôleur, elle est résolue automatiquement (et récursivement).
 
 ```php
-$container->bind(PaymentGateway::class, fn ($c) => new StripeGateway(env('STRIPE_KEY')));
-$container->singleton(Clock::class, new SystemClock());
+$container->bind(PaymentGateway::class, StripeGateway::class);                         // interface -> classe
+$container->bind(PaymentGateway::class, fn ($c) => new StripeGateway(env('STRIPE_KEY'))); // ou une fabrique
+$container->singleton(CacheManager::class);                // une seule instance, créée au premier usage
+$container->singleton(Clock::class, SystemClock::class);   // idem, pour une interface
+$container->instance(Clock::class, new FrozenClock('2026-01-01'));  // objet déjà construit
+
+// Liaison contextuelle : une implémentation selon la classe qui la demande
+$container->when(RefundController::class)->needs(PaymentGateway::class)->give(PaypalGateway::class);
 ```
+
+`bind()` crée une nouvelle instance à chaque résolution ; `singleton()` et `instance()` renvoient toujours
+la même. La liaison contextuelle s'applique au constructeur de la classe comme à l'injection dans ses
+méthodes (actions de contrôleur).
 
 Erreurs explicites plutôt qu'un plantage silencieux ou un débordement de pile :
 

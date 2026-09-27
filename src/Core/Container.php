@@ -10,20 +10,86 @@ use Psr\Container\ContainerInterface;
 
 class Container implements ContainerInterface
 {
+    /** @var array<string, \Closure> */
     private array $bindings = [];
     private array $instances = [];
+
+    /** @var array<string, true> bindings partagés : une seule instance, créée au premier make() */
+    private array $shared = [];
+
+    /** @var array<string, array<string, \Closure|string>> classe consommatrice => [dépendance => implémentation] */
+    private array $contextual = [];
 
     /** @var string[] pile des classes en cours de résolution, pour détecter les dépendances circulaires. */
     private array $resolving = [];
 
-    public function bind(string $abstract, \Closure $factory): void
+    /**
+     * $concrete : une closure (reçoit le conteneur), le nom de la classe à instancier
+     * (bind(PaymentGateway::class, StripeGateway::class)), ou rien (la classe elle-même).
+     * Une nouvelle instance à chaque make() ; voir singleton() pour une instance partagée.
+     */
+    public function bind(string $abstract, \Closure|string|null $concrete = null): void
     {
-        $this->bindings[$abstract] = $factory;
+        unset($this->instances[$abstract], $this->shared[$abstract]);
+        $this->bindings[$abstract] = $this->factory($abstract, $concrete);
     }
 
-    public function singleton(string $abstract, mixed $instance): void
+    /**
+     * Une seule instance pour toute l'application. Avec un objet déjà construit, c'est lui ; avec
+     * une closure, un nom de classe ou rien, l'instance est créée au premier make() seulement.
+     */
+    public function singleton(string $abstract, mixed $concrete = null): void
     {
+        if (is_object($concrete) && !$concrete instanceof \Closure) {
+            $this->instance($abstract, $concrete);
+            return;
+        }
+
+        if ($concrete !== null && !is_string($concrete) && !$concrete instanceof \Closure) {
+            throw new ContainerException("singleton($abstract) : objet, closure ou nom de classe attendu.");
+        }
+
+        unset($this->instances[$abstract]);
+        $this->bindings[$abstract] = $this->factory($abstract, $concrete);
+        $this->shared[$abstract] = true;
+    }
+
+    /** Enregistre un objet déjà construit, renvoyé tel quel par make(). */
+    public function instance(string $abstract, object $instance): void
+    {
+        unset($this->bindings[$abstract], $this->shared[$abstract]);
         $this->instances[$abstract] = $instance;
+    }
+
+    /**
+     * Liaison contextuelle : une implémentation différente selon la classe qui la demande.
+     *   $container->when(InvoiceMailer::class)->needs(Transport::class)->give(SmtpTransport::class);
+     */
+    public function when(string $consumer): ContextualBindingBuilder
+    {
+        return new ContextualBindingBuilder($this, $consumer);
+    }
+
+    /** @internal ContextualBindingBuilder::give() */
+    public function addContextualBinding(string $consumer, string $abstract, \Closure|string $implementation): void
+    {
+        $this->contextual[$consumer][$abstract] = $implementation;
+    }
+
+    private function factory(string $abstract, \Closure|string|null $concrete): \Closure
+    {
+        if ($concrete instanceof \Closure) {
+            return $concrete;
+        }
+
+        $class = $concrete ?? $abstract;
+
+        if ($class === $abstract) {
+            // Construire la classe elle-même, sans repasser par ce binding (sinon boucle infinie).
+            return fn (Container $container) => $container->build($class);
+        }
+
+        return fn (Container $container) => $container->make($class);
     }
 
     /** PSR-11 : ContainerInterface::get(). Alias de make(), qui lève ContainerNotFoundException
@@ -55,9 +121,21 @@ class Container implements ContainerInterface
         }
 
         if (isset($this->bindings[$abstract])) {
-            return $this->bindings[$abstract]($this);
+            $object = $this->bindings[$abstract]($this);
+
+            if (isset($this->shared[$abstract])) {
+                $this->instances[$abstract] = $object;
+            }
+
+            return $object;
         }
 
+        return $this->build($abstract);
+    }
+
+    /** Construit la classe par réflexion (auto-wiring), sans consulter les bindings de $abstract. */
+    private function build(string $abstract): mixed
+    {
         if (in_array($abstract, $this->resolving, true)) {
             $chain = implode(' -> ', [...$this->resolving, $abstract]);
             throw new ContainerException("Dépendance circulaire détectée : $chain");
@@ -124,6 +202,14 @@ class Container implements ContainerInterface
         // (ex: int|string $x) tombe dans la résolution par nom / valeur par défaut ci-dessous.
         if ($type instanceof \ReflectionNamedType && !$type->isBuiltin()) {
             $className = $type->getName();
+
+            // Liaison contextuelle : $context vaut « Classe » (constructeur) ou « Classe::méthode() ».
+            $consumer = $context !== null ? explode('::', $context)[0] : null;
+            $contextual = $consumer !== null ? ($this->contextual[$consumer][$className] ?? null) : null;
+
+            if ($contextual !== null && !array_key_exists($name, $extraParams)) {
+                return $contextual instanceof \Closure ? $contextual($this) : $this->make($contextual);
+            }
 
             // Une valeur nommée correspond seulement si elle est compatible avec le type déclaré
             // (sinon `ContactRequest $request` récupérerait le Request de base au lieu d'être résolu/validé).

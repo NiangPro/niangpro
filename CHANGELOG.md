@@ -9,6 +9,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Conteneur : liaison à un nom de classe, singletons paresseux, `instance()`, liaisons
+  contextuelles** (roadmap §11). `bind(Interface::class, Classe::class)`, `singleton(Classe::class)`
+  (créé au premier `make()`), `instance()`, `when(A::class)->needs(Contrat::class)->give(...)`,
+  appliquée au constructeur comme à l'injection dans les méthodes. `singleton($id, $objet)` garde son
+  comportement.
+
 - **Rôles et permissions** (roadmap §22) : `config/permissions.php` (rôle → permissions, jokers `*`
   et `posts.*`), `Niang\Core\Permission`, `Auth::hasRole()`, `Auth::can()`, middleware
   `App\Middleware\Authorize` (`Authorize::class . ':posts.delete'`). Sans table supplémentaire : le
