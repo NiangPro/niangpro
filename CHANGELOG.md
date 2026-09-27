@@ -9,6 +9,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Benchmarks** (roadmap §39) : `benchmarks/run.php` mesure routage, conteneur, requête/réponse, base de
+  données, rendu, requête complète et démarrage face à leur équivalent en PHP natif (p50/p95/p99, débit,
+  mémoire retenue), avec les conditions de mesure ; résultats dans `benchmarks/RESULTS.md`. La
+  comparaison avec d'autres frameworks n'est pas faite (elle demande un vrai serveur sous charge).
+
 - **Événements du framework** (roadmap §49) : `ApplicationBooted`, `RequestReceived`, `RouteMatched`,
   `ResponsePrepared` (réponse modifiable) et `RequestTerminated` (après l'envoi, `fastcgi_finish_request()`
   quand il existe). Émis seulement s'ils sont écoutés.

@@ -1444,6 +1444,17 @@ Activez `opcache.enable=1` et `opcache.validate_timestamps=0` dans le `php.ini` 
 (remettez `validate_timestamps=1` en développement, sinon vos modifications de code ne seront pas prises
 en compte sans redémarrage).
 
+### Performances mesurées
+
+```bash
+php -d opcache.enable_cli=1 benchmarks/run.php            # routage, conteneur, base, vues, requête complète
+php -d opcache.enable_cli=1 benchmarks/run.php --markdown # met à jour benchmarks/RESULTS.md
+```
+
+Chaque couche est comparée à son équivalent en PHP natif (p50, p95, p99, débit, mémoire), avec les
+conditions de mesure. Sur un Apple M1 avec OPcache, une requête complète coûte environ 0,015 ms de
+framework, plus 0,08 ms de démarrage : voir [benchmarks/RESULTS.md](benchmarks/RESULTS.md).
+
 ### Docker (facultatif)
 
 ```bash
