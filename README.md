@@ -726,6 +726,24 @@ $router->get('/posts/{id}', [PostController::class, 'show'])
 route('posts.show', ['id' => 5]); // '/posts/5'
 ```
 
+**Liaison de modèle** : le paramètre devient directement la ligne, ou une 404 si elle n'existe pas.
+
+```php
+$router->get('/posts/{post}', [PostController::class, 'show'])->bind(['post' => Post::class]);           // par id
+$router->get('/blog/{post}', [PostController::class, 'show'])->bind(['post' => Post::class . ':slug']);  // par slug
+
+public function show(array $post): Response   // même nom que le paramètre
+{
+    return $this->view('posts/show', ['post' => $post]);
+}
+```
+
+La recherche passe par le modèle (suppression douce et `$casts` respectés) et a lieu **après** les
+middlewares : un visiteur non authentifié ne peut pas sonder l'existence d'une ligne. Elle ne vérifie pas
+les droits : pour `/users/{user}/invoices/{invoice}`, contrôlez vous-même que la facture appartient bien
+à l'utilisateur (ou passez par une Policy), sinon changer l'identifiant dans l'URL suffit à lire celle d'un
+autre. Compatible avec `route:cache`.
+
 ```php
 $router->resource('tags', TagController::class);
 // génère : GET /tags (index), GET /tags/create, POST /tags (store),

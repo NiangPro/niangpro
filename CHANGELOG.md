@@ -9,6 +9,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Liaison de modèle sur les routes** (roadmap §12) : `->bind(['post' => Post::class])` ou
+  `Post::class . ':slug'` ; le contrôleur reçoit la ligne (`array $post`), ou la requête répond 404.
+  Recherche par le modèle (suppression douce, `$casts`), après les middlewares, valeur toujours liée.
+  Modèle, colonne et paramètre vérifiés à la déclaration. Compatible avec `route:cache`.
+
 - **Query Builder : `union()`, `unionAll()`, `whereExists()`, `whereNotExists()`, `whereNotIn()`**
   (roadmap §17). L'union est placée dans une sous-requête (`SELECT * FROM (a UNION b) AS np_union`),
   seule forme acceptée par SQLite, MySQL et PostgreSQL qui permette de la trier, limiter, compter et

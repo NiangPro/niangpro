@@ -159,6 +159,16 @@ class Router
         self::$namedRoutes[$name] = $this->routes[$index]['uri'];
     }
 
+    /** @internal voir RouteRegistration::bind() */
+    public function setRouteBinding(int $index, string $parameter, string $model, string $column): void
+    {
+        if (!str_contains($this->routes[$index]['uri'], '{' . $parameter . '}')) {
+            throw new \InvalidArgumentException("bind() : la route {$this->routes[$index]['uri']} n'a pas de paramètre {{$parameter}}.");
+        }
+
+        $this->routes[$index]['bindings'][$parameter] = [$model, $column];
+    }
+
     public function setRouteConstraints(int $index, array $constraints): void
     {
         $this->routes[$index]['pattern'] = $this->toPattern($this->routes[$index]['uri'], $constraints);
@@ -342,12 +352,35 @@ class Router
                     return $instance->handle($request, $next);
                 };
             },
-            fn (Request $request) => $this->callAction($route['action'], $request, $container)
+            fn (Request $request) => $this->callAction($route['action'], $this->bindModels($route['bindings'] ?? [], $request), $container)
         );
 
         $result = $pipeline($request);
 
         return $result instanceof Response ? $result : Response::html((string) $result);
+    }
+
+    /**
+     * Après les middlewares (un visiteur non authentifié ne peut pas sonder l'existence d'une ligne) :
+     * chaque paramètre lié devient la ligne du modèle, ou 404. Les règles du modèle s'appliquent
+     * (suppression douce, $casts).
+     *
+     * @param array<string, array{0: class-string<Database\Model>, 1: string}> $bindings
+     */
+    private function bindModels(array $bindings, Request $request): Request
+    {
+        foreach ($bindings as $parameter => [$model, $column]) {
+            $value = $request->params[$parameter] ?? null;
+            $row = $value === null ? null : $model::query()->where($column, $value)->first();
+
+            if ($row === null) {
+                throw new Exceptions\NotFoundException();
+            }
+
+            $request->params[$parameter] = $row;
+        }
+
+        return $request;
     }
 
     private function callAction(mixed $action, Request $request, Container $container): mixed
