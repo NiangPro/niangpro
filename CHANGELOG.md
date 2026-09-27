@@ -9,6 +9,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Architecture Decision Records** (roadmap §74) : `docs/adr/`, les cinq décisions demandées (philosophie,
+  Grammar, vues natives, ORM en tableaux, PSR) et trois décisions prises depuis (protocoles écrits à la
+  main, pilotes sans Redis, projets copies du framework), chacune avec ce qu'elle coûte.
+
 - **Benchmarks** (roadmap §39) : `benchmarks/run.php` mesure routage, conteneur, requête/réponse, base de
   données, rendu, requête complète et démarrage face à leur équivalent en PHP natif (p50/p95/p99, débit,
   mémoire retenue), avec les conditions de mesure ; résultats dans `benchmarks/RESULTS.md`. La

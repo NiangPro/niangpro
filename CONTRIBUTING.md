@@ -60,6 +60,11 @@ DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_DATABASE=niangpro_test DB_USERNAME=root
   en anglais.
 - **Un sujet par pull request** : plus facile à relire et à annuler si besoin.
 
+## Décisions d'architecture
+
+Une décision qui engage l'architecture (nouvelle dépendance, nouveau pilote, changement de modèle de
+données) s'accompagne d'un ADR dans [docs/adr/](docs/adr/README.md) : contexte, décision, conséquences.
+
 ## Messages de commit
 
 Format [Conventional Commits](https://www.conventionalcommits.org/fr/), en français, à l'impératif ou
