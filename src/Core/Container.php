@@ -6,12 +6,25 @@ namespace Niang\Core;
 
 use Niang\Core\Exceptions\ContainerException;
 use Niang\Core\Exceptions\ContainerNotFoundException;
-use Niang\Core\Http\Request;
-use Niang\Core\Validation\FormRequest;
 use Psr\Container\ContainerInterface;
 
 class Container implements ContainerInterface
 {
+    /** @var array<string, \Closure(string, array<string, mixed>): object> résolveurs par classe de base */
+    private array $resolvers = [];
+
+    /**
+     * Construit toute classe qui hérite de $baseClass avec $resolver (classe demandée, paramètres
+     * fournis à call()) au lieu de l'auto-wiring : ex. une FormRequest faite à partir de la requête
+     * en cours. Un résolveur déjà enregistré pour $baseClass est remplacé.
+     *
+     * @param \Closure(string, array<string, mixed>): object $resolver
+     */
+    public function resolveUsing(string $baseClass, \Closure $resolver): void
+    {
+        $this->resolvers[$baseClass] = $resolver;
+    }
+
     /** @var array<string, \Closure> */
     private array $bindings = [];
     private array $instances = [];
@@ -232,10 +245,12 @@ class Container implements ContainerInterface
                 }
             }
 
-            // Une FormRequest se construit à partir de la requête en cours (méthode, données, params
-            // de route), pas via l'auto-wiring générique de make() — Request n'a pas de constructeur vide.
-            if (is_a($className, FormRequest::class, true)) {
-                return $this->makeFormRequest($className, $extraParams['request'] ?? null);
+            // Famille de classes construite par un résolveur dédié (ex. FormRequest, enregistré par le
+            // Router : elle se construit à partir de la requête en cours, pas par l'auto-wiring de make()).
+            foreach ($this->resolvers as $base => $resolver) {
+                if (is_a($className, $base, true)) {
+                    return $resolver($className, $extraParams);
+                }
             }
 
             return $this->make($className);
@@ -243,12 +258,6 @@ class Container implements ContainerInterface
 
         if (array_key_exists($name, $extraParams)) {
             return $extraParams[$name];
-        }
-
-        // route params by name, e.g. function show($id)
-        $request = $extraParams['request'] ?? null;
-        if ($request instanceof Request && array_key_exists($name, $request->params)) {
-            return $request->params[$name];
         }
 
         if ($param->isDefaultValueAvailable()) {
@@ -266,26 +275,5 @@ class Container implements ContainerInterface
             "Paramètre manquant : \$$name (type $typeName)$location — ".
             'aucune valeur fournie et pas de valeur par défaut.'
         );
-    }
-
-    /** @param class-string<FormRequest> $className */
-    private function makeFormRequest(string $className, ?Request $original): FormRequest
-    {
-        $instance = $original instanceof Request
-            ? new $className(
-                $original->method,
-                $original->uri,
-                $original->query,
-                $original->body,
-                $original->server,
-                $original->headers,
-                $original->params,
-                $original->files
-            )
-            : new $className('GET', '/');
-
-        $instance->validateResolved();
-
-        return $instance;
     }
 }

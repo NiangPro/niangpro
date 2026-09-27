@@ -78,6 +78,16 @@ class ContainerBindingsTest extends TestCase
         $this->expectException(ContainerException::class);
         (new Container())->when(ContainerBindingsTestRefunds::class)->give(ContainerBindingsTestPaypal::class);
     }
+
+    public function test_a_resolver_builds_a_whole_family_of_classes(): void
+    {
+        $container = new Container();
+        $container->resolveUsing(\ArrayObject::class, fn (string $class, array $parameters) => new $class(['source' => $parameters['origine'] ?? null]));
+
+        $result = $container->call(fn (ResolvedFamilyMember $member) => $member['source'], ['origine' => 'route']);
+
+        $this->assertSame('route', $result);
+    }
 }
 
 interface ContainerBindingsTestGateway
@@ -123,4 +133,9 @@ class ContainerBindingsTestCounter
     {
         self::$built++;
     }
+}
+
+/** @extends \ArrayObject<string, mixed> */
+class ResolvedFamilyMember extends \ArrayObject
+{
 }

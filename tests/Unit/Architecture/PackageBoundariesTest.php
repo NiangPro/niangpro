@@ -6,10 +6,7 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Roadmap §46 (ADR 0012) : src/Core doit pouvoir être découpé en paquets sans dépendance circulaire.
- * Ce test mesure chaque référence d'une classe vers une classe d'un autre paquet que ceux que son
- * paquet a le droit d'utiliser (packages.php), et la compare à baseline.php : une dépendance
- * interdite de plus fait échouer le test ; une de moins aussi, tant que baseline.php n'est pas mis à
- * jour — le compte ne peut que descendre, jusqu'à zéro.
+ * Aucune classe ne cite une classe d'un paquet que le sien n'a pas le droit d'utiliser (packages.php).
  */
 class PackageBoundariesTest extends TestCase
 {
@@ -21,16 +18,13 @@ class PackageBoundariesTest extends TestCase
         $this->packages = require __DIR__ . '/packages.php';
     }
 
-    public function test_forbidden_dependencies_only_go_down(): void
+    public function test_no_package_depends_on_a_package_it_may_not_use(): void
     {
-        $current = $this->violations();
-        $baseline = require __DIR__ . '/baseline.php';
+        $violations = array_keys($this->violations());
 
-        $new = array_diff_key($current, $baseline);
-        $this->assertSame([], $new, "Nouvelle dépendance interdite entre paquets (voir tests/Unit/Architecture/packages.php) :\n" . implode("\n", array_keys($new)));
-
-        $fixed = array_diff_key($baseline, $current);
-        $this->assertSame([], $fixed, "Dépendance supprimée : retirez-la de tests/Unit/Architecture/baseline.php :\n" . implode("\n", array_keys($fixed)));
+        $this->assertSame([], $violations, "Dépendance interdite entre paquets (voir tests/Unit/Architecture/packages.php et l'ADR 0012) :\n"
+            . implode("\n", $violations)
+            . "\nRemplacez-la par un point d'extension du paquet de bas niveau, branché dans Application::wire().");
     }
 
     public function test_every_class_belongs_to_a_package(): void

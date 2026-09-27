@@ -34,6 +34,26 @@ abstract class FormRequest extends Request
         return [];
     }
 
+    /**
+     * @internal résolveur enregistré par le Router sur le Container : construite à partir de la requête
+     * en cours (méthode, données, paramètres de route), puis autorisée et validée.
+     *
+     * @param array<string, mixed> $parameters paramètres passés à Container::call() ('request' : la requête)
+     */
+    public static function resolveFrom(string $class, array $parameters): self
+    {
+        $original = $parameters['request'] ?? null;
+
+        /** @var FormRequest $instance */
+        $instance = $original instanceof Request
+            ? new $class($original->method, $original->uri, $original->query, $original->body, $original->server, $original->headers, $original->params, $original->files)
+            : new $class('GET', '/');
+
+        $instance->validateResolved();
+
+        return $instance;
+    }
+
     /** @internal appelé par le Container lors de l'injection dans un contrôleur */
     public function validateResolved(): void
     {

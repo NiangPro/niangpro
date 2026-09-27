@@ -8,6 +8,7 @@ use Niang\Core\Exceptions\HttpException;
 use Niang\Core\Exceptions\NotFoundException;
 use Niang\Core\Http\Request;
 use Niang\Core\Http\Response;
+use Niang\Core\Validation\FormRequest;
 
 class Router
 {
@@ -395,8 +396,12 @@ class Router
 
     private function callAction(mixed $action, Request $request, Container $container): mixed
     {
+        // Paramètres d'action : la requête, puis les paramètres de route par leur nom (show($id)).
+        $parameters = ['request' => $request] + $request->params;
+        $container->resolveUsing(FormRequest::class, FormRequest::resolveFrom(...));
+
         if ($action instanceof \Closure) {
-            return $container->call($action, ['request' => $request]);
+            return $container->call($action, $parameters);
         }
 
         if (is_string($action) && str_contains($action, '@')) {
@@ -412,7 +417,7 @@ class Router
                 throw new \RuntimeException('Action de route introuvable : ' . (is_string($class) ? $class : get_debug_type($class)) . '@' . (is_string($method) ? $method : '?') . '.');
             }
 
-            return $container->call([$controller, $method], ['request' => $request]);
+            return $container->call([$controller, $method], $parameters);
         }
 
         throw new \RuntimeException('Action de route invalide.');
