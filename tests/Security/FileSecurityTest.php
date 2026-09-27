@@ -65,6 +65,7 @@ class FileSecurityTest extends TestCase
             $this->assertStringNotContainsString('..', $path);
         } finally {
             Storage::delete($path);
+            @rmdir(base_path('storage/app/tests-securite'));
         }
     }
 
