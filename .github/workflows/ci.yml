@@ -306,6 +306,25 @@ jobs:
           NP_S3_BUCKET: niangpro-test
         run: ./vendor/bin/phpunit tests/Unit/Storage
 
+  standalone-packages:
+    name: Paquets installés seuls
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # PHP minimal supporté : chaque paquet doit s'installer seul avec ses propres dépendances.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: pdo_sqlite
+          coverage: none
+
+      # Pour chaque dossier de packages/ : projet Composer vierge qui ne demande que ce paquet,
+      # installation, puis chargement de toutes ses classes (roadmap §46, ADR 0012).
+      - name: Installer et charger chaque paquet seul
+        run: php tools/check-standalone-packages.php
+
   packaging-smoke:
     name: Packaging — ${{ matrix.site_type }}
     runs-on: ubuntu-latest

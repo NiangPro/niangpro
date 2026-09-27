@@ -28,6 +28,9 @@
         "psr/event-dispatcher": "^1.0",
         "psr/log": "^3.0"
     },
+    "suggest": {
+        "phpunit/phpunit": "Niang\\Core\\Testing\\TestCase (requêtes simulées, RefreshDatabase) dans les tests d'une application."
+    },
     "autoload": {
         "psr-4": {
             "Niang\\Core\\": "src/"

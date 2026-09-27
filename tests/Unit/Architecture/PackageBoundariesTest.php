@@ -60,7 +60,8 @@ class PackageBoundariesTest extends TestCase
                 $this->assertSame($version['require'][$psr], $composer['require'][$psr], "$psr dans $file : même contrainte que le composer.json racine");
             }
 
-            $suggests = array_keys($composer['suggest'] ?? []);
+            // Seules les suggestions NiangPro sont contrôlées (foundation suggère aussi phpunit/phpunit).
+            $suggests = array_values(array_filter(array_keys($composer['suggest'] ?? []), fn ($p) => str_starts_with((string) $p, 'niangpro/')));
             $expected = array_map(fn ($p) => "niangpro/$p", $package['suggests'] ?? []);
             sort($suggests);
             sort($expected);
@@ -182,7 +183,7 @@ class PackageBoundariesTest extends TestCase
      * Classes de Niang\Core citées dans le code (use, noms qualifiés, noms du même espace de noms),
      * commentaires exclus.
      *
-     * @param array<string, string> $classes
+     * @param array<string, array{0: string, 1: string}> $classes
      * @return list<string>
      */
     private function references(string $class, string $file, array $classes): array

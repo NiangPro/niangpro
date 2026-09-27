@@ -25,4 +25,4 @@ parameters:
         # Request::capture()/create() utilisent new static() pour que FormRequest (qui hérite du
         # constructeur sans le redéclarer) reste correctement typée à l'usage — c'est voulu ici.
         - identifier: new.static
-          path: src/Core/Http/Request.php
+          path: packages/http/src/Http/Request.php
