@@ -9,6 +9,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Génération OpenAPI 3** (roadmap §35) : `niang openapi [--output] [--prefix]` et
+  `Niang\Core\OpenApi::generate()`. Chemins, méthodes, paramètres typés, corps de requête déduit des
+  règles des FormRequest (tableaux imbriqués, fichiers en multipart), sécurité session ou Bearer,
+  résumés tirés des docblocks, réponses 401/403/404/422/429. Documents validés par
+  `openapi-spec-validator` (application de démonstration et cas complet des tests).
+
 - **Conteneur : liaison à un nom de classe, singletons paresseux, `instance()`, liaisons
   contextuelles** (roadmap §11). `bind(Interface::class, Classe::class)`, `singleton(Classe::class)`
   (créé au premier `make()`), `instance()`, `when(A::class)->needs(Contrat::class)->give(...)`,

@@ -48,6 +48,7 @@ class Commander
             'route:cache' => $this->routeCache(),
             'route:clear' => $this->routeClear(),
             'route:list' => $this->routeList(),
+            'openapi' => $this->openApi(array_slice($argv, 2)),
             'make:middleware' => $this->makeMiddleware($arg),
             'make:request' => $this->makeRequest($arg),
             'tinker' => $this->tinker(),
@@ -355,6 +356,27 @@ class Commander
     {
         RouteCache::clear();
         echo "Cache de routes supprimé.\n";
+    }
+
+    /** `niang openapi [--output=public/openapi.json] [--prefix=/api]` : description OpenAPI 3 des routes. */
+    private function openApi(array $arguments): void
+    {
+        [, $options] = $this->parseNewArguments($arguments);
+        $router = new Router();
+        require $this->basePath . '/routes/web.php';
+
+        $prefix = isset($options['prefix']) ? (string) $options['prefix'] : '/api';
+        $output = (string) ($options['output'] ?? 'public/openapi.json');
+        $document = \Niang\Core\OpenApi::generate($router, ['prefix' => $prefix === '/' ? '' : $prefix]);
+        $path = str_starts_with($output, '/') ? $output : $this->basePath . '/' . $output;
+
+        if (!is_dir(dirname($path))) {
+            mkdir(dirname($path), 0755, true);
+        }
+
+        file_put_contents($path, json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");
+        $count = is_array($document['paths']) ? count($document['paths']) : 0;
+        echo "OpenAPI : $count chemin(s) décrit(s) dans $output\n";
     }
 
     private function routeList(): void
@@ -1552,6 +1574,7 @@ class Commander
           route:cache              Compile routes/web.php dans storage/framework/routes.php
           route:clear              Supprime le cache de routes
           route:list               Liste toutes les routes déclarées
+          openapi [--output=f] [--prefix=/api] Décrit les routes de l'API au format OpenAPI 3 (public/openapi.json)
           make:middleware <Nom>    Génère un middleware dans app/Middleware
           make:request <Nom>       Génère une FormRequest dans app/Requests
           tinker                   REPL interactif sur l'application

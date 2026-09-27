@@ -669,6 +669,26 @@ permet pas d'aller à la page 7 directement. Triez par une colonne **unique** (`
 est une valeur opaque, toujours liée comme paramètre ; la colonne vient du code, jamais du curseur.
 `JsonResource::collection()` accepte les trois (méta `current_page`/`per_page`, ou `next_cursor`).
 
+## Documentation OpenAPI
+
+```bash
+./bin/niang openapi                                  # public/openapi.json, routes commençant par /api
+./bin/niang openapi --prefix=/v2 --output=docs/api.json
+./bin/niang openapi --prefix=/                       # toutes les routes
+```
+
+Le fichier (OpenAPI 3.0) est généré à partir des routes réelles, jamais retapé : chemins, méthodes,
+paramètres (typés `integer` si leur contrainte `where()` est numérique), corps de requête déduit des règles
+de la FormRequest injectée dans l'action (types, formats email/url/uuid/date, `in`, `min`/`max`,
+tableaux imbriqués `items.*.x`, fichiers en `multipart/form-data`), authentification (session ou Bearer,
+d'après les middlewares), résumé et description tirés du docblock de l'action, et réponses 401, 403, 404,
+422 et 429 quand elles s'appliquent. Il s'ouvre dans n'importe quel outil OpenAPI (Swagger UI, Redoc,
+Postman, Insomnia) ou sert à générer un client.
+
+Deux choses ne sont pas déduites : une validation écrite dans le corps de l'action
+(`$this->validate(...)` au lieu d'une FormRequest) et la forme des réponses. Relancez la commande à chaque
+déploiement (ou dans la CI) pour que le fichier reste à jour. OpenAPI reste facultatif.
+
 ## API : JSON Resources & CORS
 
 `JsonResource` enveloppe un enregistrement dans `{"data": ...}` — surchargez `toArray()` pour
