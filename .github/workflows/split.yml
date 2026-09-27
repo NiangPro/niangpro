@@ -1,14 +1,18 @@
 name: Publication des paquets
 
 # Roadmap §46 : chaque dossier de packages/ est publié dans son propre dépôt en lecture seule
-# (NiangPro/niangpro-<nom>), historique compris, pour être installable seul avec Composer. Les
-# changements se font toujours dans ce dépôt ; les dépôts des paquets ne sont que des miroirs.
+# (NiangPro/niangpro-<nom>), historique compris, pour être installable seul avec Composer ; le
+# squelette d'application niangpro/niangpro (tools/build-skeleton.php) l'est dans
+# NiangPro/niangpro-skeleton. Les changements se font toujours dans ce dépôt ; les autres ne sont que
+# des miroirs.
 #
 # Prérequis (à faire une fois, par le propriétaire du dépôt) :
-#  1. créer les dépôts vides NiangPro/niangpro-<nom> (un par dossier de packages/) ;
+#  1. créer les dépôts vides NiangPro/niangpro-<nom> (un par dossier de packages/) et
+#     NiangPro/niangpro-skeleton ;
 #  2. créer un jeton GitHub avec le droit d'écrire dans ces dépôts, et l'enregistrer comme secret
 #     SPLIT_TOKEN de ce dépôt (Settings → Secrets and variables → Actions) ;
-#  3. déclarer chaque dépôt sur Packagist (niangpro/<nom>), avec le hook GitHub de Packagist.
+#  3. déclarer chaque dépôt sur Packagist (niangpro/<nom>, et niangpro/niangpro pour le squelette), avec
+#     le hook GitHub de Packagist. niangpro/framework (ce dépôt) y est déjà.
 # Sans SPLIT_TOKEN, le workflow s'arrête sans erreur : rien n'est publié.
 
 on:
@@ -53,3 +57,18 @@ jobs:
           tag=""
           case "$GITHUB_REF" in refs/tags/*) tag="${GITHUB_REF#refs/tags/}" ;; esac
           tools/split-packages.sh "https://x-access-token:${SPLIT_TOKEN}@github.com/NiangPro/niangpro-{package}.git" main "$tag"
+
+      - uses: shivammathur/setup-php@v2
+        if: steps.token.outputs.ready == 'true'
+        with:
+          php-version: '8.4'
+          coverage: none
+
+      - name: Publier le squelette niangpro/niangpro
+        if: steps.token.outputs.ready == 'true'
+        env:
+          SPLIT_TOKEN: ${{ secrets.SPLIT_TOKEN }}
+        run: |
+          tag=""
+          case "$GITHUB_REF" in refs/tags/*) tag="${GITHUB_REF#refs/tags/}" ;; esac
+          tools/publish-skeleton.sh "https://x-access-token:${SPLIT_TOKEN}@github.com/NiangPro/niangpro-skeleton.git" main "$tag"

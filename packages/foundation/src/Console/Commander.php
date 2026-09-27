@@ -1495,42 +1495,53 @@ class Commander
 
         echo "Création du projet dans $target...\n";
 
-        $this->copyDirectory($this->basePath, $target, [
-            'vendor', '.git', '.env', '.php-cs-fixer.cache', '.phpunit.result.cache',
-            'storage/logs', 'storage/framework', 'storage/database.sqlite',
-        ]);
+        // Le squelette niangpro/niangpro (v2) : son hook post-create-project crée .env et APP_KEY,
+        // installe le thème choisi (NIANG_SITE_TYPE, déjà demandé ci-dessus) et affiche la suite.
+        $command = $this->createProjectCommand($target);
 
-        mkdir("$target/storage/logs", 0755, true);
-        mkdir("$target/storage/framework", 0755, true);
-        touch("$target/storage/logs/.gitkeep");
-
-        chmod("$target/bin/niang", 0755);
-        copy("$target/.env.example", "$target/.env");
-
-        echo "Installation des dépendances...\n";
-        passthru('composer install --working-dir=' . escapeshellarg($target) . ' --quiet');
-
-        AppKey::writeTo("$target/.env");
-
-        // Un thème décrit lui-même ses étapes (theme.json) : une boutique doit migrer et alimenter la
-        // base, un site vitrine n'en a pas besoin. Le squelette minimal garde ses étapes historiques.
-        $nextSteps = $this->installSiteTheme($target, $type) ?: ['./bin/niang migrate', './bin/niang serve'];
-
-        echo "\nProjet créé.\n\n  cd $name\n";
-
-        foreach ($nextSteps as $step) {
-            echo "  $step\n";
+        if ($command === null) {
+            exit(1);
         }
 
-        $notes = $this->scaffolder()->notes($type);
+        putenv("NIANG_SITE_TYPE=$type");
+        passthru(implode(' ', array_map('escapeshellarg', $command)), $code);
 
-        if ($notes) {
-            echo "\n";
-
-            foreach ($notes as $note) {
-                echo "$note\n";
-            }
+        if ($code !== 0) {
+            echo "composer create-project a échoué (code $code).\n";
+            exit(1);
         }
+    }
+
+    /**
+     * La commande composer qui crée le projet $target. Dans une application, le squelette publié
+     * (Packagist). Dans le dépôt du framework, le squelette construit à partir de ce dépôt, relié au
+     * framework local par un lien : une modification du framework s'y voit aussitôt.
+     *
+     * @return list<string>|null null si le squelette local n'a pas pu être construit
+     */
+    private function createProjectCommand(string $target): ?array
+    {
+        $builder = $this->basePath . '/tools/build-skeleton.php';
+
+        if (!is_file($builder) || !is_dir($this->basePath . '/packages')) {
+            return ['composer', 'create-project', 'niangpro/niangpro', $target, '--no-interaction'];
+        }
+
+        $skeleton = sys_get_temp_dir() . '/niangpro-skeleton-' . bin2hex(random_bytes(4));
+        passthru(implode(' ', array_map('escapeshellarg', [PHP_BINARY, $builder, $skeleton])) . ' > ' . (PHP_OS_FAMILY === 'Windows' ? 'NUL' : '/dev/null'), $code);
+
+        if ($code !== 0) {
+            echo "Impossible de construire le squelette local.\n";
+            return null;
+        }
+
+        return [
+            'composer', 'create-project',
+            '--repository', (string) json_encode(['type' => 'path', 'url' => $skeleton, 'options' => ['symlink' => false, 'versions' => ['niangpro/niangpro' => '2.0.0']]], JSON_UNESCAPED_SLASHES),
+            '--repository', (string) json_encode(['type' => 'path', 'url' => $this->basePath, 'options' => ['symlink' => true, 'versions' => ['niangpro/framework' => '2.0.0']]], JSON_UNESCAPED_SLASHES),
+            '--add-repository',
+            'niangpro/niangpro', $target, '2.0.0', '--no-interaction',
+        ];
     }
 
     /**
@@ -1583,36 +1594,6 @@ class Commander
 
             return null;
         }
-    }
-
-    /**
-     * Installe le thème dans le projet $target, exécute ses commandes de setup (base de données,
-     * compte administrateur de test...) et retourne les commandes qu'il reste à suggérer.
-     *
-     * @return list<string>
-     */
-    private function installSiteTheme(string $target, string $type): array
-    {
-        $scaffolder = $this->scaffolder();
-        $scaffolder->install($type, $target);
-
-        if ($type === ProjectScaffolder::DEFAULT_TYPE) {
-            return [];
-        }
-
-        echo "Thème « {$scaffolder->catalog()[$type]} » installé.\n";
-
-        $setup = $scaffolder->setup($type);
-        $done = [];
-
-        if ($setup) {
-            echo 'Préparation du projet (' . implode(', ', $setup) . ")...\n";
-            $done = (new ThemeSetup($target))->run($setup, static function (string $text): void {
-                echo $text;
-            });
-        }
-
-        return $scaffolder->remainingSteps($type, $done);
     }
 
     /** Les thèmes sont lus dans le projet courant : ils sont copiés avec le squelette, et extensibles sur place. */
@@ -1800,36 +1781,6 @@ class Commander
             'exit /b 1',
             '',
         ]);
-    }
-
-    private function copyDirectory(string $source, string $target, array $exclude): void
-    {
-        mkdir($target, 0755, true);
-
-        $iterator = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($source, \RecursiveDirectoryIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::SELF_FIRST
-        );
-
-        foreach ($iterator as $item) {
-            $relative = substr($item->getPathname(), strlen($source) + 1);
-
-            foreach ($exclude as $pattern) {
-                if ($relative === $pattern || str_starts_with($relative, "$pattern/")) {
-                    continue 2;
-                }
-            }
-
-            $destination = "$target/$relative";
-
-            if ($item->isDir()) {
-                if (!is_dir($destination)) {
-                    mkdir($destination, 0755, true);
-                }
-            } else {
-                copy($item->getPathname(), $destination);
-            }
-        }
     }
 
     private function help(): void
