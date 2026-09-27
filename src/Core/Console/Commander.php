@@ -7,6 +7,7 @@ use Niang\Core\Application;
 use Niang\Core\Cache;
 use Niang\Core\Config;
 use Niang\Core\ConfigCache;
+use Niang\Core\Cors;
 use Niang\Core\Database\DB;
 use Niang\Core\Database\Migrator;
 use Niang\Core\Database\Seeder;
@@ -59,6 +60,11 @@ class Commander
             'queue:flush' => $this->queueFlush(),
             'cache:clear' => $this->cacheClear(),
             'optimize' => $this->optimize(),
+            'optimize:clear' => $this->optimizeClear(),
+            'about' => $this->about(),
+            'env' => $this->environment(),
+            'cors:check' => $this->corsCheck($arg),
+            'make:notification' => $this->makeNotification($arg),
             'new' => $this->newProject(array_slice($argv, 2)),
             'np:install' => $this->npInstall(),
             'config:cache' => $this->configCache(),
@@ -895,6 +901,168 @@ class Commander
         echo "Site rouvert.\n";
     }
 
+    private function optimizeClear(): void
+    {
+        $this->routeClear();
+        $this->configClear();
+        echo "Le cache applicatif (Cache::) n'est pas touché : ./bin/niang cache:clear pour le vider.\n";
+    }
+
+    private function environment(): void
+    {
+        $env = (string) Env::get('APP_ENV', 'local');
+        $file = file_exists($this->basePath . '/.env') ? '.env chargé' : 'pas de fichier .env';
+        echo "Environnement : $env ($file)\n";
+    }
+
+    /** Vue d'ensemble de l'application : versions, environnement, pilotes, caches. */
+    private function about(): void
+    {
+        $version = class_exists(\Composer\InstalledVersions::class) ? \Composer\InstalledVersions::getRootPackage()['pretty_version'] : 'inconnue';
+        $driver = fn (string $group, string $default) => (string) Config::get("$group.driver", Env::get(strtoupper($group) . '_DRIVER', $default));
+
+        $sections = [
+            'Application' => [
+                'Nom' => (string) Env::get('APP_NAME', 'NiangPro'),
+                'Version' => $version,
+                'PHP' => PHP_VERSION,
+                'Environnement' => (string) Env::get('APP_ENV', 'local'),
+                'Debug' => Env::get('APP_DEBUG', 'true') === 'true' ? 'activé' : 'désactivé',
+                'URL' => (string) Env::get('APP_URL', ''),
+                'Langue' => (string) Env::get('APP_LOCALE', 'fr'),
+                'Maintenance' => MaintenanceMode::isDown() ? 'oui' : 'non',
+            ],
+            'Pilotes' => [
+                'Base de données' => (string) Env::get('DB_CONNECTION', 'sqlite'),
+                'Cache' => $driver('cache', 'file'),
+                'Sessions' => $driver('session', 'file'),
+                'File d\'attente' => $driver('queue', 'file'),
+                'Emails' => (string) Env::get('MAIL_MAILER', 'log'),
+                'Journaux' => (string) Config::get('logging.level', 'debug') . ', ' . (int) Config::get('logging.days', 14) . ' jours',
+            ],
+            'Caches' => [
+                'Configuration' => ConfigCache::exists() ? 'en cache' : 'non',
+                'Routes' => RouteCache::exists() ? 'en cache' : 'non',
+                'OPcache' => function_exists('opcache_get_status') && ini_get('opcache.enable_cli') ? 'actif (CLI)' : 'inactif en CLI',
+            ],
+        ];
+
+        foreach ($sections as $title => $lines) {
+            echo "\n$title\n";
+            foreach ($lines as $label => $value) {
+                echo '  ' . str_pad($label, 22 + (strlen($label) - mb_strlen($label)), '.') . ' ' . ($value === '' ? '—' : $value) . "\n";
+            }
+        }
+    }
+
+    /**
+     * Relit config/cors.php à la recherche des erreurs courantes ; avec une origine, simule un
+     * préflight et affiche les en-têtes que le navigateur recevrait.
+     */
+    private function corsCheck(?string $origin): void
+    {
+        $origins = (array) Config::get('cors.allowed_origins', []);
+        $credentials = (bool) Config::get('cors.supports_credentials', false);
+        $methods = (array) Config::get('cors.allowed_methods', []);
+        $production = Env::get('APP_ENV') === 'production';
+        $problems = 0;
+
+        $report = function (bool $ok, string $message) use (&$problems): void {
+            echo ($ok ? '✓ ' : '⚠ ') . $message . "\n";
+            $problems += $ok ? 0 : 1;
+        };
+
+        echo 'Origines autorisées : ' . ($origins === [] ? '(aucune)' : implode(', ', $origins)) . "\n";
+        $report(!($production && in_array('*', $origins, true)), in_array('*', $origins, true)
+            ? "« * » : n'importe quel site peut appeler votre API depuis le navigateur" . ($production ? ' — listez les origines exactes en production' : '')
+            : 'Origines explicites');
+        $report(!($credentials && in_array('*', $origins, true)), $credentials
+            ? 'Cookies autorisés (supports_credentials)' . (in_array('*', $origins, true) ? ' avec « * » : par sécurité, aucune origine n\'est alors acceptée — listez vos origines' : '')
+            : 'Cookies non transmis (supports_credentials = false)');
+
+        foreach ($origins as $allowed) {
+            if ($allowed !== '*' && !str_contains((string) $allowed, '*') && (parse_url((string) $allowed, PHP_URL_PATH) ?? '') !== '') {
+                $report(false, "« $allowed » contient un chemin : une origine n'est que schéma + hôte (+ port), sans / final");
+            }
+        }
+
+        $report(in_array('OPTIONS', array_map('strtoupper', $methods), true), 'Méthode OPTIONS (préflight) ' . (in_array('OPTIONS', array_map('strtoupper', $methods), true) ? 'autorisée' : 'absente de allowed_methods'));
+
+        if ($origin !== null) {
+            $request = \Niang\Core\Http\Request::create('OPTIONS', '/api', [], [], ['Origin' => $origin, 'Access-Control-Request-Method' => 'POST']);
+            $headers = Cors::headersFor($request);
+            echo "\nPréflight depuis $origin : " . ($headers === [] ? "refusé (aucun en-tête CORS)\n" : "accepté\n");
+
+            foreach ($headers as $name => $value) {
+                echo "  $name: $value\n";
+            }
+        }
+
+        echo "\n" . ($problems === 0 ? "Aucun problème détecté.\n" : "$problems point(s) à vérifier.\n");
+    }
+
+    private function makeNotification(?string $name): void
+    {
+        if (!$name) {
+            echo "Usage : niang make:notification NomNotification\n";
+            return;
+        }
+
+        $name = str_ends_with($name, 'Notification') ? $name : $name . 'Notification';
+        $dir = $this->basePath . '/app/Notifications';
+
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $path = "$dir/$name.php";
+
+        if (file_exists($path)) {
+            echo "La notification $name existe déjà.\n";
+            return;
+        }
+
+        $stub = <<<PHP
+        <?php
+
+        namespace App\Notifications;
+
+        use Niang\Core\Mailable;
+        use Niang\Core\Notification;
+
+        /** Notification::send(\$user, new {$name}(...)); */
+        class {$name} extends Notification
+        {
+            public function __construct(
+                // private array \$commande,
+            ) {
+            }
+
+            /** 'mail', 'database', 'webhook', ou une classe NotificationChannel. */
+            public function via(array \$notifiable): array
+            {
+                return ['database'];
+            }
+
+            public function toDatabase(array \$notifiable): array
+            {
+                return [
+                    'message' => '',
+                ];
+            }
+
+            // public function toMail(array \$notifiable): Mailable
+            // {
+            //     return new MonMailable(...);
+            // }
+        }
+
+        PHP;
+
+        file_put_contents($path, $stub);
+        echo "Notification créée : app/Notifications/$name.php\n";
+    }
+
     private function queueFailed(): void
     {
         $failed = Queue::failed();
@@ -1585,6 +1753,11 @@ class Commander
           queue:flush              Supprime définitivement tous les jobs échoués
           cache:clear              Vide le cache applicatif
           optimize                 Cache les routes + rappels de prod (opcache, autoload)
+          optimize:clear           Supprime les caches de routes et de configuration
+          about                    Vue d'ensemble : versions, environnement, pilotes, caches
+          env                      Affiche l'environnement courant (APP_ENV)
+          cors:check [origine]     Vérifie config/cors.php ; simule un préflight depuis une origine
+          make:notification <Nom>  Génère une notification dans app/Notifications
           new <nom>                Crée un nouveau projet et y installe un thème de site (--type=<slug> pour éviter la question)
           np:install               Installe le raccourci global `np` (macOS, Linux, Windows)
           config:cache             Fige config/*.php (production uniquement)

@@ -9,6 +9,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Commandes `about`, `env`, `optimize:clear`, `cors:check`, `make:notification`** (roadmap §33 et
+  §36). `about` lit la version réelle installée (Composer) ; `optimize:clear` défait exactement ce que
+  fait `optimize` ; `cors:check` signale `*` en production, `*` avec les cookies (toutes les origines
+  sont alors refusées), une origine avec chemin, l'absence d'`OPTIONS`, et simule un préflight depuis
+  une origine donnée.
+
 - **Génération OpenAPI 3** (roadmap §35) : `niang openapi [--output] [--prefix]` et
   `Niang\Core\OpenApi::generate()`. Chemins, méthodes, paramètres typés, corps de requête déduit des
   règles des FormRequest (tableaux imbriqués, fichiers en multipart), sécurité session ou Bearer,

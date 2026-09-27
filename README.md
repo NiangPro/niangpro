@@ -1566,6 +1566,13 @@ Grammar — corrigé pour passer par `Schema`/`Blueprint` comme n'importe quelle
 ./bin/niang queue:flush              # supprime définitivement tous les jobs échoués
 ./bin/niang cache:clear              # vide le cache applicatif
 ./bin/niang optimize                 # cache les routes + rappels de prod
+./bin/niang optimize:clear           # supprime les caches de routes et de configuration
+./bin/niang about                    # versions, environnement, pilotes, caches
+./bin/niang env                      # environnement courant (APP_ENV)
+./bin/niang cors:check https://app.example.com  # vérifie config/cors.php, simule un préflight
+./bin/niang make:notification CommandeExpediee  # génère app/Notifications/CommandeExpedieeNotification.php
+./bin/niang openapi                  # génère public/openapi.json (voir Documentation OpenAPI)
+./bin/niang down / up                # mode maintenance (voir Passage en production)
 ./bin/niang new mon-app              # crée un nouveau projet (pose la question du type de site)
 ./bin/niang new mon-app --type=blog  # idem sans question : vitrine, ecommerce, blog, portfolio, landing, minimal
 ./bin/niang np:install               # installe le raccourci global `np` (macOS, Linux, Windows)
