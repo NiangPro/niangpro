@@ -1073,12 +1073,15 @@ class Commander
     {
         $needed = [];
 
-        foreach (['session' => ['sessions'], 'cache' => ['cache_entries', 'rate_limits']] as $group => $tables) {
+        $groups = ['session' => ['sessions'], 'cache' => ['cache_entries', 'rate_limits'], 'queue' => ['jobs', 'failed_jobs']];
+
+        foreach ($groups as $group => $tables) {
             // La CLI ne charge pas config/*.php : même repli sur l'environnement que Cache::driver().
             $driver = (string) Config::get("$group.driver", Env::get(strtoupper($group) . '_DRIVER', 'file'));
+            $allowed = $group === 'queue' ? ['file', 'database', 'sync'] : ['file', 'database'];
 
-            if (!in_array($driver, ['file', 'database'], true)) {
-                return [$this->doctorCheck(false, '', strtoupper($group) . "_DRIVER inconnu : « $driver » (attendu : file ou database)")];
+            if (!in_array($driver, $allowed, true)) {
+                return [$this->doctorCheck(false, '', strtoupper($group) . "_DRIVER inconnu : « $driver » (attendu : " . implode(', ', $allowed) . ')')];
             }
 
             if ($driver === 'database') {

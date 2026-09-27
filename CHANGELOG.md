@@ -9,6 +9,13 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **File d'attente en base de données et en mode synchrone** (roadmap §25) : `QUEUE_DRIVER=database`
+  (tables `jobs` et `failed_jobs`, nouvelle migration) ou `sync`. Réservation atomique par `UPDATE`
+  conditionnel, job d'un worker arrêté rendu à la file après `QUEUE_RETRY_AFTER`, mêmes retentatives
+  et commandes (`queue:failed`, `queue:retry`, `queue:flush`) que le pilote fichier. Contenu sérialisé
+  en base64 (PostgreSQL refuse l'octet nul des propriétés privées). `niang doctor` vérifie les tables.
+  Vérifié avec 3 workers simultanés sur MySQL : 60 jobs, chacun exécuté exactement une fois.
+
 - **Connexion avec Google ou GitHub** (OAuth 2, roadmap §52, sans dépendance) : `Niang\Core\OAuth`
   (`redirect()`, `user()`, `configured()`), fournisseurs `GoogleProvider` (OpenID Connect) et
   `GitHubProvider` (email principal lu sur `/user/emails`), `config/oauth.php`. `state` à usage unique

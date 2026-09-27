@@ -986,8 +986,18 @@ Queue::push(new SendWelcomeEmailJob($email));
 Queue::later(300, new SendWelcomeEmailJob($email)); // dû dans 5 minutes
 ```
 
-File sur fichier (`storage/framework/queue/`) — pas de démon fourni : lancez `queue:work` via cron,
-ou en boucle, selon vos besoins.
+Pas de démon fourni : lancez `queue:work` via cron (ou le planificateur), ou en boucle. Trois pilotes,
+choisis par `QUEUE_DRIVER` :
+
+| Pilote | Stockage | Usage |
+| --- | --- | --- |
+| `file` (défaut) | `storage/framework/queue/` | un seul serveur |
+| `database` | tables `jobs` et `failed_jobs` (`./bin/niang migrate`) | plusieurs serveurs ou workers : chaque job est réservé par un seul worker, même sur une autre machine |
+| `sync` | aucun | exécution immédiate, sans worker (développement, tests) |
+
+Avec `database`, un job réservé par un worker qui s'est arrêté en cours de route est rendu à la file après
+`QUEUE_RETRY_AFTER` secondes (600 par défaut) : cette valeur doit dépasser la durée de votre plus long job.
+`niang doctor` signale des tables manquantes.
 
 Un job qui échoue est retenté jusqu'à `Job::$tries` fois, avec un backoff exponentiel (10s, 20s,
 40s...) entre les tentatives, puis déplacé vers les jobs échoués :
