@@ -381,7 +381,8 @@ class Commander
         $prefix = isset($options['prefix']) ? (string) $options['prefix'] : '/api';
         $output = (string) ($options['output'] ?? 'public/openapi.json');
         $document = \Niang\Core\OpenApi::generate($router, ['prefix' => $prefix === '/' ? '' : $prefix]);
-        $path = str_starts_with($output, '/') ? $output : $this->basePath . '/' . $output;
+        // Chemin absolu Unix (/...) ou Windows (C:\..., \\serveur\partage) : utilisé tel quel.
+        $path = DB::isAbsolutePath($output) ? $output : $this->basePath . '/' . $output;
 
         if (!is_dir(dirname($path))) {
             mkdir(dirname($path), 0755, true);

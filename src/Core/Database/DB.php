@@ -107,7 +107,8 @@ class DB
      * `\\serveur\partage` (UNC Windows) — sans ce dernier cas, un DB_DATABASE Windows absolu
      * serait pris pour un chemin relatif et préfixé de base_path(), cassant la connexion SQLite.
      */
-    private static function isAbsolutePath(string $path): bool
+    /** @internal partagé avec la CLI (chemins de sortie) */
+    public static function isAbsolutePath(string $path): bool
     {
         return str_starts_with($path, '/')
             || str_starts_with($path, '\\\\')

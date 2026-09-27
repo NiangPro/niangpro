@@ -584,6 +584,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
   (toujours liée, jamais interprétée), mais PostgreSQL refusait par exemple un texte comparé à une colonne
   entière : erreur 500 au lieu de la première page (relevé par la CI PostgreSQL). Les curseurs portent désormais
   une signature HMAC (clé dérivée d'`APP_KEY`) ; un curseur modifié repart du début.
+- **`niang openapi --output=C:\\...` sous Windows** : un chemin absolu Windows était pris pour un chemin relatif
+  et préfixé du dossier du projet (même règle désormais que pour `DB_DATABASE`).
 - **PHPStan sous Windows** : l'exclusion des vues des thèmes (`*/*/resources/*`) attrapait aussi
   `app/Resources/` (système de fichiers insensible à la casse), si bien que les classes du thème api étaient
   inconnues. Exclusion limitée à `resources/views/`.
