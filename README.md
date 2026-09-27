@@ -558,6 +558,22 @@ class SetLocale implements Middleware
 }
 ```
 
+**Pluriels** : plusieurs formes séparées par `|`, choisies selon le nombre.
+
+```php
+// lang/fr/panier.php
+return [
+    'articles' => 'un article|:count articles',
+    'etat' => '{0} Votre panier est vide|{1} Un article|[2,9] :count articles|[10,*] Plus de :count articles',
+];
+
+trans_choice('panier.articles', 3);       // « 3 articles » (:count remplacé automatiquement)
+Lang::choice('panier.etat', 0);            // « Votre panier est vide »
+```
+
+Les formes `{n}` et `[min,max]` (`*` = sans limite) sont testées d'abord. Sinon la règle de la langue
+choisit : en français, 0 et 1 sont au singulier (« 0 article »), en anglais seul 1 l'est (« 0 items »).
+
 Les messages destinés au développeur (exceptions internes, CLI) restent en français.
 
 ## Gestion des erreurs

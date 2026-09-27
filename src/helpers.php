@@ -110,6 +110,14 @@ if (!function_exists('__')) {
     }
 }
 
+if (!function_exists('trans_choice')) {
+    /** Traduction au pluriel : trans_choice('panier.articles', 3) — voir Lang::choice(). */
+    function trans_choice(string $key, int|float $count, array $replace = []): string
+    {
+        return Lang::choice($key, $count, $replace);
+    }
+}
+
 if (!function_exists('json_response')) {
     function json_response(mixed $data, int $status = 200): Response
     {

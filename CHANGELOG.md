@@ -9,6 +9,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Pluriels dans les traductions** (roadmap §43) : `Lang::choice()` et le helper `trans_choice()`,
+  formes séparées par `|`, valeurs `{n}` et plages `[min,max]` explicites, sinon règle de la langue
+  (français, portugais, wolof, peul : 0 et 1 au singulier ; anglais et autres : 1 seulement).
+
 - **Canaux de journalisation** (roadmap §27) : `LOG_CHANNEL` = `daily` (défaut, inchangé), `single`,
   `errorlog` (journal du serveur web ou de PHP-FPM), `syslog` (priorité selon le niveau, identifiant
   `LOG_SYSLOG_IDENT`) ou `stderr` (conteneurs). Niveau minimal et masquage des secrets s'appliquent à
