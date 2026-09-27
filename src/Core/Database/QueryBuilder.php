@@ -18,6 +18,9 @@ class QueryBuilder
     private ?int $limitValue = null;
     private ?int $offsetValue = null;
     private bool $lock = false;
+
+    /** @var list<array{query: QueryBuilder, all: bool}> */
+    private array $unions = [];
     private ?string $connection = null;
 
     /** @var class-string<Model>|null Model dont les $casts s'appliquent aux lignes lues (voir Model::query()). */
@@ -72,6 +75,60 @@ class QueryBuilder
         $placeholders = implode(', ', array_fill(0, count($values), '?'));
         $this->wheres[] = [$this->wheres ? 'AND' : '', "$column IN ($placeholders)"];
         array_push($this->bindings, ...$values);
+        return $this;
+    }
+
+    public function whereNotIn(string $column, array $values): static
+    {
+        self::assertIdentifier($column);
+
+        if ($values === []) {
+            return $this; // NOT IN () est invalide en SQL ; « aucune exclusion » ne filtre rien.
+        }
+
+        $placeholders = implode(', ', array_fill(0, count($values), '?'));
+        $this->wheres[] = [$this->wheres ? 'AND' : '', "$column NOT IN ($placeholders)"];
+        array_push($this->bindings, ...$values);
+        return $this;
+    }
+
+    /**
+     * EXISTS (sous-requête), ex. les articles qui ont au moins un commentaire :
+     *   Post::query()->whereExists(
+     *       (new QueryBuilder('comments'))->select('id')->whereColumn('comments.post_id', 'posts.id')
+     *   )
+     */
+    public function whereExists(QueryBuilder $subquery): static
+    {
+        return $this->addExists('EXISTS', $subquery);
+    }
+
+    public function whereNotExists(QueryBuilder $subquery): static
+    {
+        return $this->addExists('NOT EXISTS', $subquery);
+    }
+
+    private function addExists(string $operator, QueryBuilder $subquery): static
+    {
+        $this->wheres[] = [$this->wheres ? 'AND' : '', "$operator (" . $subquery->toSql() . ')'];
+        array_push($this->bindings, ...$subquery->allBindings());
+        return $this;
+    }
+
+    /**
+     * Ajoute les lignes d'une autre requête (mêmes colonnes, dans le même ordre). UNION retire les
+     * doublons, unionAll() les garde. orderBy(), limit(), count() et paginate() s'appliquent au
+     * résultat combiné : triez par le nom de colonne tel qu'il apparaît dans le résultat (sans table).
+     */
+    public function union(QueryBuilder $query): static
+    {
+        $this->unions[] = ['query' => $query, 'all' => false];
+        return $this;
+    }
+
+    public function unionAll(QueryBuilder $query): static
+    {
+        $this->unions[] = ['query' => $query, 'all' => true];
         return $this;
     }
 
@@ -284,7 +341,11 @@ class QueryBuilder
         }
 
         $original = $this->columns;
-        $this->columns = $key !== null && $key !== $column ? "$column, $key" : $column;
+
+        // Sur une union, réduire les colonnes d'un seul membre déséquilibrerait l'union.
+        if ($this->unions === []) {
+            $this->columns = $key !== null && $key !== $column ? "$column, $key" : $column;
+        }
 
         try {
             $rows = $this->get();
@@ -342,6 +403,10 @@ class QueryBuilder
     /** Existence seule, sans rapatrier de lignes (SELECT 1 ... LIMIT 1). */
     public function exists(): bool
     {
+        if ($this->unions !== []) {
+            return $this->count() > 0;
+        }
+
         $original = $this->columns;
         $this->columns = '1';
         $this->limitValue = 1;
@@ -418,6 +483,13 @@ class QueryBuilder
 
     private function aggregate(string $function, string $column): mixed
     {
+        if ($this->unions !== []) {
+            $sql = "SELECT $function($column) as aggregate FROM (" . $this->unionSql() . ') AS np_union';
+            $result = DB::selectOne($sql, $this->allBindings(), $this->connection ?? 'read');
+
+            return $result['aggregate'] ?? 0;
+        }
+
         $original = $this->columns;
         $this->columns = "$function($column) as aggregate";
         $result = DB::selectOne($this->toSql(), $this->allBindings(), $this->connection ?? 'read');
@@ -490,6 +562,50 @@ class QueryBuilder
 
     public function toSql(): string
     {
+        if ($this->unions !== []) {
+            return 'SELECT * FROM (' . $this->unionSql() . ') AS np_union' . $this->orderLimitSql();
+        }
+
+        return $this->selectSql() . $this->orderLimitSql() . ($this->lock ? ' FOR UPDATE' : '');
+    }
+
+    /** Membres de l'union sans tri ni limite (SQLite les refuse à l'intérieur d'une union). */
+    private function unionSql(): string
+    {
+        $sql = $this->selectSql();
+
+        foreach ($this->unions as ['query' => $query, 'all' => $all]) {
+            if ($query->orderByClause !== null || $query->limitValue !== null || $query->offsetValue !== null || $query->unions !== []) {
+                throw new \LogicException('union() : triez et limitez la requête principale, pas les requêtes ajoutées.');
+            }
+
+            $sql .= ($all ? ' UNION ALL ' : ' UNION ') . $query->selectSql();
+        }
+
+        return $sql;
+    }
+
+    private function orderLimitSql(): string
+    {
+        $sql = '';
+
+        if ($this->orderByClause) {
+            $sql .= " ORDER BY {$this->orderByClause}";
+        }
+
+        if ($this->limitValue !== null) {
+            $sql .= " LIMIT {$this->limitValue}";
+        }
+
+        if ($this->offsetValue !== null) {
+            $sql .= " OFFSET {$this->offsetValue}";
+        }
+
+        return $sql;
+    }
+
+    private function selectSql(): string
+    {
         $sql = 'SELECT ' . ($this->distinct ? 'DISTINCT ' : '') . $this->columns . " FROM {$this->table}";
 
         foreach ($this->joins as $join) {
@@ -506,28 +622,19 @@ class QueryBuilder
             $sql .= ' HAVING ' . implode(' AND ', $this->havings);
         }
 
-        if ($this->orderByClause) {
-            $sql .= " ORDER BY {$this->orderByClause}";
-        }
-
-        if ($this->limitValue !== null) {
-            $sql .= " LIMIT {$this->limitValue}";
-        }
-
-        if ($this->offsetValue !== null) {
-            $sql .= " OFFSET {$this->offsetValue}";
-        }
-
-        if ($this->lock) {
-            $sql .= ' FOR UPDATE';
-        }
-
         return $sql;
     }
 
-    private function allBindings(): array
+    /** @internal aussi lue par whereExists() et union() de la requête englobante */
+    public function allBindings(): array
     {
-        return [...$this->bindings, ...$this->havingBindings];
+        $bindings = [...$this->bindings, ...$this->havingBindings];
+
+        foreach ($this->unions as ['query' => $query]) {
+            array_push($bindings, ...$query->allBindings());
+        }
+
+        return $bindings;
     }
 
     private function whereSql(): string

@@ -9,6 +9,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Query Builder : `union()`, `unionAll()`, `whereExists()`, `whereNotExists()`, `whereNotIn()`**
+  (roadmap §17). L'union est placée dans une sous-requête (`SELECT * FROM (a UNION b) AS np_union`),
+  seule forme acceptée par SQLite, MySQL et PostgreSQL qui permette de la trier, limiter, compter et
+  paginer. Valeurs liées des sous-requêtes dans le bon ordre. Testé sur SQLite et MySQL.
+
 - **Événements typés et PSR-14** (roadmap §26 et §10) : `Event::dispatch(new UserRegistered($user))`
   écouté par le nom de la classe, de ses parents ou de ses interfaces ; l'objet est retourné (modifiable
   par les écouteurs) ; `Events\StoppableEvent` arrête la propagation ; les écouteurs `ShouldQueue`

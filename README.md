@@ -246,6 +246,25 @@ Product::query()->where('id', 5)->decrement('stock', 2);
 Post::query()->where('id', 5)->increment('views', 1, ['last_viewed_at' => date('Y-m-d H:i:s')]);
 ```
 
+Sous-requêtes et unions :
+
+```php
+// Articles qui ont au moins un commentaire (sous-requête corrélée)
+Post::query()->whereExists(
+    (new QueryBuilder('comments'))->select('id')->whereColumn('comments.post_id', 'posts.id')
+)->get();
+// ->whereNotExists(...), ->whereNotIn('status', ['draft', 'archived'])
+
+// Articles publiés et archives, dans une seule liste
+Post::query()->select('title', 'published_at')
+    ->union((new QueryBuilder('archives'))->select('title', 'published_at'))  // unionAll() garde les doublons
+    ->orderBy('published_at', 'desc')->paginate(20);
+```
+
+`orderBy()`, `limit()`, `count()` et `paginate()` s'appliquent au résultat combiné d'une union : triez par
+le nom de colonne tel qu'il apparaît dans le résultat (`published_at`, pas `posts.published_at`). Les
+requêtes ajoutées par `union()` ne peuvent pas être triées ni limitées elles-mêmes.
+
 `chunk()` trie par `id` si vous ne donnez pas d'`orderBy()` : sans ordre stable, deux paquets pourraient
 se chevaucher. Ne modifiez pas, dans le rappel, la colonne sur laquelle la requête filtre (par exemple
 `active` ci-dessus), sinon les paquets suivants sont décalés.
