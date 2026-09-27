@@ -1430,6 +1430,10 @@ composer install --no-dev --optimize-autoloader
 ./bin/niang route:cache   # ou : ./bin/niang optimize
 ```
 
+Avec `APP_ENV=production`, le mode debug est **toujours désactivé** (pas de trace d'erreur, pas de barre de
+debug), même si `APP_DEBUG=true` traîne dans `.env` ; et aucune requête n'est servie sans `APP_KEY` valide
+(réponse 503, détail dans les logs). Hors production, le debug est actif sauf `APP_DEBUG=false`.
+
 Activez `opcache.enable=1` et `opcache.validate_timestamps=0` dans le `php.ini` de production
 (remettez `validate_timestamps=1` en développement, sinon vos modifications de code ne seront pas prises
 en compte sans redémarrage).

@@ -384,6 +384,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Security
 
+- **Mode debug actif en production par défaut** : `APP_DEBUG` absent valait `true`, donc un serveur de
+  production sans cette variable affichait les traces d'erreur (code, requêtes SQL) à tout le monde.
+  `Application::debug()` centralise la décision : toujours désactivé en production, même avec
+  `APP_DEBUG=true` (roadmap §8). En production, `run()` refuse aussi de servir une requête sans
+  `APP_KEY` valide (503 générique, détail dans les logs). Tests dans `tests/Security/ProductionConfigTest.php`.
 - **`POST /api/tokens` sans limitation de débit** : on pouvait y essayer des mots de passe sans
   limite. `ThrottleRequests` y est ajouté, comme sur `/login`. La route répond aussi en temps constant
   pour un email inconnu, et exige le code de double authentification quand elle est activée.

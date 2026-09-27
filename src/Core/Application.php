@@ -92,8 +92,48 @@ class Application
 
     public function run(): void
     {
+        $problems = self::productionProblems();
+
+        // Roadmap §8 : en production, pas de requête servie avec une configuration critique absente.
+        // Le détail va dans les logs, jamais au visiteur.
+        if ($problems !== []) {
+            Log::critical('Configuration de production invalide : ' . implode(' ; ', $problems));
+            Response::html('<h1>503</h1><p>Service temporairement indisponible.</p>', 503)->send();
+            return;
+        }
+
         Session::start();
         $this->handle(Request::capture())->send();
+    }
+
+    /**
+     * Mode debug (traces d'erreur détaillées, barre de debug, display_errors). Toujours désactivé
+     * en production, même avec APP_DEBUG=true : une variable oubliée ne doit pas exposer le code et
+     * les requêtes SQL à tout le monde. Ailleurs, activé sauf APP_DEBUG=false.
+     */
+    public static function debug(): bool
+    {
+        if (Env::get('APP_ENV') === 'production') {
+            return false;
+        }
+
+        return Env::get('APP_DEBUG', 'true') === 'true';
+    }
+
+    /** @return list<string> ce qui empêche de servir des requêtes en production (vide hors production) */
+    public static function productionProblems(): array
+    {
+        if (Env::get('APP_ENV') !== 'production') {
+            return [];
+        }
+
+        $problems = [];
+
+        if (!AppKey::isValid((string) Env::get('APP_KEY', ''))) {
+            $problems[] = 'APP_KEY absente ou trop courte (./bin/niang key:generate)';
+        }
+
+        return $problems;
     }
 
     /**
@@ -157,6 +197,6 @@ class Application
     private function configureErrorHandling(): void
     {
         error_reporting(E_ALL);
-        ini_set('display_errors', Env::get('APP_DEBUG', 'true') === 'true' ? '1' : '0');
+        ini_set('display_errors', self::debug() ? '1' : '0');
     }
 }

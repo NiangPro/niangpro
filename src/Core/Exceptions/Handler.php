@@ -3,7 +3,6 @@
 namespace Niang\Core\Exceptions;
 
 use Niang\Core\Auth;
-use Niang\Core\Env;
 use Niang\Core\Http\Request;
 use Niang\Core\Http\Response;
 use Niang\Core\Lang;
@@ -108,7 +107,7 @@ class Handler
 
     private static function isDebug(): bool
     {
-        return Env::get('APP_DEBUG', 'true') === 'true';
+        return \Niang\Core\Application::debug();
     }
 
     private static function renderDebugPage(\Throwable $e, Request $request, float $startedAt): Response

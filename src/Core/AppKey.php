@@ -26,6 +26,12 @@ final class AppKey
         return $key;
     }
 
+    /** Au moins 32 caractères : key:generate en produit 64 (32 octets en hexadécimal). */
+    public static function isValid(string $key): bool
+    {
+        return strlen($key) >= 32;
+    }
+
     /** Clé dérivée pour un usage précis (HKDF) : chiffrer ne réutilise jamais la clé brute des signatures HMAC. */
     public static function derive(string $purpose): string
     {

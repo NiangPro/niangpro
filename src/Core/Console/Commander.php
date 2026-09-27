@@ -1226,7 +1226,7 @@ class Commander
         }
 
         if (Env::get('APP_ENV') === 'production' && Env::get('APP_DEBUG', 'true') === 'true') {
-            $results[] = ['warn', 'APP_DEBUG=true en production — désactivez-le avant déploiement'];
+            $results[] = ['warn', 'APP_DEBUG=true en production — ignoré (le debug est toujours désactivé en production), retirez-le de .env'];
         }
 
         array_push($results, ...$this->mailChecks());
