@@ -47,7 +47,7 @@ class CommanderMakeEventTest extends TestCase
         $content = file_get_contents($path);
         $this->assertStringContainsString('namespace App\Events;', $content);
         $this->assertStringContainsString('class UserRegisteredEvent', $content);
-        $this->assertStringContainsString('Event::dispatch(UserRegisteredEvent::class', $content);
+        $this->assertStringContainsString('Event::dispatch(new UserRegisteredEvent(', $content);
     }
 
     public function test_does_not_overwrite_an_existing_event(): void

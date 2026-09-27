@@ -9,6 +9,14 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Événements typés et PSR-14** (roadmap §26 et §10) : `Event::dispatch(new UserRegistered($user))`
+  écouté par le nom de la classe, de ses parents ou de ses interfaces ; l'objet est retourné (modifiable
+  par les écouteurs) ; `Events\StoppableEvent` arrête la propagation ; les écouteurs `ShouldQueue`
+  reçoivent l'objet par la file. `Events\Dispatcher` implémente `EventDispatcherInterface` et
+  `ListenerProviderInterface`, résolu par le conteneur. Les événements nommés restent pris en charge.
+  Nouvelle dépendance d'interfaces seulement : `psr/event-dispatcher` (déjà présent en développement).
+  `make:event` propose `Event::dispatch(new ...)`.
+
 - **`simplePaginate()` et `cursorPaginate()`** (roadmap §20) sur le Query Builder, les modèles et
   `with()`. Sans `COUNT(*)` ; le curseur reprend après la dernière valeur vue (colonne unique, `asc` ou
   `desc`), sans sauter ni répéter de ligne quand la table change entre deux pages. Curseur opaque

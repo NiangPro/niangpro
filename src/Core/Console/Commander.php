@@ -604,7 +604,7 @@ class Commander
          *     //
          * });
          *
-         * Event::dispatch({$name}::class, new {$name}(...));
+         * Event::dispatch(new {$name}(...));
          */
         class {$name}
         {

@@ -7,6 +7,7 @@ use Niang\Core\Exceptions\Handler;
 use Niang\Core\Http\Request;
 use Niang\Core\Http\Response;
 use Psr\Container\ContainerInterface;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 
 class Application
@@ -30,6 +31,7 @@ class Application
         $this->container->singleton(self::class, $this);
         $this->container->singleton(Logger::class, $logger);
         $this->container->singleton(LoggerInterface::class, $logger);
+        $this->container->singleton(EventDispatcherInterface::class, new Events\Dispatcher());
 
         $this->configureErrorHandling();
         $this->bootProviders();

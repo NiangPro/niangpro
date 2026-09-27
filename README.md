@@ -1597,7 +1597,7 @@ $container->make(ReportGenerator::class);
 ```
 
 Seules des interfaces PSR pures existent dans `composer.json` (`psr/container`, `psr/log`,
-`psr/http-message`, `psr/http-server-middleware`) : aucun code d'implémentation, aucune dépendance
+`psr/http-message`, `psr/http-server-middleware`, `psr/event-dispatcher`) : aucun code d'implémentation, aucune dépendance
 transitive lourde — le framework reste sans dépendance d'implémentation à l'exécution.
 
 ### PSR-7 / PSR-15 (brancher un middleware tiers)
@@ -1648,13 +1648,30 @@ Déclarez-les dans `config/app.php` (`providers`). Tous les `register()` s'exéc
 
 ## Événements
 
+Un événement est un objet (`./bin/niang make:event UserRegistered`), écouté par le nom de sa classe :
+
 ```php
-Event::listen('user.registered', function (array $user) {
-    Log::info('Nouvel utilisateur : {email}', ['email' => $user['email']]);
+class UserRegisteredEvent
+{
+    public function __construct(public readonly array $user) {}
+}
+
+Event::listen(UserRegisteredEvent::class, SendWelcomeEmailListener::class);   // classe avec handle()
+Event::listen(UserRegisteredEvent::class, function (UserRegisteredEvent $event) {
+    Log::info('Nouvel utilisateur : {email}', ['email' => $event->user['email']]);
 });
 
-Event::dispatch('user.registered', $user);
+Event::dispatch(new UserRegisteredEvent($user));   // retourne l'événement, modifiable par les écouteurs
 ```
+
+Un écouteur enregistré sur une classe parente ou une interface reçoit aussi les événements qui en
+héritent (après ceux de la classe exacte). Un événement qui étend `Niang\Core\Events\StoppableEvent`
+s'arrête dès qu'un écouteur appelle `$event->stopPropagation()`. Un écouteur `ShouldQueue` reçoit l'objet
+par la file (il doit donc être sérialisable). Les événements nommés restent pris en charge :
+`Event::listen('user.registered', ...)` puis `Event::dispatch('user.registered', $user)`.
+
+**PSR-14** : injectez `Psr\EventDispatcher\EventDispatcherInterface` (résolu par le conteneur en
+`Niang\Core\Events\Dispatcher`) dans du code qui ne doit pas dépendre de la façade ; mêmes écouteurs.
 
 Découple la logique secondaire (notifications, journalisation, futurs écouteurs) du contrôleur qui
 déclenche l'action — sans passer par un vrai bus d'événements avec files et retries.
