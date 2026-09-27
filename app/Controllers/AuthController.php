@@ -51,7 +51,7 @@ class AuthController extends Controller
         // écouteurs enregistrés comme closures, eux, restent toujours synchrones.
         Event::dispatch('user.registered', $user);
 
-        return $this->redirect('/');
+        return $this->redirect(User::homePath($user));
     }
 
     public function showLogin(): Response

@@ -9,6 +9,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Starter « auth »** (roadmap §63), choisi à la création du projet : inscription, connexion, mot de passe
+  oublié, vérification d'email, OAuth, double authentification, tableau de bord et page « Mon compte » (profil,
+  mot de passe, suppression du compte et de ses jetons). Module `account` réutilisable par d'autres thèmes.
+  Après inscription, redirection vers `User::homePath()` (comme après connexion).
+
 - **Multi-locataire, base partagée** (roadmap §50, `config/tenancy.php`, désactivé par défaut) : un modèle
   `protected static bool $tenantScoped = true;` est filtré sur `tenant_id` pour le locataire courant (lectures,
   mises à jour, suppressions, relations et pivots), la colonne est imposée à la création et ne change jamais.
