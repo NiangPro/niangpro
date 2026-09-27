@@ -119,7 +119,7 @@ class MaintenanceModeTest extends TestCase
         $this->assertMatchesRegularExpression('#/([0-9a-f]{32}) \(cookie#', $output);
 
         preg_match('#/([0-9a-f]{32}) \(cookie#', $output, $m);
-        $this->get('/' . $m[1])->assertRedirect('/');
+        $this->get('/' . ($m[1] ?? ''))->assertRedirect('/');
 
         $this->assertStringContainsString('Site rouvert', $this->runCommand($commander, 'up'));
         $this->assertFalse(MaintenanceMode::isDown());

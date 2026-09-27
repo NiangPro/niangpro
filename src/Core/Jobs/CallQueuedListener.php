@@ -16,6 +16,6 @@ class CallQueuedListener extends Job
 
     public function handle(): void
     {
-        (new $this->listener())->handle(...$this->payload);
+        \Niang\Core\Event::classListener($this->listener)(...array_values($this->payload));
     }
 }

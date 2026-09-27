@@ -39,6 +39,11 @@ class UrlSignature
         $signature = $query['signature'];
         unset($query['signature']);
 
+        // ?signature[]=x : un tableau n'est jamais une signature valide (et ferait échouer hash_equals()).
+        if (!is_string($signature)) {
+            return false;
+        }
+
         if (isset($query['expires']) && (int) $query['expires'] < time()) {
             return false;
         }
@@ -54,7 +59,7 @@ class UrlSignature
         return hash_hmac('sha256', $canonical, self::key());
     }
 
-    /** @return array{0: string, 1: array<string, string>} */
+    /** @return array{0: string, 1: array<int|string, mixed>} valeurs : chaînes, ou tableaux si l'URL contient x[]= */
     private static function split(string $url): array
     {
         $questionMark = strpos($url, '?');

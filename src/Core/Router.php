@@ -405,6 +405,11 @@ class Router
         if (is_array($action)) {
             [$class, $method] = $action;
             $controller = $container->make($class);
+
+            if (!is_object($controller) || !is_string($method) || !is_callable([$controller, $method])) {
+                throw new \RuntimeException('Action de route introuvable : ' . (is_string($class) ? $class : get_debug_type($class)) . '@' . (is_string($method) ? $method : '?') . '.');
+            }
+
             return $container->call([$controller, $method], ['request' => $request]);
         }
 

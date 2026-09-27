@@ -37,7 +37,7 @@ class ProjectScaffolderTest extends TestCase
         $this->writeFile($this->scaffold, "themes/$slug/.gitkeep");
 
         if ($manifest !== null) {
-            $this->writeFile($this->scaffold, "themes/$slug/theme.json", json_encode($manifest));
+            $this->writeFile($this->scaffold, "themes/$slug/theme.json", (string) json_encode($manifest));
         }
     }
 
@@ -169,7 +169,7 @@ class ProjectScaffolderTest extends TestCase
     public function test_remove_paths_from_shared_and_theme_manifests_are_deleted_before_the_copy(): void
     {
         $this->theme('blog', ['remove' => ['resources/views/posts']]);
-        $this->writeFile($this->scaffold, 'shared/theme.json', json_encode(['remove' => ['resources/views/home.php', 'tests/Feature/HomeTest.php']]));
+        $this->writeFile($this->scaffold, 'shared/theme.json', (string) json_encode(['remove' => ['resources/views/home.php', 'tests/Feature/HomeTest.php']]));
         // Le thème remet une vue dans un dossier qu'il a lui-même demandé de vider.
         $this->writeFile($this->scaffold, 'themes/blog/resources/views/posts/index.php', 'liste du thème');
 

@@ -31,7 +31,7 @@ class FileSecurityTest extends TestCase
 
     public function test_an_absolute_path_stays_inside_storage_app(): void
     {
-        $this->assertStringStartsWith(base_path('storage/app/'), Storage::path('/etc/passwd'));
+        $this->assertTrue(str_starts_with(Storage::path('/etc/passwd'), base_path('storage/app/')));
     }
 
     public function test_a_php_file_disguised_as_an_image_is_refused(): void

@@ -44,7 +44,7 @@ class CommanderMakeCommandTest extends TestCase
         $this->assertFileExists($path);
         $this->assertStringContainsString('Commande créée : app/Console/Commands/ReportDailyCommand.php', $output);
 
-        $content = file_get_contents($path);
+        $content = (string) file_get_contents($path);
         $this->assertStringContainsString('namespace App\Console\Commands;', $content);
         $this->assertStringContainsString('class ReportDailyCommand extends Command', $content);
         $this->assertStringContainsString("public static string \$signature = 'mon:nom';", $content);
@@ -58,7 +58,7 @@ class CommanderMakeCommandTest extends TestCase
         $output = $this->makeCommand('AlreadyThereCommand');
 
         $this->assertStringContainsString('existe déjà', $output);
-        $this->assertStringContainsString('contenu personnalisé', file_get_contents($path));
+        $this->assertStringContainsString('contenu personnalisé', (string) file_get_contents($path));
     }
 
     public function test_shows_usage_without_a_name(): void

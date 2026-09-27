@@ -125,13 +125,15 @@ class DB
         };
     }
 
+    /** @return list<array<string, mixed>> */
     public static function select(string $query, array $bindings = [], string $connection = 'read'): array
     {
         self::$queryCount++;
         $statement = self::connection($connection)->prepare($query);
         self::bindValues($statement, $bindings);
         $statement->execute();
-        return $statement->fetchAll();
+
+        return array_values($statement->fetchAll());
     }
 
     public static function selectOne(string $query, array $bindings = [], string $connection = 'read'): ?array
@@ -189,7 +191,10 @@ class DB
     public static function insert(string $query, array $bindings = [], string $connection = 'write'): string
     {
         self::statement($query, $bindings, $connection);
-        return self::connection($connection)->lastInsertId();
+        $id = self::connection($connection)->lastInsertId();
+
+        // false : le pilote ne fournit pas d'identifiant (table sans colonne auto-incrémentée).
+        return $id === false ? '' : $id;
     }
 
     /**

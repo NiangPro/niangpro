@@ -30,9 +30,10 @@ class EagerLoadBuilder
         return $this;
     }
 
+    /** @return list<array<string, mixed>> */
     public function get(): array
     {
-        return $this->loadRelations($this->query->get());
+        return array_values($this->loadRelations($this->query->get()));
     }
 
     public function first(): ?array

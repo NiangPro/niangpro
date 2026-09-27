@@ -44,7 +44,7 @@ class CommanderMakeJobTest extends TestCase
         $this->assertFileExists($path);
         $this->assertStringContainsString('Job créé : app/Jobs/ProcessOrderJob.php', $output);
 
-        $content = file_get_contents($path);
+        $content = (string) file_get_contents($path);
         $this->assertStringContainsString('namespace App\Jobs;', $content);
         $this->assertStringContainsString('class ProcessOrderJob extends Job', $content);
         $this->assertStringContainsString('public function handle(): void', $content);
@@ -58,7 +58,7 @@ class CommanderMakeJobTest extends TestCase
         $output = $this->makeJob('AlreadyThereJob');
 
         $this->assertStringContainsString('existe déjà', $output);
-        $this->assertStringContainsString('contenu personnalisé', file_get_contents($path));
+        $this->assertStringContainsString('contenu personnalisé', (string) file_get_contents($path));
     }
 
     public function test_shows_usage_without_a_name(): void

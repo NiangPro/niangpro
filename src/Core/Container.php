@@ -175,11 +175,14 @@ class Container implements ContainerInterface
         }
     }
 
-    public function call(callable $callback, array $extraParams = []): mixed
+    /** @param callable|array{0: object|string, 1: string} $callback */
+    public function call(callable|array $callback, array $extraParams = []): mixed
     {
+        // Closure::fromCallable() : un objet invocable ou 'Classe::méthode' ne passe pas tel quel
+        // à ReflectionFunction.
         $reflection = is_array($callback)
             ? new \ReflectionMethod($callback[0], $callback[1])
-            : new \ReflectionFunction($callback);
+            : new \ReflectionFunction($callback instanceof \Closure ? $callback : \Closure::fromCallable($callback));
 
         $context = is_array($callback)
             ? (is_object($callback[0]) ? $callback[0]::class : $callback[0]) . '::' . $callback[1] . '()'
@@ -189,6 +192,10 @@ class Container implements ContainerInterface
             fn (\ReflectionParameter $param) => $this->resolveParameter($param, $extraParams, $context),
             $reflection->getParameters()
         );
+
+        if (!is_callable($callback)) {
+            throw new ContainerException('call() : méthode introuvable sur ' . (is_string($callback[0]) ? $callback[0] : $callback[0]::class) . '::' . $callback[1] . '().');
+        }
 
         return $callback(...$args);
     }

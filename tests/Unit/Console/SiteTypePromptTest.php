@@ -25,8 +25,8 @@ class SiteTypePromptTest extends TestCase
         putenv(SiteTypePrompt::ENV_VARIABLE);
 
         $scaffold = $this->makeTempDirectory();
-        $this->writeFile($scaffold, 'themes/vitrine/theme.json', json_encode(['label' => 'Site vitrine', 'order' => 10]));
-        $this->writeFile($scaffold, 'themes/blog/theme.json', json_encode(['label' => 'Blog', 'order' => 20]));
+        $this->writeFile($scaffold, 'themes/vitrine/theme.json', (string) json_encode(['label' => 'Site vitrine', 'order' => 10]));
+        $this->writeFile($scaffold, 'themes/blog/theme.json', (string) json_encode(['label' => 'Blog', 'order' => 20]));
 
         $this->prompt = new SiteTypePrompt(new ProjectScaffolder($scaffold));
     }

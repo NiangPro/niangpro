@@ -25,7 +25,7 @@ class CommanderNewTest extends TestCase
         putenv(SiteTypePrompt::ENV_VARIABLE);
 
         $this->project = $this->makeTempDirectory();
-        $this->writeFile($this->project, 'resources/scaffold/themes/vitrine/theme.json', json_encode([
+        $this->writeFile($this->project, 'resources/scaffold/themes/vitrine/theme.json', (string) json_encode([
             'label' => 'Site vitrine',
             'next_steps' => ['./bin/niang db:seed'],
         ]));

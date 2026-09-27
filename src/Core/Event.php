@@ -22,7 +22,7 @@ use Psr\EventDispatcher\StoppableEventInterface;
  */
 class Event
 {
-    /** @var array<string, array<int, \Closure|class-string>> */
+    /** @var array<string, list<\Closure|string>> closure ou nom de classe exposant handle() */
     private static array $listeners = [];
 
     /**
@@ -44,7 +44,7 @@ class Event
     {
         if (is_string($event)) {
             foreach (self::$listeners[$event] ?? [] as $listener) {
-                self::call($listener, $payload);
+                self::call($listener, array_values($payload));
             }
 
             return null;
@@ -76,7 +76,7 @@ class Event
     /**
      * Écouteurs de la classe exacte d'abord, puis de ses classes parentes, puis de ses interfaces.
      *
-     * @return list<\Closure|class-string>
+     * @return list<\Closure|string>
      */
     public static function listenersFor(object $event): array
     {
@@ -90,6 +90,21 @@ class Event
         return $listeners;
     }
 
+    /**
+     * @internal écouteur enregistré par son nom de classe : l'instancie et renvoie son handle().
+     * Une classe inexistante ou sans handle() lève une erreur qui la nomme.
+     */
+    public static function classListener(string $class): \Closure
+    {
+        $listener = class_exists($class) ? new $class() : null;
+
+        if ($listener === null || !method_exists($listener, 'handle')) {
+            throw new \InvalidArgumentException("Écouteur « $class » : classe introuvable ou sans méthode handle().");
+        }
+
+        return \Closure::fromCallable([$listener, 'handle']);
+    }
+
     /** @param list<mixed> $payload */
     private static function call(\Closure|string $listener, array $payload): void
     {
@@ -99,7 +114,7 @@ class Event
         }
 
         if (is_string($listener)) {
-            (new $listener())->handle(...$payload);
+            self::classListener($listener)(...$payload);
             return;
         }
 

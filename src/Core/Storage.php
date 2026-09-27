@@ -24,7 +24,9 @@ class Storage
     {
         $full = self::resolve($path);
 
-        return is_file($full) ? file_get_contents($full) : null;
+        $contents = is_file($full) ? @file_get_contents($full) : false;
+
+        return $contents === false ? null : $contents;
     }
 
     public static function exists(string $path): bool

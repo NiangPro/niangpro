@@ -26,7 +26,12 @@ class RateLimiter
             return self::attemptInDatabase(sha1($key), $maxAttempts, $decaySeconds);
         }
 
-        $handle = fopen(self::path($key), 'c+');
+        $handle = @fopen(self::path($key), 'c+');
+
+        if ($handle === false) {
+            throw new \RuntimeException("RateLimiter : impossible d'ouvrir " . self::path($key) . ' (droits sur storage/framework/ratelimits ?).');
+        }
+
         flock($handle, LOCK_EX);
 
         $content = stream_get_contents($handle);
@@ -45,7 +50,7 @@ class RateLimiter
 
         ftruncate($handle, 0);
         rewind($handle);
-        fwrite($handle, json_encode($data));
+        fwrite($handle, (string) json_encode($data));
         fflush($handle);
         flock($handle, LOCK_UN);
         fclose($handle);
@@ -61,7 +66,7 @@ class RateLimiter
         }
 
         $data = self::read($key);
-        return $data ? max(0, $data['resetAt'] - time()) : 0;
+        return $data ? max(0, (int) $data['resetAt'] - time()) : 0;
     }
 
     /**

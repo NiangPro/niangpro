@@ -30,7 +30,11 @@ class QueryBuilder
     {
     }
 
-    /** @internal appelé par Model::query() : les lignes lues passent par Model::castRow(). */
+    /**
+     * @internal appelé par Model::query() : les lignes lues passent par Model::castRow().
+     *
+     * @param class-string<Model> $model
+     */
     public function forModel(string $model): static
     {
         $this->model = $model;
@@ -307,6 +311,7 @@ class QueryBuilder
         return $this;
     }
 
+    /** @return list<array<string, mixed>> */
     public function get(): array
     {
         $rows = DB::select($this->toSql(), $this->allBindings(), $this->connection ?? 'read');

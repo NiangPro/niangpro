@@ -17,11 +17,11 @@ final class Dispatcher implements EventDispatcherInterface, ListenerProviderInte
         return Event::dispatch($event) ?? $event;
     }
 
-    /** @return iterable<callable> */
+    /** @return \Generator<int, callable> */
     public function getListenersForEvent(object $event): iterable
     {
         foreach (Event::listenersFor($event) as $listener) {
-            yield is_string($listener) ? fn (object $e) => (new $listener())->handle($e) : $listener;
+            yield is_string($listener) ? Event::classListener($listener) : $listener;
         }
     }
 }

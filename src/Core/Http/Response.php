@@ -95,7 +95,9 @@ final class Response
         return (new static())
             ->status($status)
             ->header('Content-Type', 'application/json; charset=utf-8')
-            ->content(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            // UTF-8 invalide (ancienne donnée en base...) remplacé par U+FFFD plutôt que de faire
+            // échouer toute la réponse ; toute autre erreur d'encodage lève une JsonException claire.
+            ->content(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
     }
 
     public static function redirect(string $to, int $status = 302): static

@@ -101,7 +101,7 @@ class PermissionTestRecorder implements Middleware
 
     public function handle(Request $request, \Closure $next, string ...$arguments): Response
     {
-        self::$arguments = $arguments;
+        self::$arguments = array_values($arguments);
         return $next($request);
     }
 }

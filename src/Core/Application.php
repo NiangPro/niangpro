@@ -53,10 +53,19 @@ class Application
      */
     private function bootProviders(): void
     {
-        $providers = array_map(
-            fn (string $class) => new $class($this),
-            Config::get('app.providers', [])
-        );
+        $providers = [];
+
+        foreach ((array) Config::get('app.providers', []) as $class) {
+            $provider = is_string($class) && class_exists($class) ? new $class($this) : null;
+
+            if (!$provider instanceof ServiceProvider) {
+                throw new Exceptions\ConfigurationException(
+                    (is_string($class) ? $class : get_debug_type($class)) . ' (config/app.php, providers) doit être une classe qui étend Niang\\Core\\ServiceProvider.'
+                );
+            }
+
+            $providers[] = $provider;
+        }
 
         foreach ($providers as $provider) {
             $provider->register();

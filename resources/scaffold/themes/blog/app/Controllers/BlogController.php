@@ -92,7 +92,7 @@ class BlogController extends Controller
         return $this->view('pages/about');
     }
 
-    /** @return array<string, int> slug de catégorie => nombre d'articles (0 compris) */
+    /** @return array<int|string, int> slug de catégorie => nombre d'articles (0 compris) */
     private function categoryCounts(): array
     {
         $counts = array_fill_keys(array_keys(config('site.categories', [])), 0);

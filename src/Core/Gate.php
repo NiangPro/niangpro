@@ -16,7 +16,7 @@ class Gate
 {
     private static array $abilities = [];
 
-    /** @var array<string, class-string> préfixe d'ability (ex: 'post') -> classe Policy */
+    /** @var array<string, string> préfixe d'ability (ex: 'post') -> classe Policy */
     private static array $policies = [];
 
     public static function define(string $ability, \Closure $callback): void

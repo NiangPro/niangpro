@@ -18,10 +18,10 @@ final class CronExpression
         ['jour de la semaine', 0, 7],
     ];
 
-    /** @var list<list<int>> valeurs autorisées, par champ */
+    /** @var array<int, list<int>> valeurs autorisées, par champ (0 à 4) */
     private array $allowed = [];
 
-    /** @var list<bool> champ restreint (autre chose que « * ») */
+    /** @var array<int, bool> champ restreint (autre chose que « * »), par champ (0 à 4) */
     private array $restricted = [];
 
     public function __construct(private string $expression)

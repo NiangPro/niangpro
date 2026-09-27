@@ -189,7 +189,8 @@ class Cache
             return null;
         }
 
-        $payload = @unserialize(file_get_contents($path));
+        $raw = @file_get_contents($path);
+        $payload = $raw === false ? null : @unserialize($raw);
 
         if (!is_array($payload) || !array_key_exists('value', $payload)) {
             return null;
@@ -220,7 +221,12 @@ class Cache
 
         self::ensureDirectory($dir);
 
-        $lock = fopen("$path.lock", 'c');
+        $lock = @fopen("$path.lock", 'c');
+
+        if ($lock === false) {
+            throw new \RuntimeException("Cache::increment() : impossible d'ouvrir le verrou $path.lock (droits sur storage/framework/cache ?).");
+        }
+
         flock($lock, LOCK_EX);
 
         try {

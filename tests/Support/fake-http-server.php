@@ -47,7 +47,7 @@ foreach ($responses as $response) {
 
     $body = '';
     $length = (int) ($headers['content-length'] ?? 0);
-    while (strlen($body) < $length && ($chunk = fread($client, $length - strlen($body))) !== false && $chunk !== '') {
+    while (strlen($body) < $length && ($chunk = fread($client, max(1, $length - strlen($body)))) !== false && $chunk !== '') {
         $body .= $chunk;
     }
 

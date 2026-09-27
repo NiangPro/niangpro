@@ -76,6 +76,11 @@ class ScheduleTest extends TestCase
         // Simule l'exécution précédente toujours en cours : un autre descripteur tient le verrou.
         $lockFile = $dir . '/' . sha1('longue|* * * * *') . '.lock';
         $held = fopen($lockFile, 'c');
+
+        if ($held === false) {
+            $this->fail("Verrou $lockFile impossible à ouvrir.");
+        }
+
         flock($held, LOCK_EX);
 
         $this->assertNull($task->run($dir));

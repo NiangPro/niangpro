@@ -28,6 +28,7 @@ class SmtpTransportTest extends TestCase
         return self::$certificate ??= FakeSmtpServer::selfSignedCertificate();
     }
 
+    /** @param array{host?: string, port?: int, encryption?: string, username?: ?string, password?: ?string, from_address?: string, from_name?: ?string, timeout?: int, ehlo_domain?: string, stream_options?: array<string, mixed>} $overrides */
     private function transport(FakeSmtpServer $server, array $overrides = []): SmtpTransport
     {
         return new SmtpTransport([
@@ -330,6 +331,7 @@ class SmtpTransportTest extends TestCase
         $this->transportWithoutServer(['encryption' => 'starttls']);
     }
 
+    /** @param array{host?: string, port?: int, encryption?: string, username?: ?string, password?: ?string, from_address?: string, from_name?: ?string, timeout?: int, ehlo_domain?: string, stream_options?: array<string, mixed>} $overrides */
     private function transportWithoutServer(array $overrides = []): SmtpTransport
     {
         return new SmtpTransport([

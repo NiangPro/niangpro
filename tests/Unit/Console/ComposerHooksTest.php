@@ -25,7 +25,7 @@ class ComposerHooksTest extends TestCase
         putenv(SiteTypePrompt::ENV_VARIABLE);
 
         $scaffold = $this->makeTempDirectory();
-        $this->writeFile($scaffold, 'themes/vitrine/theme.json', json_encode([
+        $this->writeFile($scaffold, 'themes/vitrine/theme.json', (string) json_encode([
             'label' => 'Site vitrine',
             'order' => 10,
             'next_steps' => ['./bin/niang serve'],
@@ -46,57 +46,10 @@ class ComposerHooksTest extends TestCase
     }
 
     /** @param list<string> $answers */
-    private function event(bool $interactive, array $answers = [], bool $abortOnAsk = false): object
+    /** @param list<string> $answers */
+    private function event(bool $interactive, array $answers = [], bool $abortOnAsk = false): ComposerHooksTestEvent
     {
-        $io = new class ($interactive, $answers, $abortOnAsk) {
-            /** @var list<string> */
-            public array $written = [];
-            /** @var list<string> */
-            public array $errors = [];
-            public int $asked = 0;
-
-            /** @param list<string> $answers */
-            public function __construct(private bool $interactive, private array $answers, private bool $abortOnAsk)
-            {
-            }
-
-            public function isInteractive(): bool
-            {
-                return $this->interactive;
-            }
-
-            public function ask(string $question): ?string
-            {
-                $this->asked++;
-
-                if ($this->abortOnAsk) {
-                    throw new \RuntimeException('Aborted.'); // ce que fait Composer sur une fin de saisie (Ctrl+D)
-                }
-
-                return array_shift($this->answers);
-            }
-
-            public function write(string $message, bool $newline = true): void
-            {
-                $this->written[] = $message;
-            }
-
-            public function writeError(string $message): void
-            {
-                $this->errors[] = $message;
-            }
-        };
-
-        return new class ($io) {
-            public function __construct(public object $io)
-            {
-            }
-
-            public function getIO(): object
-            {
-                return $this->io;
-            }
-        };
+        return new ComposerHooksTestEvent(new ComposerHooksTestIO($interactive, $answers, $abortOnAsk));
     }
 
     private function routes(): string
@@ -218,5 +171,59 @@ class ComposerHooksTest extends TestCase
         ComposerHooks::handle($this->event(false), $this->project, false, $this->scaffolder);
 
         $this->assertSame("APP_KEY=cle-existante\n", file_get_contents($this->project . '/.env'));
+    }
+}
+
+/** Faux Composer\IO\IOInterface : les réponses, et ce que le hook écrit. */
+class ComposerHooksTestIO
+{
+    /** @var list<string> */
+    public array $written = [];
+    /** @var list<string> */
+    public array $errors = [];
+    public int $asked = 0;
+
+    /** @param list<string> $answers */
+    public function __construct(private bool $interactive, private array $answers, private bool $abortOnAsk)
+    {
+    }
+
+    public function isInteractive(): bool
+    {
+        return $this->interactive;
+    }
+
+    public function ask(string $question): ?string
+    {
+        $this->asked++;
+
+        if ($this->abortOnAsk) {
+            throw new \RuntimeException('Aborted.'); // ce que fait Composer sur une fin de saisie (Ctrl+D)
+        }
+
+        return array_shift($this->answers);
+    }
+
+    public function write(string $message, bool $newline = true): void
+    {
+        $this->written[] = $message;
+    }
+
+    public function writeError(string $message): void
+    {
+        $this->errors[] = $message;
+    }
+}
+
+/** Faux Composer\Script\Event. */
+class ComposerHooksTestEvent
+{
+    public function __construct(public ComposerHooksTestIO $io)
+    {
+    }
+
+    public function getIO(): ComposerHooksTestIO
+    {
+        return $this->io;
     }
 }

@@ -131,7 +131,7 @@ class Log
         }
 
         $dir ??= base_path('storage/logs');
-        $oldestKept = date('Y-m-d', strtotime('-' . ($days - 1) . ' days'));
+        $oldestKept = date('Y-m-d', time() - ($days - 1) * 86400);
         $deleted = 0;
 
         foreach (glob("$dir/*.log") ?: [] as $file) {

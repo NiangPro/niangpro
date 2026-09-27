@@ -35,6 +35,10 @@ if ($client === false) {
 }
 
 $log = fopen($transcriptPath, 'w');
+
+if ($log === false) {
+    exit(1);
+}
 $send = static function (string $line) use ($client): void {
     fwrite($client, $line . "\r\n");
 };

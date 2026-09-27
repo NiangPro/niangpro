@@ -26,7 +26,7 @@ class ViteAssetsTest extends TestCase
 
     public function test_resolves_the_hashed_url_from_the_manifest(): void
     {
-        $this->writeFile($this->publicPath, 'build/manifest.json', json_encode([
+        $this->writeFile($this->publicPath, 'build/manifest.json', (string) json_encode([
             'resources/js/app.js' => [
                 'file' => 'assets/app-4ed993c7.js',
                 'src' => 'resources/js/app.js',
@@ -51,7 +51,7 @@ class ViteAssetsTest extends TestCase
     public function test_the_hot_file_takes_priority_over_the_manifest(): void
     {
         $this->writeFile($this->publicPath, 'hot', 'http://localhost:5173');
-        $this->writeFile($this->publicPath, 'build/manifest.json', json_encode([
+        $this->writeFile($this->publicPath, 'build/manifest.json', (string) json_encode([
             'resources/js/app.js' => ['file' => 'assets/app-4ed993c7.js'],
         ]));
 
@@ -79,7 +79,7 @@ class ViteAssetsTest extends TestCase
 
     public function test_raises_a_clear_error_when_the_requested_entry_is_missing_from_the_manifest(): void
     {
-        $this->writeFile($this->publicPath, 'build/manifest.json', json_encode([
+        $this->writeFile($this->publicPath, 'build/manifest.json', (string) json_encode([
             'resources/js/app.js' => ['file' => 'assets/app-4ed993c7.js'],
         ]));
 

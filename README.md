@@ -1500,7 +1500,7 @@ PHPUnit, PHP-CS-Fixer, PHPStan.
 composer test       # PHPUnit
 composer lint        # PHP-CS-Fixer (dry-run)
 composer lint:fix     # PHP-CS-Fixer (applique)
-composer analyse      # PHPStan niveau 6
+composer analyse      # PHPStan niveau 7
 vendor/bin/phpunit --testsuite=Security   # la suite de sécurité seule
 ```
 

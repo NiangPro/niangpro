@@ -76,7 +76,7 @@ final class OpenApi
     /** @return array{0: array<string, mixed>, 1: bool, 2: bool} opération, Bearer ?, session ? */
     private static function operation(array $route, string $prefix): array
     {
-        $middleware = array_map(fn (string $m) => explode(':', $m, 2)[0], $route['middleware'] ?? []);
+        $middleware = array_values(array_map(fn (string $m) => explode(':', $m, 2)[0], $route['middleware'] ?? []));
         $bearer = self::hasMiddleware($middleware, 'AuthenticateWithToken');
         $session = !$bearer && (self::hasMiddleware($middleware, 'Authenticate') || self::hasMiddleware($middleware, 'Authorize'));
         $reflection = self::reflectAction($route['action']);

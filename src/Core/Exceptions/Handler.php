@@ -118,7 +118,7 @@ class Handler
         $trace = htmlspecialchars($e->getTraceAsString());
         $method = htmlspecialchars($request->method);
         $uri = htmlspecialchars($request->uri);
-        $params = $request->params ? htmlspecialchars(json_encode($request->params, JSON_UNESCAPED_UNICODE)) : '—';
+        $params = $request->params ? htmlspecialchars((string) json_encode($request->params, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR)) : '—';
         $user = Auth::check() ? htmlspecialchars((string) (Auth::user()['email'] ?? Auth::id())) : 'invité';
         $duration = number_format((hrtime(true) - $startedAt) / 1_000_000, 2);
 

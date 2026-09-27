@@ -44,7 +44,7 @@ class CommanderMakeTestTest extends TestCase
         $this->assertFileExists($path);
         $this->assertStringContainsString('Test créé : tests/Unit/SampleTest.php', $output);
 
-        $content = file_get_contents($path);
+        $content = (string) file_get_contents($path);
         $this->assertStringContainsString('namespace Tests\Unit;', $content);
         $this->assertStringContainsString('class SampleTest extends TestCase', $content);
     }
@@ -57,7 +57,7 @@ class CommanderMakeTestTest extends TestCase
         $output = $this->makeTest('AlreadyThere');
 
         $this->assertStringContainsString('existe déjà', $output);
-        $this->assertStringContainsString('contenu personnalisé', file_get_contents($path));
+        $this->assertStringContainsString('contenu personnalisé', (string) file_get_contents($path));
     }
 
     public function test_shows_usage_without_a_name(): void

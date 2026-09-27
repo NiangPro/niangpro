@@ -142,7 +142,9 @@ class Request
 
             if (str_contains($contentType, 'application/json')) {
                 $raw = file_get_contents('php://input');
-                return json_decode($raw, true) ?: [];
+                $decoded = $raw === false ? null : json_decode($raw, true);
+
+                return is_array($decoded) ? $decoded : [];
             }
 
             return $_POST;

@@ -44,7 +44,7 @@ class CommanderMakePolicyTest extends TestCase
         $this->assertFileExists($path);
         $this->assertStringContainsString('Policy créée : app/Policies/CommentPolicy.php', $output);
 
-        $content = file_get_contents($path);
+        $content = (string) file_get_contents($path);
         $this->assertStringContainsString('namespace App\Policies;', $content);
         $this->assertStringContainsString('class CommentPolicy', $content);
         $this->assertStringContainsString("Gate::policy('prefix', CommentPolicy::class);", $content);
@@ -58,7 +58,7 @@ class CommanderMakePolicyTest extends TestCase
         $output = $this->makePolicy('AlreadyTherePolicy');
 
         $this->assertStringContainsString('existe déjà', $output);
-        $this->assertStringContainsString('contenu personnalisé', file_get_contents($path));
+        $this->assertStringContainsString('contenu personnalisé', (string) file_get_contents($path));
     }
 
     public function test_shows_usage_without_a_name(): void

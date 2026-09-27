@@ -23,13 +23,13 @@ class LoggerTest extends TestCase
 
     private function appendedSince(int $offset): string
     {
-        $contents = is_file($this->logFile) ? file_get_contents($this->logFile) : '';
+        $contents = is_file($this->logFile) ? (string) file_get_contents($this->logFile) : '';
         return substr($contents, $offset);
     }
 
     private function currentOffset(): int
     {
-        return is_file($this->logFile) ? filesize($this->logFile) : 0;
+        return is_file($this->logFile) ? (int) filesize($this->logFile) : 0;
     }
 
     public function test_implements_psr3_logger_interface(): void

@@ -409,6 +409,6 @@ abstract class Model
             . "WHERE {$pivotTable}.{$foreignKey} = ?"
             . ($related::$softDeletes ? " AND {$relatedTable}.deleted_at IS NULL" : '');
 
-        return array_map([$related, 'castRow'], DB::select($sql, [$id]));
+        return array_map(fn (array $row) => $related::castRow($row), DB::select($sql, [$id]));
     }
 }

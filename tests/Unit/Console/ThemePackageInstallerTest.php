@@ -33,13 +33,13 @@ class ThemePackageInstallerTest extends TestCase
 
     private function fakePackage(string $package, ?string $themePath): void
     {
-        $this->writeFile($this->projectRoot, "vendor/$package/composer.json", json_encode([
+        $this->writeFile($this->projectRoot, "vendor/$package/composer.json", (string) json_encode([
             'name' => $package,
             'extra' => $themePath !== null ? ['niangpro-theme' => $themePath] : [],
         ]));
 
         if ($themePath !== null) {
-            $this->writeFile($this->projectRoot, "vendor/$package/$themePath/theme.json", json_encode(['label' => 'Sunset']));
+            $this->writeFile($this->projectRoot, "vendor/$package/$themePath/theme.json", (string) json_encode(['label' => 'Sunset']));
             $this->writeFile($this->projectRoot, "vendor/$package/$themePath/routes/web.php", "<?php\n// route du thème\n");
         }
     }
@@ -91,7 +91,7 @@ class ThemePackageInstallerTest extends TestCase
 
     public function test_it_rejects_a_package_whose_declared_theme_directory_is_missing(): void
     {
-        $this->writeFile($this->projectRoot, 'vendor/acme/casse/composer.json', json_encode([
+        $this->writeFile($this->projectRoot, 'vendor/acme/casse/composer.json', (string) json_encode([
             'name' => 'acme/casse',
             'extra' => ['niangpro-theme' => 'theme/absent'],
         ]));

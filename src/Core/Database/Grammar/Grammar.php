@@ -63,10 +63,10 @@ abstract class Grammar
         return ' CHECK (' . $this->wrap($name) . ' IN (' . $this->quoteList($values) . '))';
     }
 
-    /** @param list<string> $values */
+    /** @param array<mixed> $values chaînes vérifiées par Blueprint::enum() */
     protected function quoteList(array $values): string
     {
-        return implode(', ', array_map(fn (string $value) => "'" . str_replace("'", "''", $value) . "'", $values));
+        return implode(', ', array_map(fn (mixed $value) => "'" . str_replace("'", "''", (string) $value) . "'", $values));
     }
 
     protected function compileDefault(mixed $value): string

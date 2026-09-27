@@ -31,6 +31,7 @@ class Commander
         Config::load($basePath);
     }
 
+    /** @param list<string> $argv */
     public function run(array $argv): void
     {
         $command = $argv[1] ?? 'help';
@@ -90,6 +91,7 @@ class Commander
      * au nom tapé, et l'exécute. Retourne false (plutôt que d'afficher une erreur) si rien ne
      * correspond, pour laisser l'appelant retomber sur l'aide générale.
      */
+    /** @param list<string> $arguments */
     private function runCustomCommand(string $command, array $arguments): bool
     {
         $dir = $this->basePath . '/app/Console/Commands';
@@ -1429,7 +1431,7 @@ class Commander
      * Arguments de `niang new` : un nom (le premier argument sans tiret) et des options --clé=valeur,
      * dans n'importe quel ordre (`niang new --type=blog mon-app` fonctionne comme `niang new mon-app --type=blog`).
      *
-     * @param list<string> $arguments
+     * @param array<int, string> $arguments
      * @return array{0: ?string, 1: array<string, ?string>}
      */
     private function parseNewArguments(array $arguments): array

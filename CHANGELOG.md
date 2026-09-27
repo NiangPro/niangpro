@@ -387,6 +387,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Changed
 
+- **PHPStan passe du niveau 6 au niveau 7** (roadmap §56 : « niveau élevé »), sur `src`, `app`, `tests` et
+  les thèmes, sans nouvelle exclusion. `DB::select()` et `QueryBuilder::get()` déclarent une liste de lignes.
 - **`Gate::allows()` sur une ability sans règle ni Policy** consulte désormais les permissions du rôle
   de l'utilisateur au lieu de répondre toujours `false`. Sans colonne `role` (ou sans rôle déclaré dans
   `config/permissions.php`), rien ne change ; un utilisateur `admin` (permission `*`) obtient en
@@ -505,6 +507,16 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Fixed
 
+- **Relevé par PHPStan niveau 7**, chaque cas couvert par `tests/Unit/RobustnessTest.php` (qui échoue sur
+  l'ancien code) :
+  - `Response::json()` levait une `TypeError` si une donnée contenait de l'UTF-8 invalide (ancienne ligne en
+    base...) : caractère remplacé par U+FFFD ; même correction sur la page de debug ;
+  - un lien signé trafiqué avec `?signature[]=x` provoquait une erreur 500 au lieu d'être refusé ;
+  - `Container::call()` échouait avec un objet invocable ;
+  - un Service Provider ou un écouteur de classe mal déclaré donnait une erreur fatale obscure : le message
+    nomme désormais la classe fautive ;
+  - `Cache::increment()`, `RateLimiter` et plusieurs lectures de fichiers ne géraient pas l'échec d'ouverture
+    (droits sur `storage/`) : erreur explicite.
 - **Liens des emails de réinitialisation et de vérification relatifs** (`/reset-password/...`) : non
   cliquables dans une boîte mail. Ils sont désormais absolus, construits avec `APP_URL`.
 - **`Cache::put()` : avertissement « mkdir(): File exists »** quand deux requêtes simultanées créaient

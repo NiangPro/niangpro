@@ -164,6 +164,10 @@ class LogLevelAndRetentionTest extends TestCase
             var_export(base_path(), true)
         );
         $process = proc_open([PHP_BINARY, '-r', $script], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+
+        if ($process === false) {
+            $this->fail('Impossible de lancer PHP.');
+        }
         $stdout = stream_get_contents($pipes[1]);
         $stderr = stream_get_contents($pipes[2]);
         proc_close($process);

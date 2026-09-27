@@ -44,7 +44,7 @@ class CommanderMakeEventTest extends TestCase
         $this->assertFileExists($path);
         $this->assertStringContainsString('Événement créé : app/Events/UserRegisteredEvent.php', $output);
 
-        $content = file_get_contents($path);
+        $content = (string) file_get_contents($path);
         $this->assertStringContainsString('namespace App\Events;', $content);
         $this->assertStringContainsString('class UserRegisteredEvent', $content);
         $this->assertStringContainsString('Event::dispatch(new UserRegisteredEvent(', $content);
@@ -58,7 +58,7 @@ class CommanderMakeEventTest extends TestCase
         $output = $this->makeEvent('AlreadyThereEvent');
 
         $this->assertStringContainsString('existe déjà', $output);
-        $this->assertStringContainsString('contenu personnalisé', file_get_contents($path));
+        $this->assertStringContainsString('contenu personnalisé', (string) file_get_contents($path));
     }
 
     public function test_shows_usage_without_a_name(): void

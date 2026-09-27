@@ -334,7 +334,8 @@ class Queue
 
     private static function read(string $file): ?array
     {
-        $envelope = @unserialize(file_get_contents($file));
+        $raw = @file_get_contents($file);
+        $envelope = $raw === false ? null : @unserialize($raw);
 
         return is_array($envelope) && isset($envelope['job']) ? $envelope : null;
     }

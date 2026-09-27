@@ -260,7 +260,11 @@ class Auth
         return self::id() !== null;
     }
 
-    /** Rôle de l'utilisateur connecté (config/permissions.php) : Auth::hasRole('admin'), ou ['admin', 'editor']. */
+    /**
+     * Rôle de l'utilisateur connecté (config/permissions.php) : Auth::hasRole('admin'), ou ['admin', 'editor'].
+     *
+     * @param string|list<string> $roles
+     */
     public static function hasRole(string|array $roles): bool
     {
         return Permission::hasRole(self::user(), $roles);

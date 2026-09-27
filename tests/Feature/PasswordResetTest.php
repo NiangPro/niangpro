@@ -142,6 +142,6 @@ class PasswordResetTest extends TestCase
     {
         preg_match('#/reset-password/\S+#', $body, $matches);
 
-        return $matches[0];
+        return $matches[0] ?? '';
     }
 }
