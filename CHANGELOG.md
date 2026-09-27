@@ -9,6 +9,12 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Stabilité de l'API et politique de dépréciation** (roadmap §3.1 et §70) : `docs/API_STABILITY.md`
+  (stable, expérimental, interne, déprécié), marqueur `@experimental` sur `OpenApi`, `OAuth`,
+  `Permission`, `Response::eventStream()`/`ServerSentEvent` et `Http\Client` (un test vérifie qu'ils
+  figurent tous dans le document). Helper `trigger_deprecation()` (même signature que
+  symfony/deprecation-contracts) ; `Application::run()` consigne chaque dépréciation une fois par requête.
+
 - **Suite de tests de sécurité** (roadmap §55) : `tests/Security/` (suite PHPUnit `Security`, 34 tests)
   — injection SQL, XSS, CSRF, redirection ouverte, en-tête Host, fixation de session, cookies,
   traversée de chemin, fichiers envoyés, affectation de masse, IDOR, limitation de débit, en-têtes. Le

@@ -7,6 +7,8 @@ namespace Niang\Core\Http;
  * webhooks, OAuth. http et https uniquement, redirections non suivies, délai d'attente borné.
  * Une réponse 4xx/5xx est renvoyée normalement (status) ; seule une connexion impossible lève une
  * exception.
+ *
+ * @experimental destiné d'abord aux besoins internes (webhooks, OAuth).
  */
 final class Client
 {

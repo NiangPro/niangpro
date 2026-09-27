@@ -157,6 +157,8 @@ final class Response
      *
      * $heartbeat : secondes sans événement après lesquelles un commentaire « : ping » est envoyé,
      * pour que les proxys ne coupent pas une connexion inactive (vérifié entre deux événements).
+     *
+     * @experimental
      */
     public static function eventStream(\Closure $events, int $heartbeat = 15, array $headers = []): static
     {

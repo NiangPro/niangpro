@@ -15,6 +15,8 @@ use Niang\Core\Validation\FormRequest;
  *  - réponses 401, 403, 404 (liaison de modèle), 422 (validation), 429 (limitation de débit).
  * Non déduit : une validation écrite dans le corps de l'action ($this->validate(...)) et la forme des
  * réponses — complétez au besoin le fichier généré.
+ *
+ * @experimental le format de sortie peut encore évoluer (voir docs/API_STABILITY.md).
  */
 final class OpenApi
 {

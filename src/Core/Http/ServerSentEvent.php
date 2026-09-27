@@ -8,6 +8,8 @@ namespace Niang\Core\Http;
  *
  *   const source = new EventSource('/progression');
  *   source.addEventListener('progress', e => console.log(JSON.parse(e.data)));
+ *
+ * @experimental avec Response::eventStream().
  */
 final class ServerSentEvent
 {

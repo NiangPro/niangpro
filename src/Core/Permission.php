@@ -6,6 +6,8 @@ namespace Niang\Core;
  * Rôles et permissions déclarés dans config/permissions.php, sans table supplémentaire : un rôle
  * par utilisateur (colonne `role`), une liste de permissions par rôle. Gate::allows() s'en sert
  * quand aucune règle define() ni aucune Policy ne répond pour l'ability demandée.
+ *
+ * @experimental plusieurs rôles par utilisateur pourront être ajoutés.
  */
 final class Permission
 {

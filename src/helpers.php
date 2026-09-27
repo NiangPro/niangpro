@@ -39,6 +39,21 @@ if (!function_exists('route')) {
     }
 }
 
+if (!function_exists('trigger_deprecation')) {
+    /**
+     * Signale l'usage d'une API dépréciée (roadmap §70) : dépréciée en version N, supprimée en N+1.
+     * Même signature et même effet que la fonction de symfony/deprecation-contracts (qui la remplace
+     * si elle est installée) : un E_USER_DEPRECATED silencieux, consigné dans les logs par
+     * Application::run() et affiché par PHPUnit.
+     *
+     *   trigger_deprecation('niangpro/framework', '1.6', 'Foo::bar() est déprécié, utilisez Foo::baz().');
+     */
+    function trigger_deprecation(string $package, string $version, string $message, mixed ...$args): void
+    {
+        @trigger_error(($package || $version ? "Since $package $version: " : '') . ($args ? vsprintf($message, $args) : $message), \E_USER_DEPRECATED);
+    }
+}
+
 if (!function_exists('url')) {
     /**
      * URL absolue, construite à partir d'APP_URL — jamais de l'en-tête Host de la requête, qu'un

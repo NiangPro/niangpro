@@ -102,8 +102,28 @@ class Application
             return;
         }
 
+        set_error_handler([self::class, 'logDeprecation'], E_DEPRECATED | E_USER_DEPRECATED);
+
         Session::start();
         $this->handle(Request::capture())->send();
+    }
+
+    /** @var array<string, true> messages déjà consignés pendant cette requête */
+    private static array $loggedDeprecations = [];
+
+    /**
+     * @internal gestionnaire d'erreurs posé par run() : chaque dépréciation (y compris silencée par @,
+     * comme celles de trigger_deprecation()) est consignée une fois par requête. Retourne true :
+     * rien n'est affiché au visiteur.
+     */
+    public static function logDeprecation(int $type, string $message, string $file = '', int $line = 0): bool
+    {
+        if (!isset(self::$loggedDeprecations[$message])) {
+            self::$loggedDeprecations[$message] = true;
+            Log::warning('Dépréciation : {message}', ['message' => $message, 'file' => $file, 'line' => $line]);
+        }
+
+        return true;
     }
 
     /**

@@ -51,8 +51,9 @@ DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_DATABASE=niangpro_test DB_USERNAME=root
 - **Aucune nouvelle dépendance à l'exécution** dans `composer.json` `require` (seules les interfaces
   PSR y figurent). Une dépendance de développement se discute dans l'issue d'abord.
 - **Rétrocompatibilité** : une API publique ne change pas de signature dans une version mineure ;
-  ajoutez un paramètre optionnel ou une nouvelle méthode. Une suppression passe par `@deprecated`
-  pendant une version (voir la roadmap, « Deprecation policy »).
+  ajoutez un paramètre optionnel ou une nouvelle méthode. Une suppression passe par `@deprecated` et
+  `trigger_deprecation()` pendant au moins une version. Ce qui est stable, expérimental ou interne est
+  listé dans [docs/API_STABILITY.md](docs/API_STABILITY.md) : mettez-le à jour pour toute nouvelle classe.
 - **La documentation** : le `README.md` pour l'essentiel, une entrée dans `CHANGELOG.md` sous
   `[Non publié]` (sections `Added`, `Changed`, `Fixed`, `Security`...). Le site de documentation
   ([NiangPro/niangpro-docs](https://github.com/NiangPro/niangpro-docs)) est mis à jour en français et
