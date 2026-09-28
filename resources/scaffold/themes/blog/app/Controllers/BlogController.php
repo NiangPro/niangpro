@@ -16,12 +16,26 @@ class BlogController extends Controller
 {
     public function home(): Response
     {
-        $latest = Post::with('tags')->orderBy('id', 'desc')->limit(7)->get();
+        // À la une, deux articles récents à côté, puis une rangée de trois.
+        $latest = Post::with('tags')->orderBy('id', 'desc')->limit(6)->get();
+
+        $topics = DB::select(
+            'SELECT tags.name, COUNT(post_tag.post_id) AS posts_count FROM tags '
+            . 'INNER JOIN post_tag ON post_tag.tag_id = tags.id GROUP BY tags.id, tags.name '
+            . 'ORDER BY posts_count DESC, tags.name ASC LIMIT 5'
+        );
 
         return $this->view('blog/home', [
             'featured' => $latest[0] ?? null,
-            'posts' => array_slice($latest, 1),
+            'recent' => array_slice($latest, 1, 2),
+            'posts' => array_slice($latest, 3),
             'categories' => $this->categoryCounts(),
+            'topics' => $topics,
+            'stats' => [
+                'articles' => Post::query()->count(),
+                'auteurs' => (int) (DB::selectOne("SELECT COUNT(DISTINCT author) AS total FROM posts WHERE author IS NOT NULL AND author <> ''")['total'] ?? 0),
+                'thèmes' => (int) (DB::selectOne('SELECT COUNT(*) AS total FROM tags')['total'] ?? 0),
+            ],
         ]);
     }
 

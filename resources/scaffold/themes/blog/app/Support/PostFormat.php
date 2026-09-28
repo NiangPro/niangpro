@@ -36,17 +36,39 @@ class PostFormat
         return max(1, (int) ceil(count($words) / 200));
     }
 
+    /**
+     * Intertitres du corps, dans l'ordre, avec l'identifiant posé par html() : de quoi construire le
+     * sommaire d'un article.
+     *
+     * @return list<array{id: string, text: string}>
+     */
+    public static function headings(string $body): array
+    {
+        $headings = [];
+        $used = [];
+
+        foreach (self::blocks($body) as $block) {
+            if (str_starts_with($block, '## ')) {
+                $text = trim(substr($block, 3));
+                $headings[] = ['id' => self::anchor($text, $used), 'text' => $text];
+            }
+        }
+
+        return $headings;
+    }
+
     /** Texte simple => HTML sûr (voir la description de la classe). */
     public static function html(string $body): string
     {
         $html = '';
+        $used = [];
 
-        foreach (preg_split('/\R{2,}/u', trim($body), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $block) {
-            $block = trim($block);
+        foreach (self::blocks($body) as $block) {
             $escaped = htmlspecialchars($block, ENT_QUOTES, 'UTF-8');
 
             if (str_starts_with($block, '## ')) {
-                $html .= '<h2>' . htmlspecialchars(substr($block, 3), ENT_QUOTES, 'UTF-8') . "</h2>\n";
+                $text = trim(substr($block, 3));
+                $html .= '<h2 id="' . self::anchor($text, $used) . '">' . htmlspecialchars($text, ENT_QUOTES, 'UTF-8') . "</h2>\n";
             } elseif (str_starts_with($block, '> ')) {
                 $html .= '<blockquote><p>' . htmlspecialchars(substr($block, 2), ENT_QUOTES, 'UTF-8') . "</p></blockquote>\n";
             } elseif (str_starts_with($block, '- ')) {
@@ -61,5 +83,37 @@ class PostFormat
         }
 
         return $html;
+    }
+
+    /** @return list<string> blocs du corps, séparés par une ligne vide */
+    private static function blocks(string $body): array
+    {
+        return array_map('trim', preg_split('/\R{2,}/u', trim($body), -1, PREG_SPLIT_NO_EMPTY) ?: []);
+    }
+
+    /**
+     * « Naviguer au clavier » => « section-naviguer-au-clavier » : identifiant stable et lisible pour les
+     * liens du sommaire, suffixé (-2, -3...) si deux intertitres se ressemblent. Le préfixe évite toute
+     * collision avec un identifiant du reste de la page.
+     *
+     * @param array<string, true> $used
+     */
+    private static function anchor(string $text, array &$used): string
+    {
+        $slug = strtr(mb_strtolower($text), [
+            'à' => 'a', 'â' => 'a', 'ä' => 'a', 'á' => 'a', 'ã' => 'a', 'æ' => 'ae', 'ç' => 'c',
+            'é' => 'e', 'è' => 'e', 'ê' => 'e', 'ë' => 'e', 'î' => 'i', 'ï' => 'i', 'í' => 'i',
+            'ô' => 'o', 'ö' => 'o', 'ó' => 'o', 'œ' => 'oe', 'ù' => 'u', 'û' => 'u', 'ü' => 'u', 'ú' => 'u', 'ÿ' => 'y', 'ñ' => 'n',
+        ]);
+        $slug = 'section-' . (trim((string) preg_replace('/[^a-z0-9]+/', '-', $slug), '-') ?: 'partie');
+        $unique = $slug;
+
+        for ($n = 2; isset($used[$unique]); $n++) {
+            $unique = "$slug-$n";
+        }
+
+        $used[$unique] = true;
+
+        return $unique;
     }
 }
