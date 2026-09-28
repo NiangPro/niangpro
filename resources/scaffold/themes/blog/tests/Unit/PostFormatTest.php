@@ -31,7 +31,7 @@ class PostFormatTest extends TestCase
     {
         $html = PostFormat::html("## Titre\n\nUn paragraphe.\n\n> Une citation\n\n- un\n- deux");
 
-        $this->assertStringContainsString('<h2>Titre</h2>', $html);
+        $this->assertStringContainsString('<h2 id="section-titre">Titre</h2>', $html);
         $this->assertStringContainsString('<p>Un paragraphe.</p>', $html);
         $this->assertStringContainsString('<blockquote><p>Une citation</p></blockquote>', $html);
         $this->assertStringContainsString('<ul><li>un</li><li>deux</li></ul>', $html);
@@ -45,6 +45,26 @@ class PostFormatTest extends TestCase
         $this->assertStringNotContainsString('<img', $html);
         $this->assertStringNotContainsString('<b>', $html);
         $this->assertStringContainsString('&lt;script&gt;', $html);
+    }
+
+    public function test_headings_get_readable_unique_ids_matching_the_table_of_contents(): void
+    {
+        $body = "## Naviguer au clavier\n\nTexte.\n\n## Les formulaires\n\n## Les formulaires\n\n## <b>Déjà vu</b>";
+
+        $this->assertSame([
+            ['id' => 'section-naviguer-au-clavier', 'text' => 'Naviguer au clavier'],
+            ['id' => 'section-les-formulaires', 'text' => 'Les formulaires'],
+            ['id' => 'section-les-formulaires-2', 'text' => 'Les formulaires'],
+            ['id' => 'section-b-deja-vu-b', 'text' => '<b>Déjà vu</b>'],
+        ], PostFormat::headings($body));
+
+        $html = PostFormat::html($body);
+
+        foreach (PostFormat::headings($body) as $heading) {
+            $this->assertStringContainsString('<h2 id="' . $heading['id'] . '">', $html);
+        }
+
+        $this->assertStringNotContainsString('<b>', $html, 'le texte d\'un intertitre reste échappé');
     }
 
     public function test_a_single_line_break_inside_a_paragraph_is_kept(): void

@@ -7,6 +7,15 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ## [Non publié]
 
+### Changed
+
+- **Thème blog : refonte du héros de l'accueil et de la page article.** Accueil : fond « aurore » animé, pastille
+  du dernier article, titre en dégradé, thèmes populaires, chiffres clés, article à la une en carte vitrée avec
+  deux articles récents. Article : en-tête immersif, barre de progression de lecture, sommaire fixe qui suit la
+  section lue, partage (copier le lien, partage natif), lettrine, citations et carte d'auteur redessinées.
+  `PostFormat` donne un identifiant lisible à chaque intertitre (`PostFormat::headings()` pour le sommaire).
+  Sans dépendance ni ressource externe ; clair, sombre, mobile et `prefers-reduced-motion` vérifiés.
+
 ## [2.0.0] — 2026-09-28
 
 Version majeure : le framework devient une dépendance (`composer create-project niangpro/niangpro mon-app`),
