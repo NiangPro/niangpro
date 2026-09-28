@@ -159,6 +159,6 @@ class CommanderDoctorTest extends TestCase
     public function test_file_drivers_need_no_table_and_unknown_drivers_fail(): void
     {
         $this->assertNull($this->statusFor($this->checksWithEnv(['SESSION_DRIVER' => 'file', 'CACHE_DRIVER' => 'file']), 'Table sessions'));
-        $this->assertSame('fail', $this->statusFor($this->checksWithEnv(['CACHE_DRIVER' => 'redis']), 'CACHE_DRIVER inconnu'));
+        $this->assertSame('fail', $this->statusFor($this->checksWithEnv(['CACHE_DRIVER' => 'memcached']), 'CACHE_DRIVER inconnu'));
     }
 }

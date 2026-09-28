@@ -40,6 +40,31 @@ class ApiTokenTest extends TestCase
         $this->assertNull(ApiToken::resolve($token));
     }
 
+    public function test_revoke_removes_only_that_token(): void
+    {
+        $user = $this->makeUser();
+        $phone = ApiToken::issue($user, 'mobile');
+        $laptop = ApiToken::issue($user, 'ordinateur');
+
+        $this->assertTrue(ApiToken::revoke($phone));
+        $this->assertFalse(ApiToken::revoke($phone));
+
+        $this->assertNull(ApiToken::resolve($phone));
+        $this->assertNotNull(ApiToken::resolve($laptop));
+    }
+
+    public function test_revoke_all_removes_every_token_of_the_user(): void
+    {
+        $user = $this->makeUser();
+        $tokens = [ApiToken::issue($user, 'a'), ApiToken::issue($user, 'b')];
+
+        $this->assertSame(2, ApiToken::revokeAll($user));
+
+        foreach ($tokens as $token) {
+            $this->assertNull(ApiToken::resolve($token));
+        }
+    }
+
     public function test_resolve_updates_last_used_at(): void
     {
         $user = $this->makeUser();

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Http;
 
 use Niang\Core\Cookie;
@@ -95,7 +97,9 @@ final class Response
         return (new static())
             ->status($status)
             ->header('Content-Type', 'application/json; charset=utf-8')
-            ->content(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            // UTF-8 invalide (ancienne donnée en base...) remplacé par U+FFFD plutôt que de faire
+            // échouer toute la réponse ; toute autre erreur d'encodage lève une JsonException claire.
+            ->content(json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR));
     }
 
     public static function redirect(string $to, int $status = 302): static
@@ -157,6 +161,8 @@ final class Response
      *
      * $heartbeat : secondes sans événement après lesquelles un commentaire « : ping » est envoyé,
      * pour que les proxys ne coupent pas une connexion inactive (vérifié entre deux événements).
+     *
+     * @experimental
      */
     public static function eventStream(\Closure $events, int $heartbeat = 15, array $headers = []): static
     {

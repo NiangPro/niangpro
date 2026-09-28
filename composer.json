@@ -19,7 +19,8 @@
         "psr/container": "^2.0",
         "psr/log": "^3.0",
         "psr/http-message": "^1.1 || ^2.0",
-        "psr/http-server-middleware": "^1.0"
+        "psr/http-server-middleware": "^1.0",
+        "psr/event-dispatcher": "^1.0"
     },
     "suggest": {
         "nyholm/psr7": "Fournit l'implémentation PSR-7 concrète (interfaces seulement en require) nécessaire pour Niang\\Core\\Http\\Psr7Bridge et Psr15Adapter."

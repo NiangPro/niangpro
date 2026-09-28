@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Database;
 
 use Niang\Core\Database\Grammar\Grammar;
@@ -105,7 +107,8 @@ class DB
      * `\\serveur\partage` (UNC Windows) — sans ce dernier cas, un DB_DATABASE Windows absolu
      * serait pris pour un chemin relatif et préfixé de base_path(), cassant la connexion SQLite.
      */
-    private static function isAbsolutePath(string $path): bool
+    /** @internal partagé avec la CLI (chemins de sortie) */
+    public static function isAbsolutePath(string $path): bool
     {
         return str_starts_with($path, '/')
             || str_starts_with($path, '\\\\')
@@ -125,13 +128,15 @@ class DB
         };
     }
 
+    /** @return list<array<string, mixed>> */
     public static function select(string $query, array $bindings = [], string $connection = 'read'): array
     {
         self::$queryCount++;
         $statement = self::connection($connection)->prepare($query);
         self::bindValues($statement, $bindings);
         $statement->execute();
-        return $statement->fetchAll();
+
+        return array_values($statement->fetchAll());
     }
 
     public static function selectOne(string $query, array $bindings = [], string $connection = 'read'): ?array
@@ -189,7 +194,10 @@ class DB
     public static function insert(string $query, array $bindings = [], string $connection = 'write'): string
     {
         self::statement($query, $bindings, $connection);
-        return self::connection($connection)->lastInsertId();
+        $id = self::connection($connection)->lastInsertId();
+
+        // false : le pilote ne fournit pas d'identifiant (table sans colonne auto-incrémentée).
+        return $id === false ? '' : $id;
     }
 
     /**

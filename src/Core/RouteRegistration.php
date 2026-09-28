@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core;
 
 class RouteRegistration
@@ -13,6 +15,34 @@ class RouteRegistration
     {
         foreach ($this->indices as $index) {
             $this->router->setRouteName($index, $name);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Remplace un paramètre de route par la ligne correspondante du modèle (404 si absente), après
+     * les middlewares : ->bind(['post' => Post::class]) cherche par id, ->bind(['post' => Post::class . ':slug'])
+     * par une autre colonne. Le contrôleur la reçoit sous le même nom : function show(array $post).
+     *
+     * @param array<string, string> $bindings
+     */
+    public function bind(array $bindings): static
+    {
+        foreach ($bindings as $parameter => $binding) {
+            [$model, $column] = array_pad(explode(':', $binding, 2), 2, 'id');
+
+            if (!is_subclass_of($model, Database\Model::class)) {
+                throw new \InvalidArgumentException("bind() : « $model » n'est pas un modèle (Niang\\Core\\Database\\Model).");
+            }
+
+            if (preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $column) !== 1) {
+                throw new \InvalidArgumentException("bind() : colonne invalide « $column ».");
+            }
+
+            foreach ($this->indices as $index) {
+                $this->router->setRouteBinding($index, $parameter, $model, $column);
+            }
         }
 
         return $this;

@@ -33,6 +33,8 @@ $router->get('/', [HomeController::class, 'index']);
 
 $router->get('/up', [HealthController::class, 'index']); // v0.9.0 : supervision
 $router->get('/health', [HealthController::class, 'index']); // P0 #15 : alias documenté par la roadmap
+$router->get('/health/ready', [HealthController::class, 'index']);
+$router->get('/health/live', [HealthController::class, 'live']);
 
 $router->get('/hello/{name}', [HomeController::class, 'hello']);
 

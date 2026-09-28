@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core;
 
 use Niang\Core\Exceptions\OAuthException;
@@ -18,6 +20,8 @@ use Niang\Core\OAuth\Provider;
  * Protections : `state` aléatoire à usage unique gardé en session (un lien de retour forgé par un
  * tiers est refusé) et PKCE (le code intercepté ne sert à rien sans le secret gardé en session).
  * Configuration : config/oauth.php (GOOGLE_CLIENT_ID, GITHUB_CLIENT_ID...).
+ *
+ * @experimental la liste des fournisseurs et la forme du profil peuvent encore évoluer.
  */
 final class OAuth
 {

@@ -48,9 +48,9 @@ class OAuthTest extends TestCase
     private function githubServer(bool $verified = true, string $email = 'awa@example.test'): FakeHttpServer
     {
         return new FakeHttpServer(responses: [
-            ['status' => 200, 'body' => json_encode(['access_token' => 'gho_jeton', 'token_type' => 'bearer'])],
-            ['status' => 200, 'body' => json_encode(['id' => 4242, 'login' => 'awa', 'name' => 'Awa Diop', 'avatar_url' => 'https://avatars.test/awa'])],
-            ['status' => 200, 'body' => json_encode([
+            ['status' => 200, 'body' => (string) json_encode(['access_token' => 'gho_jeton', 'token_type' => 'bearer'])],
+            ['status' => 200, 'body' => (string) json_encode(['id' => 4242, 'login' => 'awa', 'name' => 'Awa Diop', 'avatar_url' => 'https://avatars.test/awa'])],
+            ['status' => 200, 'body' => (string) json_encode([
                 ['email' => 'autre@example.test', 'primary' => false, 'verified' => true],
                 ['email' => $email, 'primary' => true, 'verified' => $verified],
             ])],
@@ -95,7 +95,8 @@ class OAuthTest extends TestCase
         $this->assertSame('code-recu', $sent['code']);
         $this->assertSame('secret-client', $sent['client_secret']);
         $this->assertSame('authorization_code', $sent['grant_type']);
-        $this->assertSame(64, strlen($sent['code_verifier']));
+        $verifier = $sent['code_verifier'];
+        $this->assertTrue(is_string($verifier) && strlen($verifier) === 64, 'code_verifier PKCE de 64 caractères');
         $this->assertSame('GET /user HTTP/1.1', $profile['request']);
         $this->assertSame('Bearer gho_jeton', $profile['headers']['authorization']);
     }
@@ -158,7 +159,7 @@ class OAuthTest extends TestCase
 
     public function test_a_rejected_code_is_handled(): void
     {
-        $server = new FakeHttpServer(responses: [['status' => 400, 'body' => json_encode(['error' => 'bad_verification_code'])]]);
+        $server = new FakeHttpServer(responses: [['status' => 400, 'body' => (string) json_encode(['error' => 'bad_verification_code'])]]);
         $this->configure('github', $server);
 
         $this->get('/auth/github/callback?code=c&state=' . $this->start('github'))->assertRedirect('/login');
@@ -168,8 +169,8 @@ class OAuthTest extends TestCase
     public function test_full_google_login(): void
     {
         $server = new FakeHttpServer(responses: [
-            ['status' => 200, 'body' => json_encode(['access_token' => 'ya29.jeton', 'id_token' => 'x'])],
-            ['status' => 200, 'body' => json_encode(['sub' => '1098', 'email' => 'modou@example.test', 'email_verified' => true, 'name' => 'Modou', 'picture' => 'https://img.test/m'])],
+            ['status' => 200, 'body' => (string) json_encode(['access_token' => 'ya29.jeton', 'id_token' => 'x'])],
+            ['status' => 200, 'body' => (string) json_encode(['sub' => '1098', 'email' => 'modou@example.test', 'email_verified' => true, 'name' => 'Modou', 'picture' => 'https://img.test/m'])],
         ]);
         $this->configure('google', $server);
 

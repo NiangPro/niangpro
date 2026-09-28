@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Database;
 
 /** Enrobe un fragment SQL brut (ex: CURRENT_TIMESTAMP) pour qu'il ne soit pas traité comme une valeur littérale. */

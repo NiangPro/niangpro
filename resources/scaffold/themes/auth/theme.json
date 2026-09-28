@@ -1,0 +1,14 @@
+{
+    "label": "Application avec comptes (inscription, connexion, espace membre)",
+    "order": 60,
+    "modules": ["account"],
+    "setup": ["migrate"],
+    "next_steps": [
+        "./bin/niang migrate",
+        "./bin/niang serve"
+    ],
+    "notes": [
+        "Créez un compte sur /register : vous arrivez sur /tableau-de-bord, votre espace membre.",
+        "Les emails (vérification, mot de passe oublié) partent selon MAIL_* dans .env ; par défaut ils sont écrits dans storage/logs."
+    ]
+}

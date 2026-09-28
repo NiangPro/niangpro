@@ -39,6 +39,39 @@ if (!function_exists('route')) {
     }
 }
 
+if (!function_exists('trigger_deprecation')) {
+    /**
+     * Signale l'usage d'une API dépréciée (roadmap §70) : dépréciée en version N, supprimée en N+1.
+     * Même signature et même effet que la fonction de symfony/deprecation-contracts (qui la remplace
+     * si elle est installée) : un E_USER_DEPRECATED silencieux, consigné dans les logs par
+     * Application::run() et affiché par PHPUnit.
+     *
+     *   trigger_deprecation('niangpro/framework', '1.6', 'Foo::bar() est déprécié, utilisez Foo::baz().');
+     */
+    function trigger_deprecation(string $package, string $version, string $message, mixed ...$args): void
+    {
+        @trigger_error(($package || $version ? "Since $package $version: " : '') . ($args ? vsprintf($message, $args) : $message), \E_USER_DEPRECATED);
+    }
+}
+
+if (!function_exists('url')) {
+    /**
+     * URL absolue, construite à partir d'APP_URL — jamais de l'en-tête Host de la requête, qu'un
+     * attaquant choisit librement : un lien envoyé par email pointerait sinon vers son site.
+     * Indispensable dans un email, où un chemin relatif (« /reset-password/... ») ne mène nulle part.
+     */
+    function url(string $path = ''): string
+    {
+        if (preg_match('#^https?://#i', $path) === 1) {
+            return $path;
+        }
+
+        $base = rtrim((string) Env::get('APP_URL', ''), '/');
+
+        return $base . '/' . ltrim($path, '/');
+    }
+}
+
 if (!function_exists('signedRoute')) {
     /** route() + UrlSignature::sign() : lien cliquable sans authentification préalable, expirable. */
     function signedRoute(string $name, array $params = [], ?int $expiresInSeconds = null): string
@@ -107,6 +140,14 @@ if (!function_exists('__')) {
     function __(string $key, array $replace = []): string
     {
         return Lang::get($key, $replace);
+    }
+}
+
+if (!function_exists('trans_choice')) {
+    /** Traduction au pluriel : trans_choice('panier.articles', 3) — voir Lang::choice(). */
+    function trans_choice(string $key, int|float $count, array $replace = []): string
+    {
+        return Lang::choice($key, $count, $replace);
     }
 }
 

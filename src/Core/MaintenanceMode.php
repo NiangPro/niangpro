@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core;
 
 use Niang\Core\Exceptions\HttpException;
@@ -17,7 +19,7 @@ final class MaintenanceMode
     private const COOKIE = 'niang_maintenance';
 
     /** Chemins toujours servis, même en maintenance. */
-    private const ALWAYS_UP = ['/up', '/health'];
+    private const ALWAYS_UP = ['/up', '/health', '/health/live', '/health/ready'];
 
     public static function isDown(): bool
     {
@@ -33,9 +35,13 @@ final class MaintenanceMode
 
         $data = json_decode((string) file_get_contents(self::path()), true);
 
-        $defaults = ['since' => 0, 'retry' => null, 'secret' => null];
+        $data = is_array($data) ? $data : [];
 
-        return is_array($data) ? $data + $defaults : $defaults;
+        return [
+            'since' => (int) ($data['since'] ?? 0),
+            'retry' => isset($data['retry']) ? (int) $data['retry'] : null,
+            'secret' => isset($data['secret']) && is_string($data['secret']) ? $data['secret'] : null,
+        ];
     }
 
     /** Seul le hachage du secret est écrit sur le disque. */

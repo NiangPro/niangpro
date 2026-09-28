@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core;
 
 class Env
@@ -12,8 +14,10 @@ class Env
             return;
         }
 
-        if (file_exists($path)) {
-            foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
+        $lines = file_exists($path) ? @file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) : false;
+
+        if ($lines !== false) {
+            foreach ($lines as $line) {
                 $line = trim($line);
 
                 if ($line === '' || str_starts_with($line, '#')) {

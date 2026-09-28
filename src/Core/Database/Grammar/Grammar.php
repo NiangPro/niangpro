@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Database\Grammar;
 
 use Niang\Core\Database\Expression;
@@ -63,10 +65,10 @@ abstract class Grammar
         return ' CHECK (' . $this->wrap($name) . ' IN (' . $this->quoteList($values) . '))';
     }
 
-    /** @param list<string> $values */
+    /** @param array<mixed> $values chaînes vérifiées par Blueprint::enum() */
     protected function quoteList(array $values): string
     {
-        return implode(', ', array_map(fn (string $value) => "'" . str_replace("'", "''", $value) . "'", $values));
+        return implode(', ', array_map(fn (mixed $value) => "'" . str_replace("'", "''", (string) $value) . "'", $values));
     }
 
     protected function compileDefault(mixed $value): string
@@ -77,6 +79,21 @@ abstract class Grammar
             is_bool($value) => $value ? '1' : '0',
             default => (string) $value,
         };
+    }
+
+    /**
+     * Instructions qui modifient une colonne existante. $createSql et $indexSql (SQLite seulement) : la
+     * définition actuelle de la table et de ses index, lus dans sqlite_master.
+     *
+     * @param list<string> $indexSql
+     * @return list<string>
+     */
+    abstract public function compileChange(string $table, \Niang\Core\Database\ColumnDefinition $column, ?string $createSql = null, array $indexSql = []): array;
+
+    /** Colonne compilée sans UNIQUE (voir Blueprint::changedColumns()). */
+    protected function compileChangedColumn(\Niang\Core\Database\ColumnDefinition $column): string
+    {
+        return $this->compileColumn($column->name(), $column->type(), $column->params(), $column->isNullable(), $column->hasDefault(), $column->defaultValue(), false);
     }
 
     public function compileRenameColumn(string $table, string $from, string $to): string

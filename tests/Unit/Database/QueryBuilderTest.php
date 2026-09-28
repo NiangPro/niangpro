@@ -11,28 +11,28 @@ class QueryBuilderTest extends TestCase
     public function test_where_null_and_not_null(): void
     {
         $sql = (new QueryBuilder('posts'))->whereNull('deleted_at')->toSql();
-        $this->assertSame('SELECT * FROM posts WHERE deleted_at IS NULL', $sql);
+        $this->assertSame('SELECT * FROM "posts" WHERE "deleted_at" IS NULL', $sql);
 
         $sql = (new QueryBuilder('posts'))->whereNotNull('deleted_at')->toSql();
-        $this->assertSame('SELECT * FROM posts WHERE deleted_at IS NOT NULL', $sql);
+        $this->assertSame('SELECT * FROM "posts" WHERE "deleted_at" IS NOT NULL', $sql);
     }
 
     public function test_where_between(): void
     {
         $sql = (new QueryBuilder('posts'))->whereBetween('views', [10, 100])->toSql();
-        $this->assertSame('SELECT * FROM posts WHERE views BETWEEN ? AND ?', $sql);
+        $this->assertSame('SELECT * FROM "posts" WHERE "views" BETWEEN ? AND ?', $sql);
     }
 
     public function test_where_column_compares_two_columns(): void
     {
         $sql = (new QueryBuilder('posts'))->whereColumn('updated_at', '>', 'created_at')->toSql();
-        $this->assertSame('SELECT * FROM posts WHERE updated_at > created_at', $sql);
+        $this->assertSame('SELECT * FROM "posts" WHERE "updated_at" > "created_at"', $sql);
     }
 
     public function test_distinct(): void
     {
         $sql = (new QueryBuilder('posts'))->select('author_id')->distinct()->toSql();
-        $this->assertSame('SELECT DISTINCT author_id FROM posts', $sql);
+        $this->assertSame('SELECT DISTINCT "author_id" FROM "posts"', $sql);
     }
 
     public function test_having(): void
@@ -42,19 +42,19 @@ class QueryBuilderTest extends TestCase
             ->having('id', '>', 1)
             ->toSql();
 
-        $this->assertSame('SELECT * FROM posts GROUP BY author_id HAVING id > ?', $sql);
+        $this->assertSame('SELECT * FROM "posts" GROUP BY "author_id" HAVING "id" > ?', $sql);
     }
 
     public function test_where_date(): void
     {
         $sql = (new QueryBuilder('posts'))->whereDate('created_at', '2026-01-01')->toSql();
-        $this->assertSame('SELECT * FROM posts WHERE DATE(created_at) = ?', $sql);
+        $this->assertSame('SELECT * FROM "posts" WHERE DATE("created_at") = ?', $sql);
     }
 
     public function test_join_builds_the_expected_clause(): void
     {
         $sql = (new QueryBuilder('posts'))->join('users', 'posts.author_id', '=', 'users.id')->toSql();
-        $this->assertSame('SELECT * FROM posts JOIN users ON posts.author_id = users.id', $sql);
+        $this->assertSame('SELECT * FROM "posts" JOIN "users" ON "posts"."author_id" = "users"."id"', $sql);
     }
 
     public function test_order_by_rejects_a_direction_other_than_asc_or_desc(): void
@@ -131,7 +131,7 @@ class QueryBuilderTest extends TestCase
     public function test_known_operators_are_normalized(): void
     {
         $sql = (new QueryBuilder('posts'))->where('title', 'like', '%a%')->where('views', '>=', 3)->toSql();
-        $this->assertSame('SELECT * FROM posts WHERE title LIKE ? AND views >= ?', $sql);
+        $this->assertSame('SELECT * FROM "posts" WHERE "title" LIKE ? AND "views" >= ?', $sql);
     }
 
     /** @dataProvider maliciousIdentifiers */
@@ -156,7 +156,7 @@ class QueryBuilderTest extends TestCase
     public function test_left_join_builds_the_expected_clause(): void
     {
         $sql = (new QueryBuilder('posts'))->leftJoin('users', 'posts.user_id', '=', 'users.id')->toSql();
-        $this->assertSame('SELECT * FROM posts LEFT JOIN users ON posts.user_id = users.id', $sql);
+        $this->assertSame('SELECT * FROM "posts" LEFT JOIN "users" ON "posts"."user_id" = "users"."id"', $sql);
     }
 
     /** @return array<string, array{0: string}> */
@@ -173,7 +173,7 @@ class QueryBuilderTest extends TestCase
     public function test_a_qualified_column_name_is_still_accepted(): void
     {
         $sql = (new QueryBuilder('posts'))->where('posts.id', 1)->orderBy('posts.created_at')->toSql();
-        $this->assertSame('SELECT * FROM posts WHERE posts.id = ? ORDER BY posts.created_at ASC', $sql);
+        $this->assertSame('SELECT * FROM "posts" WHERE "posts"."id" = ? ORDER BY "posts"."created_at" ASC', $sql);
     }
 
     /** @return array<string, array{0: string}> */
@@ -187,5 +187,27 @@ class QueryBuilderTest extends TestCase
             'guillemet' => ["id' OR '1'='1"],
             'vide' => [''],
         ];
+    }
+
+    public function test_identifiers_are_quoted_for_each_engine(): void
+    {
+        $query = fn () => (new QueryBuilder('orders'))->select('id', 'orders.*', 'COUNT(*) as n')->where('rank', 1)->orderBy('key');
+
+        $previous = getenv('DB_CONNECTION');
+        putenv('DB_CONNECTION=mysql');
+
+        try {
+            $this->assertSame('SELECT `id`, `orders`.*, COUNT(*) as n FROM `orders` WHERE `rank` = ? ORDER BY `key` ASC', $query()->toSql());
+        } finally {
+            $previous === false ? putenv('DB_CONNECTION') : putenv("DB_CONNECTION=$previous");
+        }
+
+        putenv('DB_CONNECTION=sqlite');
+
+        try {
+            $this->assertSame('SELECT "id", "orders".*, COUNT(*) as n FROM "orders" WHERE "rank" = ? ORDER BY "key" ASC', $query()->toSql());
+        } finally {
+            $previous === false ? putenv('DB_CONNECTION') : putenv("DB_CONNECTION=$previous");
+        }
     }
 }

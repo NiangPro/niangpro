@@ -26,7 +26,7 @@ class UrlSignatureTest extends TestCase
     {
         $signed = UrlSignature::sign('/reset-password?email=awa%40example.test&type=reset');
 
-        $questionMark = strpos($signed, '?');
+        $questionMark = (int) strpos($signed, '?');
         $base = substr($signed, 0, $questionMark);
         parse_str(substr($signed, $questionMark + 1), $query);
 

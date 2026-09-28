@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core;
 
 use Niang\Core\Contracts\NotificationChannel;
@@ -136,7 +138,11 @@ abstract class Notification
         }
     }
 
-    /** Notifications du destinataire (canal database), les plus récentes d'abord. @return list<array<string, mixed>> */
+    /**
+     * Notifications du destinataire (canal database), les plus récentes d'abord.
+     *
+     * @return list<array<string, mixed>>
+     */
     final public static function for(array $notifiable, bool $unreadOnly = false): array
     {
         $query = self::query($notifiable)->orderBy('id', 'desc');

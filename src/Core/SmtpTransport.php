@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core;
 
 use Niang\Core\Exceptions\MailException;
@@ -322,7 +324,7 @@ final class SmtpTransport
             throw new MailException('Connexion SMTP interrompue pendant l\'envoi.');
         }
 
-        return $this->expect($expected, $label ?? strtok($line, "\r\n"));
+        return $this->expect($expected, $label ?? explode("\r\n", $line, 2)[0]);
     }
 
     /** @param list<int> $expected */

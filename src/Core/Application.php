@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core;
 
 use Niang\Core\Database\DB;
@@ -7,6 +9,7 @@ use Niang\Core\Exceptions\Handler;
 use Niang\Core\Http\Request;
 use Niang\Core\Http\Response;
 use Psr\Container\ContainerInterface;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 
 class Application
@@ -30,9 +33,20 @@ class Application
         $this->container->singleton(self::class, $this);
         $this->container->singleton(Logger::class, $logger);
         $this->container->singleton(LoggerInterface::class, $logger);
+        $this->container->singleton(EventDispatcherInterface::class, new Events\Dispatcher());
 
         $this->configureErrorHandling();
         $this->bootProviders();
+
+        self::fire(new Events\ApplicationBooted($this));
+    }
+
+    /** Événement du framework, émis seulement s'il est écouté (aucun coût sinon). */
+    private static function fire(object $event): void
+    {
+        if (Event::hasListeners($event::class)) {
+            Event::dispatch($event);
+        }
     }
 
     /**
@@ -41,10 +55,19 @@ class Application
      */
     private function bootProviders(): void
     {
-        $providers = array_map(
-            fn (string $class) => new $class($this),
-            Config::get('app.providers', [])
-        );
+        $providers = [];
+
+        foreach ((array) Config::get('app.providers', []) as $class) {
+            $provider = is_string($class) && class_exists($class) ? new $class($this) : null;
+
+            if (!$provider instanceof ServiceProvider) {
+                throw new Exceptions\ConfigurationException(
+                    (is_string($class) ? $class : get_debug_type($class)) . ' (config/app.php, providers) doit être une classe qui étend Niang\\Core\\ServiceProvider.'
+                );
+            }
+
+            $providers[] = $provider;
+        }
 
         foreach ($providers as $provider) {
             $provider->register();
@@ -90,8 +113,79 @@ class Application
 
     public function run(): void
     {
+        $problems = self::productionProblems();
+
+        // Roadmap §8 : en production, pas de requête servie avec une configuration critique absente.
+        // Le détail va dans les logs, jamais au visiteur.
+        if ($problems !== []) {
+            Log::critical('Configuration de production invalide : ' . implode(' ; ', $problems));
+            Response::html('<h1>503</h1><p>Service temporairement indisponible.</p>', 503)->send();
+            return;
+        }
+
+        set_error_handler([self::class, 'logDeprecation'], E_DEPRECATED | E_USER_DEPRECATED);
+
         Session::start();
-        $this->handle(Request::capture())->send();
+        $request = Request::capture();
+        $response = $this->handle($request);
+        $response->send();
+
+        if (Event::hasListeners(Events\RequestTerminated::class)) {
+            // Le visiteur a sa réponse : le travail des écouteurs ne le fait plus attendre.
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            }
+
+            Event::dispatch(new Events\RequestTerminated($request, $response));
+        }
+    }
+
+    /** @var array<string, true> messages déjà consignés pendant cette requête */
+    private static array $loggedDeprecations = [];
+
+    /**
+     * @internal gestionnaire d'erreurs posé par run() : chaque dépréciation (y compris silencée par @,
+     * comme celles de trigger_deprecation()) est consignée une fois par requête. Retourne true :
+     * rien n'est affiché au visiteur.
+     */
+    public static function logDeprecation(int $type, string $message, string $file = '', int $line = 0): bool
+    {
+        if (!isset(self::$loggedDeprecations[$message])) {
+            self::$loggedDeprecations[$message] = true;
+            Log::warning('Dépréciation : {message}', ['message' => $message, 'file' => $file, 'line' => $line]);
+        }
+
+        return true;
+    }
+
+    /**
+     * Mode debug (traces d'erreur détaillées, barre de debug, display_errors). Toujours désactivé
+     * en production, même avec APP_DEBUG=true : une variable oubliée ne doit pas exposer le code et
+     * les requêtes SQL à tout le monde. Ailleurs, activé sauf APP_DEBUG=false.
+     */
+    public static function debug(): bool
+    {
+        if (Env::get('APP_ENV') === 'production') {
+            return false;
+        }
+
+        return Env::get('APP_DEBUG', 'true') === 'true';
+    }
+
+    /** @return list<string> ce qui empêche de servir des requêtes en production (vide hors production) */
+    public static function productionProblems(): array
+    {
+        if (Env::get('APP_ENV') !== 'production') {
+            return [];
+        }
+
+        $problems = [];
+
+        if (!AppKey::isValid((string) Env::get('APP_KEY', ''))) {
+            $problems[] = 'APP_KEY absente ou trop courte (./bin/niang key:generate)';
+        }
+
+        return $problems;
     }
 
     /**
@@ -102,15 +196,33 @@ class Application
     {
         $startedAt = hrtime(true);
         DB::resetQueryCount();
+        Trace::begin($request);
 
         try {
-            $response = MaintenanceMode::intercept($request) ?? $this->router->dispatch($request, $this->container);
+            // Dans le try : un écouteur qui échoue donne une page d'erreur, pas une requête plantée.
+            self::fire(new Events\RequestReceived($request));
+            // /metrics avant la maintenance : la supervision continue pendant une mise à jour.
+            $response = Metrics::intercept($request)
+                ?? MaintenanceMode::intercept($request)
+                ?? $this->router->dispatch($request, $this->container);
         } catch (\Throwable $e) {
             $response = Handler::render($e, $request, $startedAt);
         }
 
         $response = $this->applySecurityHeaders($response)->withQueuedCookies(Cookie::pullQueued());
+        $response->header('X-Request-Id', Trace::requestId());
         $response = DebugToolbar::inject($response, $startedAt);
+
+        self::fire(new Events\ResponsePrepared($request, $response));
+
+        if (Metrics::enabled() && '/' . trim($request->uri, '/') !== Metrics::path()) {
+            try {
+                Metrics::recordRequest($request->method, $response->getStatus(), (hrtime(true) - $startedAt) / 1e9);
+            } catch (\Throwable $e) {
+                // Un cache indisponible ne doit pas transformer une réponse réussie en erreur.
+                Log::warning('Métriques non enregistrées : ' . $e->getMessage());
+            }
+        }
 
         return $this->compressIfSupported($response, $request);
     }
@@ -155,6 +267,6 @@ class Application
     private function configureErrorHandling(): void
     {
         error_reporting(E_ALL);
-        ini_set('display_errors', Env::get('APP_DEBUG', 'true') === 'true' ? '1' : '0');
+        ini_set('display_errors', self::debug() ? '1' : '0');
     }
 }

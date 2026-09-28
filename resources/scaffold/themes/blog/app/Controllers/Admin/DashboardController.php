@@ -50,7 +50,7 @@ class DashboardController extends Controller
         $months = [];
 
         for ($i = self::CHART_MONTHS - 1; $i >= 0; $i--) {
-            $months[date('Y-m', strtotime(date('Y-m-01') . " -$i months"))] = 0;
+            $months[date('Y-m', (int) mktime(0, 0, 0, (int) date('n') - $i, 1))] = 0;
         }
 
         foreach ($posts as $post) {

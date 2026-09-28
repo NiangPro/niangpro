@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Testing;
 
 use Niang\Core\Http\Response;
@@ -51,17 +53,31 @@ class TestResponse
         return $this;
     }
 
+    /**
+     * Le JSON contient $subset : les objets imbriqués (tableaux à clés) sont comparés en sous-ensemble,
+     * à toute profondeur — assertJson(['data' => ['email' => ...]]) ignore les autres champs de data.
+     * Une liste est comparée exactement.
+     */
     public function assertJson(array $subset): static
     {
         $data = $this->json();
         Assert::assertIsArray($data);
-
-        foreach ($subset as $key => $value) {
-            Assert::assertArrayHasKey($key, $data);
-            Assert::assertSame($value, $data[$key]);
-        }
+        self::assertSubset($subset, $data, '');
 
         return $this;
+    }
+
+    private static function assertSubset(array $subset, array $data, string $path): void
+    {
+        foreach ($subset as $key => $value) {
+            Assert::assertArrayHasKey($key, $data, "Clé absente du JSON : $path$key");
+
+            if (is_array($value) && $value !== [] && !array_is_list($value) && is_array($data[$key])) {
+                self::assertSubset($value, $data[$key], "$path$key.");
+            } else {
+                Assert::assertSame($value, $data[$key], "Valeur différente pour $path$key");
+            }
+        }
     }
 
     public function json(): mixed

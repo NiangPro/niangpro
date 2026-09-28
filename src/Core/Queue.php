@@ -1,11 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core;
 
+use Niang\Core\Database\DB;
+use Niang\Core\Exceptions\ConfigurationException;
+
 /**
- * File d'attente sur fichier : chaque job différé est un fichier sérialisé dans
- * storage/framework/queue/, traité par `niang queue:work`. Pas de démon : à lancer via cron,
- * ou en boucle, selon vos besoins de production.
+ * File d'attente, traitée par `niang queue:work`. Pas de démon : à lancer via cron (ou le
+ * planificateur), ou en boucle, selon vos besoins de production. Trois pilotes (QUEUE_DRIVER, voir
+ * config/queue.php) : 'file' (défaut, un fichier sérialisé par job dans storage/framework/queue/),
+ * 'database' (tables jobs et failed_jobs, partagées entre serveurs) et 'sync' (exécution immédiate).
  *
  * Un job qui échoue est retenté jusqu'à Job::$tries fois, avec un backoff exponentiel
  * (10s, 20s, 40s...) entre chaque tentative, puis déplacé vers storage/framework/queue/failed/
@@ -17,6 +23,11 @@ class Queue
 
     public static function push(Job $job, string $queue = 'default'): string
     {
+        if (self::driver() === 'sync') {
+            $job->handle();
+            return uniqid('job_', true);
+        }
+
         return self::store($job, $queue, time());
     }
 
@@ -32,6 +43,14 @@ class Queue
      */
     public static function work(?string $queue = null): int
     {
+        if (self::driver() === 'redis') {
+            return Queue\RedisQueue::work($queue, self::BASE_BACKOFF_SECONDS);
+        }
+
+        if (self::driver() === 'database') {
+            return self::workDatabase($queue);
+        }
+
         $processed = 0;
         $now = time();
 
@@ -62,13 +81,18 @@ class Queue
                 continue;
             }
 
+            $context = self::enterJobContext($job);
+
             try {
-                $job->handle();
+                self::runJob($job);
                 $processed++;
                 @unlink($claimed);
+                Metrics::recordJob(true);
             } catch (\Throwable $e) {
                 @unlink($claimed);
                 self::handleFailure($envelope, $job, $e);
+            } finally {
+                self::leaveJobContext($context);
             }
         }
 
@@ -78,6 +102,20 @@ class Queue
     /** @return array<int, array{id: string, queue: string, class: string, error: string, failed_at: string}> */
     public static function failed(): array
     {
+        if (self::driver() === 'redis') {
+            return Queue\RedisQueue::failed();
+        }
+
+        if (self::driver() === 'database') {
+            return array_map(fn (array $row) => [
+                'id' => $row['job_id'],
+                'queue' => $row['queue'],
+                'class' => ($job = self::decode($row['payload'])) instanceof Job ? $job::class : 'inconnu',
+                'error' => (string) $row['error'],
+                'failed_at' => (string) $row['failed_at'],
+            ], DB::select('SELECT * FROM failed_jobs ORDER BY id', [], 'write'));
+        }
+
         $failed = [];
 
         foreach (glob(self::failedDir() . '/*.job') ?: [] as $file) {
@@ -104,6 +142,28 @@ class Queue
     /** Remet un job échoué dans la file, attempts réinitialisé, disponible immédiatement. */
     public static function retry(string $id): bool
     {
+        if (self::driver() === 'redis') {
+            return Queue\RedisQueue::retry($id);
+        }
+
+        if (self::driver() === 'database') {
+            $row = DB::selectOne('SELECT * FROM failed_jobs WHERE job_id = ?', [$id], 'write');
+
+            if ($row === null) {
+                return false;
+            }
+
+            DB::transaction(function () use ($row): void {
+                DB::statement(
+                    'INSERT INTO jobs (job_id, queue, payload, attempts, available_at) VALUES (?, ?, ?, 0, ?)',
+                    [$row['job_id'], $row['queue'], $row['payload'], time()]
+                );
+                DB::statement('DELETE FROM failed_jobs WHERE job_id = ?', [$row['job_id']]);
+            });
+
+            return true;
+        }
+
         $failedFile = self::failedDir() . "/$id.job";
         $envelope = is_file($failedFile) ? self::read($failedFile) : null;
 
@@ -124,6 +184,14 @@ class Queue
     /** Supprime définitivement tous les jobs échoués. @return int le nombre de jobs supprimés */
     public static function flush(): int
     {
+        if (self::driver() === 'redis') {
+            return Queue\RedisQueue::flush();
+        }
+
+        if (self::driver() === 'database') {
+            return DB::affected('DELETE FROM failed_jobs');
+        }
+
         $files = glob(self::failedDir() . '/*.job') ?: [];
 
         foreach ($files as $file) {
@@ -135,12 +203,31 @@ class Queue
 
     public static function pending(): int
     {
+        if (self::driver() === 'redis') {
+            return Queue\RedisQueue::pending();
+        }
+
+        if (self::driver() === 'database') {
+            return (int) (DB::selectOne('SELECT COUNT(*) AS n FROM jobs', [], 'write')['n'] ?? 0);
+        }
+
         return count(glob(self::dir() . '/*.job') ?: []);
     }
 
     /** @internal vide la file (en attente et échouée) — appelé par TestCase entre deux tests. */
     public static function reset(): void
     {
+        if (self::driver() === 'redis') {
+            Queue\RedisQueue::reset();
+            return;
+        }
+
+        if (self::driver() === 'database') {
+            DB::statement('DELETE FROM jobs');
+            DB::statement('DELETE FROM failed_jobs');
+            return;
+        }
+
         foreach ([self::dir(), self::failedDir()] as $dir) {
             foreach (glob($dir . '/*.job') ?: [] as $file) {
                 unlink($file);
@@ -148,9 +235,68 @@ class Queue
         }
     }
 
+    /**
+     * @internal pendant l'exécution d'un job, ses logs portent le request_id de la requête qui l'a
+     * mis en file : une commande et l'email envoyé en arrière-plan se retrouvent ensemble.
+     *
+     * @return array<string, mixed> le contexte à rendre à leaveJobContext()
+     */
+    public static function enterJobContext(Job $job): array
+    {
+        $previous = Log::sharedContext();
+
+        if ($job->requestId !== null) {
+            Log::withContext(['request_id' => $job->requestId]);
+        }
+
+        return $previous;
+    }
+
+    /** @internal exécute le job chez le locataire qui l'a mis en file, s'il y en avait un. */
+    public static function runJob(Job $job): void
+    {
+        if ($job->tenantId !== null && Tenancy::enabled()) {
+            Tenancy::run($job->tenantId, $job->handle(...));
+
+            return;
+        }
+
+        $job->handle();
+    }
+
+    /** @internal @param array<string, mixed> $previous */
+    public static function leaveJobContext(array $previous): void
+    {
+        Log::flushSharedContext();
+        Log::withContext($previous);
+    }
+
     private static function store(Job $job, string $queue, int $availableAt): string
     {
         $id = uniqid('job_', true);
+
+        if (Trace::active()) {
+            $job->requestId ??= Trace::requestId();
+        }
+
+        if (Tenancy::enabled()) {
+            $job->tenantId ??= Tenancy::id();
+        }
+
+        if (self::driver() === 'redis') {
+            Queue\RedisQueue::store(['id' => $id, 'queue' => $queue, 'attempts' => 0, 'available_at' => $availableAt, 'job' => base64_encode(serialize($job))]);
+
+            return $id;
+        }
+
+        if (self::driver() === 'database') {
+            DB::statement(
+                'INSERT INTO jobs (job_id, queue, payload, attempts, available_at) VALUES (?, ?, ?, 0, ?)',
+                [$id, $queue, base64_encode(serialize($job)), $availableAt]
+            );
+
+            return $id;
+        }
 
         self::write(self::dir(), [
             'id' => $id,
@@ -163,10 +309,105 @@ class Queue
         return $id;
     }
 
+    /** 'file', 'database', 'redis' ou 'sync' ; une valeur inconnue est une erreur, pas un repli silencieux. */
+    public static function driver(): string
+    {
+        $driver = (string) Config::get('queue.driver', Env::get('QUEUE_DRIVER', 'file'));
+
+        if (!in_array($driver, ['file', 'database', 'sync', 'redis'], true)) {
+            throw new ConfigurationException("QUEUE_DRIVER inconnu : « $driver » (attendu : file, database, redis ou sync).");
+        }
+
+        return $driver;
+    }
+
+    private static function workDatabase(?string $queue): int
+    {
+        $processed = 0;
+        $now = time();
+        $stale = $now - (int) Config::get('queue.retry_after', 600);
+
+        $sql = 'SELECT id FROM jobs WHERE available_at <= ? AND (reserved_at IS NULL OR reserved_at < ?)';
+        $bindings = [$now, $stale];
+
+        if ($queue !== null) {
+            $sql .= ' AND queue = ?';
+            $bindings[] = $queue;
+        }
+
+        foreach (DB::select("$sql ORDER BY id", $bindings, 'write') as $candidate) {
+            // Réclamation atomique : un seul worker (même sur une autre machine) obtient la ligne.
+            $claimed = DB::affected(
+                'UPDATE jobs SET reserved_at = ? WHERE id = ? AND (reserved_at IS NULL OR reserved_at < ?)',
+                [$now, $candidate['id'], $stale]
+            );
+
+            if ($claimed !== 1) {
+                continue;
+            }
+
+            $row = DB::selectOne('SELECT * FROM jobs WHERE id = ?', [$candidate['id']], 'write');
+            $job = $row !== null ? self::decode($row['payload']) : null;
+
+            if (!$job instanceof Job) {
+                DB::statement('DELETE FROM jobs WHERE id = ?', [$candidate['id']]);
+                continue;
+            }
+
+            $context = self::enterJobContext($job);
+
+            try {
+                self::runJob($job);
+                $processed++;
+                DB::statement('DELETE FROM jobs WHERE id = ?', [$row['id']]);
+                Metrics::recordJob(true);
+            } catch (\Throwable $e) {
+                self::handleDatabaseFailure($row, $job, $e);
+            } finally {
+                self::leaveJobContext($context);
+            }
+        }
+
+        return $processed;
+    }
+
+    private static function handleDatabaseFailure(array $row, Job $job, \Throwable $e): void
+    {
+        $attempts = (int) $row['attempts'] + 1;
+
+        Metrics::recordJob(false);
+        Log::error('Job échoué : ' . $e->getMessage(), ['job' => $job::class, 'attempts' => $attempts]);
+
+        if ($attempts >= $job->tries) {
+            DB::transaction(function () use ($row, $e): void {
+                DB::statement(
+                    'INSERT INTO failed_jobs (job_id, queue, payload, error, failed_at) VALUES (?, ?, ?, ?, ?)',
+                    [$row['job_id'], $row['queue'], $row['payload'], $e->getMessage(), date('Y-m-d H:i:s')]
+                );
+                DB::statement('DELETE FROM jobs WHERE id = ?', [$row['id']]);
+            });
+
+            return;
+        }
+
+        DB::statement(
+            'UPDATE jobs SET attempts = ?, reserved_at = NULL, available_at = ? WHERE id = ?',
+            [$attempts, time() + self::BASE_BACKOFF_SECONDS * (2 ** ($attempts - 1)), $row['id']]
+        );
+    }
+
+    private static function decode(string $payload): mixed
+    {
+        $raw = base64_decode($payload, true);
+
+        return $raw === false ? null : @unserialize($raw);
+    }
+
     private static function handleFailure(array $envelope, Job $job, \Throwable $e): void
     {
         $envelope['attempts']++;
 
+        Metrics::recordJob(false);
         Log::error('Job échoué : ' . $e->getMessage(), ['job' => $job::class, 'attempts' => $envelope['attempts']]);
 
         if ($envelope['attempts'] >= $job->tries) {
@@ -182,7 +423,8 @@ class Queue
 
     private static function read(string $file): ?array
     {
-        $envelope = @unserialize(file_get_contents($file));
+        $raw = @file_get_contents($file);
+        $envelope = $raw === false ? null : @unserialize($raw);
 
         return is_array($envelope) && isset($envelope['job']) ? $envelope : null;
     }

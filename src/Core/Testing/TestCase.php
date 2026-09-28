@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Testing;
 
 use Niang\Core\Application;
@@ -7,11 +9,16 @@ use Niang\Core\Auth;
 use Niang\Core\Cookie;
 use Niang\Core\Database\Migrator;
 use Niang\Core\Event;
+use Niang\Core\Gate;
 use Niang\Core\Http\Request;
+use Niang\Core\Log;
+use Niang\Core\Metrics;
 use Niang\Core\Notification;
 use Niang\Core\Queue;
 use Niang\Core\RateLimiter;
 use Niang\Core\Session;
+use Niang\Core\Tenancy;
+use Niang\Core\Trace;
 use PHPUnit\Framework\TestCase as BaseTestCase;
 
 /**
@@ -47,6 +54,11 @@ abstract class TestCase extends BaseTestCase
         Cookie::pullQueued();
         RateLimiter::reset();
         Notification::reset();
+        Gate::reset();
+        Trace::reset();
+        Metrics::reset();
+        Tenancy::reset();
+        Log::flushSharedContext();
         unset($_COOKIE[Auth::REMEMBER_COOKIE]);
 
         // Construit avant Session::start() : charge config/session.php (lifetime, cookie secure...).

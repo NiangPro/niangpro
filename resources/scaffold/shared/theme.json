@@ -23,6 +23,9 @@
         "tests/Feature/RememberMeTest.php",
         "tests/Feature/SecurityHeadersTest.php",
         "tests/Feature/TwoFactorTest.php",
-        "tests/Feature/ThemeInstallationTest.php"
+        "tests/Feature/ThemeInstallationTest.php",
+        "tests/Security/AccessControlTest.php",
+        "tests/Security/RequestForgeryTest.php",
+        "tests/Security/SessionTest.php"
     ]
 }

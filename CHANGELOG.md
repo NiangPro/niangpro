@@ -9,6 +9,176 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Starter « saas »** (roadmap §63), bâti sur le multi-locataire : organisations sous `/o/<slug>` (une organisation
+  est un locataire), membres et rôles (propriétaire, administrateur, membre ; il reste toujours un propriétaire),
+  invitations par email à usage unique et limitées à l'adresse invitée, projets d'exemple isolés par organisation,
+  plans et limites (`config/billing.php`), abonnements derrière l'interface `App\Billing\BillingProvider`
+  (fournisseur « fake » pour le développement, refusé en production). Suppression d'un compte : refusée pour le
+  dernier propriétaire d'une organisation partagée, sinon ses appartenances et organisations solitaires partent
+  avec lui (point d'extension `site.before_account_deletion` du module account). Testé dans un projet créé, sur
+  SQLite et MySQL, et de bout en bout sur un vrai serveur.
+
+- **Starter « api »** (roadmap §63) : API REST JSON versionnée (`/api/v1`) — inscription et connexion par jeton
+  (double authentification comprise), déconnexion de l'appareil, `/me`, ressource d'exemple `notes` (CRUD paginé,
+  isolée par compte : 404 pour les notes d'un autre), CORS avec préflight, limitation de débit, erreurs toujours en
+  JSON, description OpenAPI générée à la création du projet (`public/openapi.json`). Vérifié sur un vrai serveur
+  et avec `openapi-spec-validator`.
+- **`TestResponse::assertJson()`** compare les objets imbriqués en sous-ensemble, à toute profondeur.
+
+- **Erreurs d'API toujours en JSON** : sous `app.api_prefix` (`/api` par défaut), `Request::wantsJson()` est vrai même sans en-tête `Accept` ; une 404, 405 ou 422 d'une API ne renvoie plus une page HTML.
+
+- **`ApiToken::revoke()` et `ApiToken::revokeAll()`** : déconnexion d'un appareil ou de tous, sans SQL écrit à la main.
+
+- **Starter « auth »** (roadmap §63), choisi à la création du projet : inscription, connexion, mot de passe
+  oublié, vérification d'email, OAuth, double authentification, tableau de bord et page « Mon compte » (profil,
+  mot de passe, suppression du compte et de ses jetons). Module `account` réutilisable par d'autres thèmes.
+  Après inscription, redirection vers `User::homePath()` (comme après connexion).
+
+- **Multi-locataire, base partagée** (roadmap §50, `config/tenancy.php`, désactivé par défaut) : un modèle
+  `protected static bool $tenantScoped = true;` est filtré sur `tenant_id` pour le locataire courant (lectures,
+  mises à jour, suppressions, relations et pivots), la colonne est imposée à la création et ne change jamais.
+  Locataire identifié par le middleware `IdentifyTenant` : sous-domaine ou préfixe d'URL (paramètre de route
+  `{tenant}`), domaine personnalisé ou en-tête `X-Tenant`. Cache séparé par locataire, logs marqués, jobs
+  exécutés chez le locataire qui les a mis en file ; métriques communes à la plateforme. Sûr par défaut : un
+  modèle par locataire sans locataire courant lève `TenancyException` au lieu de renvoyer toutes les lignes ;
+  `Tenancy::run()` et `Tenancy::central()` pour les commandes et l'administration. `niang tenancy:install`,
+  contrôle par `doctor`. Testé sur SQLite et MySQL, et de bout en bout sur un vrai serveur.
+
+- **Métriques Prometheus** (roadmap §53) : `GET /metrics` (jeton `METRICS_TOKEN` obligatoire, 404 sans lui),
+  activé par `METRICS_ENABLED`. Requêtes par méthode et classe de statut, histogramme des durées, jobs traités
+  et échoués, compteurs de l'application déclarés dans `config/metrics.php` (`Metrics::increment()`) et jauges
+  calculées à la lecture (`Metrics::gauge()`). Compteurs dans le cache : partagés entre process, et entre
+  serveurs avec database ou redis. Séries bornées (jamais l'URL). Vérifié sur un vrai serveur à 8 process,
+  350 requêtes concurrentes comptées exactement ; sortie validée par le parseur officiel `prometheus_client`.
+  `doctor` signale `METRICS_ENABLED` sans jeton.
+
+- **Corrélation et logs structurés** (roadmap §53) : chaque réponse porte un en-tête `X-Request-Id` (repris
+  du répartiteur de charge s'il est raisonnable), ajouté à chaque ligne de log de la requête. Contexte de
+  trace W3C : un `traceparent` entrant est rejoint, et `Http\Client` le propage aux services appelés
+  (webhooks, OAuth, S3). Un job mis en file garde le `request_id` de sa requête dans les logs du worker.
+  `LOG_FORMAT=json` : un objet JSON par ligne (exceptions, objets et UTF-8 invalide pris en charge).
+  `Log::withContext()` ajoute un contexte à tous les messages suivants. Vérifié sur un vrai serveur.
+
+- **Modifier une colonne : `->change()`** (roadmap §4.4), sur les trois moteurs. SQLite, qui n'a pas
+  d'`ALTER COLUMN`, reconstruit la table (procédure officielle : données, index et clés étrangères conservés,
+  clés étrangères suspendues le temps de l'opération). Testé sur SQLite et MySQL (dont la clé étrangère d'une
+  table enfant, toujours appliquée après reconstruction).
+
+- **Pilotes Redis** (cache, sessions, file d'attente, limitation de débit), sans extension : client RESP
+  écrit à la main (`Niang\Core\Redis`, `config/redis.php`), AUTH, SELECT, TLS, préfixe de clés. Opérations
+  atomiques par scripts Lua ; `Cache::flush()` n'efface que les clés de l'application. File : jobs prêts,
+  différés et réservés, reprise après `retry_after`, mêmes commandes `queue:*`. `doctor` vérifie Redis. Tests
+  contre un vrai Redis (ignorés sans serveur ; job CI `redis`) ; vérifié avec 3 workers simultanés (60 jobs,
+  chacun exécuté une fois) et 4 process d'incrément (1000 exactement).
+
+- **Disque S3 pour `Storage`** (roadmap §30), sans SDK : AWS S3 et services compatibles (R2, MinIO,
+  Wasabi...). `FILESYSTEM_DISK=s3`, `config/filesystems.php`, `Storage::temporaryUrl()` (URL pré-signée
+  sur S3, signée sur le disque local), envoi des fichiers téléversés sur S3, `doctor` vérifie la
+  configuration. Signature SigV4 vérifiée contre trois exemples publiés par AWS (GET avec `Range`, URL
+  pré-signée, PUT) ; protocole vérifié contre un serveur S3 local (moto), aussi en CI (job `s3`). moto
+  acceptant toute signature, la signature elle-même ne repose que sur les exemples d'AWS.
+
+- **Architecture Decision Records** (roadmap §74) : `docs/adr/`, les cinq décisions demandées (philosophie,
+  Grammar, vues natives, ORM en tableaux, PSR) et trois décisions prises depuis (protocoles écrits à la
+  main, pilotes sans Redis, projets copies du framework), chacune avec ce qu'elle coûte.
+
+- **Benchmarks** (roadmap §39) : `benchmarks/run.php` mesure routage, conteneur, requête/réponse, base de
+  données, rendu, requête complète et démarrage face à leur équivalent en PHP natif (p50/p95/p99, débit,
+  mémoire retenue), avec les conditions de mesure ; résultats dans `benchmarks/RESULTS.md`. La
+  comparaison avec d'autres frameworks n'est pas faite (elle demande un vrai serveur sous charge).
+
+- **Événements du framework** (roadmap §49) : `ApplicationBooted`, `RequestReceived`, `RouteMatched`,
+  `ResponsePrepared` (réponse modifiable) et `RequestTerminated` (après l'envoi, `fastcgi_finish_request()`
+  quand il existe). Émis seulement s'ils sont écoutés.
+
+- **`/health/live` et `/health/ready`** (roadmap §53) dans le squelette et les 5 thèmes : vivacité sans
+  dépendance (une base indisponible ne fait pas redémarrer un conteneur) et disponibilité (mêmes
+  vérifications que `/health`, 503 si une dépendance manque). Accessibles en mode maintenance. README :
+  la description de `/up`, périmée, est corrigée.
+
+- **Stabilité de l'API et politique de dépréciation** (roadmap §3.1 et §70) : `docs/API_STABILITY.md`
+  (stable, expérimental, interne, déprécié), marqueur `@experimental` sur `OpenApi`, `OAuth`,
+  `Permission`, `Response::eventStream()`/`ServerSentEvent` et `Http\Client` (un test vérifie qu'ils
+  figurent tous dans le document). Helper `trigger_deprecation()` (même signature que
+  symfony/deprecation-contracts) ; `Application::run()` consigne chaque dépréciation une fois par requête.
+
+- **Suite de tests de sécurité** (roadmap §55) : `tests/Security/` (suite PHPUnit `Security`, 34 tests)
+  — injection SQL, XSS, CSRF, redirection ouverte, en-tête Host, fixation de session, cookies,
+  traversée de chemin, fichiers envoyés, affectation de masse, IDOR, limitation de débit, en-têtes. Le
+  test du lien de réinitialisation échoue bien sans le correctif ci-dessous (vérifié).
+- **Helper `url()`** : URL absolue construite avec `APP_URL`, jamais avec l'en-tête Host.
+
+- **Pluriels dans les traductions** (roadmap §43) : `Lang::choice()` et le helper `trans_choice()`,
+  formes séparées par `|`, valeurs `{n}` et plages `[min,max]` explicites, sinon règle de la langue
+  (français, portugais, wolof, peul : 0 et 1 au singulier ; anglais et autres : 1 seulement).
+
+- **Canaux de journalisation** (roadmap §27) : `LOG_CHANNEL` = `daily` (défaut, inchangé), `single`,
+  `errorlog` (journal du serveur web ou de PHP-FPM), `syslog` (priorité selon le niveau, identifiant
+  `LOG_SYSLOG_IDENT`) ou `stderr` (conteneurs). Niveau minimal et masquage des secrets s'appliquent à
+  tous. Un canal inconnu retombe sur `daily`. `syslog` n'est vérifié que par le retour de `syslog()` :
+  le journal unifié de macOS n'affiche pas ces messages.
+
+- **Commandes `about`, `env`, `optimize:clear`, `cors:check`, `make:notification`** (roadmap §33 et
+  §36). `about` lit la version réelle installée (Composer) ; `optimize:clear` défait exactement ce que
+  fait `optimize` ; `cors:check` signale `*` en production, `*` avec les cookies (toutes les origines
+  sont alors refusées), une origine avec chemin, l'absence d'`OPTIONS`, et simule un préflight depuis
+  une origine donnée.
+
+- **Génération OpenAPI 3** (roadmap §35) : `niang openapi [--output] [--prefix]` et
+  `Niang\Core\OpenApi::generate()`. Chemins, méthodes, paramètres typés, corps de requête déduit des
+  règles des FormRequest (tableaux imbriqués, fichiers en multipart), sécurité session ou Bearer,
+  résumés tirés des docblocks, réponses 401/403/404/422/429. Documents validés par
+  `openapi-spec-validator` (application de démonstration et cas complet des tests).
+
+- **Conteneur : liaison à un nom de classe, singletons paresseux, `instance()`, liaisons
+  contextuelles** (roadmap §11). `bind(Interface::class, Classe::class)`, `singleton(Classe::class)`
+  (créé au premier `make()`), `instance()`, `when(A::class)->needs(Contrat::class)->give(...)`,
+  appliquée au constructeur comme à l'injection dans les méthodes. `singleton($id, $objet)` garde son
+  comportement.
+
+- **Rôles et permissions** (roadmap §22) : `config/permissions.php` (rôle → permissions, jokers `*`
+  et `posts.*`), `Niang\Core\Permission`, `Auth::hasRole()`, `Auth::can()`, middleware
+  `App\Middleware\Authorize` (`Authorize::class . ':posts.delete'`). Sans table supplémentaire : le
+  rôle est la colonne `users.role`. Les middlewares de route acceptent des arguments
+  (`Classe:arg1,arg2`). `Gate::reset()`, appelée par `TestCase::setUp()`.
+
+- **Liaison de modèle sur les routes** (roadmap §12) : `->bind(['post' => Post::class])` ou
+  `Post::class . ':slug'` ; le contrôleur reçoit la ligne (`array $post`), ou la requête répond 404.
+  Recherche par le modèle (suppression douce, `$casts`), après les middlewares, valeur toujours liée.
+  Modèle, colonne et paramètre vérifiés à la déclaration. Compatible avec `route:cache`.
+
+- **Query Builder : `union()`, `unionAll()`, `whereExists()`, `whereNotExists()`, `whereNotIn()`**
+  (roadmap §17). L'union est placée dans une sous-requête (`SELECT * FROM (a UNION b) AS np_union`),
+  seule forme acceptée par SQLite, MySQL et PostgreSQL qui permette de la trier, limiter, compter et
+  paginer. Valeurs liées des sous-requêtes dans le bon ordre. Testé sur SQLite et MySQL.
+
+- **Événements typés et PSR-14** (roadmap §26 et §10) : `Event::dispatch(new UserRegistered($user))`
+  écouté par le nom de la classe, de ses parents ou de ses interfaces ; l'objet est retourné (modifiable
+  par les écouteurs) ; `Events\StoppableEvent` arrête la propagation ; les écouteurs `ShouldQueue`
+  reçoivent l'objet par la file. `Events\Dispatcher` implémente `EventDispatcherInterface` et
+  `ListenerProviderInterface`, résolu par le conteneur. Les événements nommés restent pris en charge.
+  Nouvelle dépendance d'interfaces seulement : `psr/event-dispatcher` (déjà présent en développement).
+  `make:event` propose `Event::dispatch(new ...)`.
+
+- **`simplePaginate()` et `cursorPaginate()`** (roadmap §20) sur le Query Builder, les modèles et
+  `with()`. Sans `COUNT(*)` ; le curseur reprend après la dernière valeur vue (colonne unique, `asc` ou
+  `desc`), sans sauter ni répéter de ligne quand la table change entre deux pages. Curseur opaque
+  (base64url), toujours lié comme paramètre ; un curseur illisible repart du début. Pris en charge par
+  `JsonResource::collection()`. Testé sur SQLite et MySQL.
+
+- **Cache : `increment()` / `decrement()` et pilote `array`** (roadmap §23-24). Incrément atomique
+  (verrou sur fichier ; compare-and-swap en base, sans verrou explicite, sur les trois moteurs), TTL
+  conservé, valeur non entière refusée. `CACHE_DRIVER=array` et `SESSION_DRIVER=array`
+  (`ArraySessionHandler`) : mémoire du process, pour les tests et la CLI. Vérifié avec 4 process
+  simultanés × 250 incréments : 1000 exactement, sur fichier comme sur MySQL.
+
+- **File d'attente en base de données et en mode synchrone** (roadmap §25) : `QUEUE_DRIVER=database`
+  (tables `jobs` et `failed_jobs`, nouvelle migration) ou `sync`. Réservation atomique par `UPDATE`
+  conditionnel, job d'un worker arrêté rendu à la file après `QUEUE_RETRY_AFTER`, mêmes retentatives
+  et commandes (`queue:failed`, `queue:retry`, `queue:flush`) que le pilote fichier. Contenu sérialisé
+  en base64 (PostgreSQL refuse l'octet nul des propriétés privées). `niang doctor` vérifie les tables.
+  Vérifié avec 3 workers simultanés sur MySQL : 60 jobs, chacun exécuté exactement une fois.
+
 - **Connexion avec Google ou GitHub** (OAuth 2, roadmap §52, sans dépendance) : `Niang\Core\OAuth`
   (`redirect()`, `user()`, `configured()`), fournisseurs `GoogleProvider` (OpenID Connect) et
   `GitHubProvider` (email principal lu sur `/user/emails`), `config/oauth.php`. `state` à usage unique
@@ -286,6 +456,16 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Changed
 
+- **`declare(strict_types=1)` dans les 126 fichiers du cœur** (roadmap §56), vérifié par
+  `tests/Unit/CodingStandardsTest.php`. Suites complètes vertes sur SQLite et sur MySQL (qui renvoie les
+  entiers en chaînes), parcours HTTP réel vérifié. `app/` et les thèmes restent en mode souple : c'est du
+  code d'application copié chez l'utilisateur.
+- **PHPStan passe du niveau 6 au niveau 7** (roadmap §56 : « niveau élevé »), sur `src`, `app`, `tests` et
+  les thèmes, sans nouvelle exclusion. `DB::select()` et `QueryBuilder::get()` déclarent une liste de lignes.
+- **`Gate::allows()` sur une ability sans règle ni Policy** consulte désormais les permissions du rôle
+  de l'utilisateur au lieu de répondre toujours `false`. Sans colonne `role` (ou sans rôle déclaré dans
+  `config/permissions.php`), rien ne change ; un utilisateur `admin` (permission `*`) obtient en
+  revanche toute ability non définie. Les règles `define()` et les Policies gardent la priorité.
 - **Rupture : `Model::$timestamps` vaut `true` par défaut.** Un modèle dont la table n'a pas
   `created_at`/`updated_at` doit déclarer `protected static bool $timestamps = false;` (fait pour
   `Tag` et `PasswordResetToken`). Les migrations générées par `make:migration` ont déjà
@@ -303,6 +483,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Security
 
+- **Mode debug actif en production par défaut** : `APP_DEBUG` absent valait `true`, donc un serveur de
+  production sans cette variable affichait les traces d'erreur (code, requêtes SQL) à tout le monde.
+  `Application::debug()` centralise la décision : toujours désactivé en production, même avec
+  `APP_DEBUG=true` (roadmap §8). En production, `run()` refuse aussi de servir une requête sans
+  `APP_KEY` valide (503 générique, détail dans les logs). Tests dans `tests/Security/ProductionConfigTest.php`.
 - **`POST /api/tokens` sans limitation de débit** : on pouvait y essayer des mots de passe sans
   limite. `ThrottleRequests` y est ajouté, comme sur `/login`. La route répond aussi en temps constant
   pour un email inconnu, et exige le code de double authentification quand elle est activée.
@@ -395,6 +580,37 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Fixed
 
+- **Curseurs de pagination signés** : un curseur fabriqué pouvait envoyer n'importe quelle valeur à la base
+  (toujours liée, jamais interprétée), mais PostgreSQL refusait par exemple un texte comparé à une colonne
+  entière : erreur 500 au lieu de la première page (relevé par la CI PostgreSQL). Les curseurs portent désormais
+  une signature HMAC (clé dérivée d'`APP_KEY`) ; un curseur modifié repart du début.
+- **`niang openapi --output=C:\\...` sous Windows** : un chemin absolu Windows était pris pour un chemin relatif
+  et préfixé du dossier du projet (même règle désormais que pour `DB_DATABASE`).
+- **PHPStan sous Windows** : l'exclusion des vues des thèmes (`*/*/resources/*`) attrapait aussi
+  `app/Resources/` (système de fichiers insensible à la casse), si bien que les classes du thème api étaient
+  inconnues. Exclusion limitée à `resources/views/`.
+- **En-têtes de requête en minuscules ignorés** : `Request::header()` était sensible à la casse, alors que
+  `getallheaders()` rend les noms tels que le client les envoie (HTTP/2 : toujours en minuscules). Un
+  `authorization: Bearer ...` n'était pas vu et le jeton API était refusé (reproduit sur un vrai serveur).
+- **Colonnes nommées comme un mot réservé SQL** (`rank`, `order`, `group`, `key`...) : le Query Builder
+  n'entourait jamais les identifiants de guillemets, si bien que toute requête sur une telle colonne échouait
+  sous MySQL (erreur de syntaxe 1064). Les tables et colonnes sont désormais entourées selon le moteur
+  (`` `rank` `` en MySQL, `"rank"` ailleurs) ; une expression passée à `select()` (`COUNT(*) as n`) reste
+  telle quelle. `tests/Database/ReservedWordsTest.php` échoue sur l'ancien code avec MySQL (vérifié).
+- **Relevé par PHPStan niveau 7**, chaque cas couvert par `tests/Unit/RobustnessTest.php` (qui échoue sur
+  l'ancien code) :
+  - `Response::json()` levait une `TypeError` si une donnée contenait de l'UTF-8 invalide (ancienne ligne en
+    base...) : caractère remplacé par U+FFFD ; même correction sur la page de debug ;
+  - un lien signé trafiqué avec `?signature[]=x` provoquait une erreur 500 au lieu d'être refusé ;
+  - `Container::call()` échouait avec un objet invocable ;
+  - un Service Provider ou un écouteur de classe mal déclaré donnait une erreur fatale obscure : le message
+    nomme désormais la classe fautive ;
+  - `Cache::increment()`, `RateLimiter` et plusieurs lectures de fichiers ne géraient pas l'échec d'ouverture
+    (droits sur `storage/`) : erreur explicite.
+- **Liens des emails de réinitialisation et de vérification relatifs** (`/reset-password/...`) : non
+  cliquables dans une boîte mail. Ils sont désormais absolus, construits avec `APP_URL`.
+- **`Cache::put()` : avertissement « mkdir(): File exists »** quand deux requêtes simultanées créaient
+  le dossier du cache en même temps. Création désormais tolérante.
 - **N+1 dans `CheckoutController::store()` (thème `ecommerce`)** (audit de performance) : la
   revalidation du stock au moment de payer faisait un `Product::find()` par ligne du panier —
   mesuré : un panier de 3 articles distincts coûtait 2 requêtes `SELECT` de plus qu'un panier à un

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Console;
 
 use Niang\Core\AppKey;
@@ -7,6 +9,7 @@ use Niang\Core\Application;
 use Niang\Core\Cache;
 use Niang\Core\Config;
 use Niang\Core\ConfigCache;
+use Niang\Core\Cors;
 use Niang\Core\Database\DB;
 use Niang\Core\Database\Migrator;
 use Niang\Core\Database\Seeder;
@@ -14,10 +17,12 @@ use Niang\Core\Env;
 use Niang\Core\HealthCheck;
 use Niang\Core\Log;
 use Niang\Core\MaintenanceMode;
+use Niang\Core\Metrics;
 use Niang\Core\Queue;
 use Niang\Core\RouteCache;
 use Niang\Core\Router;
 use Niang\Core\Scheduling\Schedule;
+use Niang\Core\Tenancy;
 
 class Commander
 {
@@ -30,6 +35,7 @@ class Commander
         Config::load($basePath);
     }
 
+    /** @param list<string> $argv */
     public function run(array $argv): void
     {
         $command = $argv[1] ?? 'help';
@@ -48,6 +54,7 @@ class Commander
             'route:cache' => $this->routeCache(),
             'route:clear' => $this->routeClear(),
             'route:list' => $this->routeList(),
+            'openapi' => $this->openApi(array_slice($argv, 2)),
             'make:middleware' => $this->makeMiddleware($arg),
             'make:request' => $this->makeRequest($arg),
             'tinker' => $this->tinker(),
@@ -58,6 +65,12 @@ class Commander
             'queue:flush' => $this->queueFlush(),
             'cache:clear' => $this->cacheClear(),
             'optimize' => $this->optimize(),
+            'optimize:clear' => $this->optimizeClear(),
+            'about' => $this->about(),
+            'env' => $this->environment(),
+            'cors:check' => $this->corsCheck($arg),
+            'make:notification' => $this->makeNotification($arg),
+            'tenancy:install' => $this->tenancyInstall(),
             'new' => $this->newProject(array_slice($argv, 2)),
             'np:install' => $this->npInstall(),
             'config:cache' => $this->configCache(),
@@ -83,6 +96,7 @@ class Commander
      * au nom tapé, et l'exécute. Retourne false (plutôt que d'afficher une erreur) si rien ne
      * correspond, pour laisser l'appelant retomber sur l'aide générale.
      */
+    /** @param list<string> $arguments */
     private function runCustomCommand(string $command, array $arguments): bool
     {
         $dir = $this->basePath . '/app/Console/Commands';
@@ -357,6 +371,28 @@ class Commander
         echo "Cache de routes supprimé.\n";
     }
 
+    /** `niang openapi [--output=public/openapi.json] [--prefix=/api]` : description OpenAPI 3 des routes. */
+    private function openApi(array $arguments): void
+    {
+        [, $options] = $this->parseNewArguments($arguments);
+        $router = new Router();
+        require $this->basePath . '/routes/web.php';
+
+        $prefix = isset($options['prefix']) ? (string) $options['prefix'] : '/api';
+        $output = (string) ($options['output'] ?? 'public/openapi.json');
+        $document = \Niang\Core\OpenApi::generate($router, ['prefix' => $prefix === '/' ? '' : $prefix]);
+        // Chemin absolu Unix (/...) ou Windows (C:\..., \\serveur\partage) : utilisé tel quel.
+        $path = DB::isAbsolutePath($output) ? $output : $this->basePath . '/' . $output;
+
+        if (!is_dir(dirname($path))) {
+            mkdir(dirname($path), 0755, true);
+        }
+
+        file_put_contents($path, json_encode($document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . "\n");
+        $count = is_array($document['paths']) ? count($document['paths']) : 0;
+        echo "OpenAPI : $count chemin(s) décrit(s) dans $output\n";
+    }
+
     private function routeList(): void
     {
         $router = new Router();
@@ -604,7 +640,7 @@ class Commander
          *     //
          * });
          *
-         * Event::dispatch({$name}::class, new {$name}(...));
+         * Event::dispatch(new {$name}(...));
          */
         class {$name}
         {
@@ -873,6 +909,226 @@ class Commander
         echo "Site rouvert.\n";
     }
 
+    private function optimizeClear(): void
+    {
+        $this->routeClear();
+        $this->configClear();
+        echo "Le cache applicatif (Cache::) n'est pas touché : ./bin/niang cache:clear pour le vider.\n";
+    }
+
+    private function environment(): void
+    {
+        $env = (string) Env::get('APP_ENV', 'local');
+        $file = file_exists($this->basePath . '/.env') ? '.env chargé' : 'pas de fichier .env';
+        echo "Environnement : $env ($file)\n";
+    }
+
+    /** Vue d'ensemble de l'application : versions, environnement, pilotes, caches. */
+    private function about(): void
+    {
+        $version = class_exists(\Composer\InstalledVersions::class) ? \Composer\InstalledVersions::getRootPackage()['pretty_version'] : 'inconnue';
+        $driver = fn (string $group, string $default) => (string) Config::get("$group.driver", Env::get(strtoupper($group) . '_DRIVER', $default));
+
+        $sections = [
+            'Application' => [
+                'Nom' => (string) Env::get('APP_NAME', 'NiangPro'),
+                'Version' => $version,
+                'PHP' => PHP_VERSION,
+                'Environnement' => (string) Env::get('APP_ENV', 'local'),
+                'Debug' => Env::get('APP_DEBUG', 'true') === 'true' ? 'activé' : 'désactivé',
+                'URL' => (string) Env::get('APP_URL', ''),
+                'Langue' => (string) Env::get('APP_LOCALE', 'fr'),
+                'Maintenance' => MaintenanceMode::isDown() ? 'oui' : 'non',
+            ],
+            'Pilotes' => [
+                'Base de données' => (string) Env::get('DB_CONNECTION', 'sqlite'),
+                'Cache' => $driver('cache', 'file'),
+                'Sessions' => $driver('session', 'file'),
+                'File d\'attente' => $driver('queue', 'file'),
+                'Emails' => (string) Env::get('MAIL_MAILER', 'log'),
+                'Journaux' => (string) Config::get('logging.level', 'debug') . ', ' . (int) Config::get('logging.days', 14) . ' jours',
+            ],
+            'Caches' => [
+                'Configuration' => ConfigCache::exists() ? 'en cache' : 'non',
+                'Routes' => RouteCache::exists() ? 'en cache' : 'non',
+                'OPcache' => function_exists('opcache_get_status') && ini_get('opcache.enable_cli') ? 'actif (CLI)' : 'inactif en CLI',
+            ],
+        ];
+
+        foreach ($sections as $title => $lines) {
+            echo "\n$title\n";
+            foreach ($lines as $label => $value) {
+                echo '  ' . str_pad($label, 22 + (strlen($label) - mb_strlen($label)), '.') . ' ' . ($value === '' ? '—' : $value) . "\n";
+            }
+        }
+    }
+
+    /**
+     * Relit config/cors.php à la recherche des erreurs courantes ; avec une origine, simule un
+     * préflight et affiche les en-têtes que le navigateur recevrait.
+     */
+    private function corsCheck(?string $origin): void
+    {
+        $origins = (array) Config::get('cors.allowed_origins', []);
+        $credentials = (bool) Config::get('cors.supports_credentials', false);
+        $methods = (array) Config::get('cors.allowed_methods', []);
+        $production = Env::get('APP_ENV') === 'production';
+        $problems = 0;
+
+        $report = function (bool $ok, string $message) use (&$problems): void {
+            echo ($ok ? '✓ ' : '⚠ ') . $message . "\n";
+            $problems += $ok ? 0 : 1;
+        };
+
+        echo 'Origines autorisées : ' . ($origins === [] ? '(aucune)' : implode(', ', $origins)) . "\n";
+        $report(!($production && in_array('*', $origins, true)), in_array('*', $origins, true)
+            ? "« * » : n'importe quel site peut appeler votre API depuis le navigateur" . ($production ? ' — listez les origines exactes en production' : '')
+            : 'Origines explicites');
+        $report(!($credentials && in_array('*', $origins, true)), $credentials
+            ? 'Cookies autorisés (supports_credentials)' . (in_array('*', $origins, true) ? ' avec « * » : par sécurité, aucune origine n\'est alors acceptée — listez vos origines' : '')
+            : 'Cookies non transmis (supports_credentials = false)');
+
+        foreach ($origins as $allowed) {
+            if ($allowed !== '*' && !str_contains((string) $allowed, '*') && (parse_url((string) $allowed, PHP_URL_PATH) ?? '') !== '') {
+                $report(false, "« $allowed » contient un chemin : une origine n'est que schéma + hôte (+ port), sans / final");
+            }
+        }
+
+        $report(in_array('OPTIONS', array_map('strtoupper', $methods), true), 'Méthode OPTIONS (préflight) ' . (in_array('OPTIONS', array_map('strtoupper', $methods), true) ? 'autorisée' : 'absente de allowed_methods'));
+
+        if ($origin !== null) {
+            $request = \Niang\Core\Http\Request::create('OPTIONS', '/api', [], [], ['Origin' => $origin, 'Access-Control-Request-Method' => 'POST']);
+            $headers = Cors::headersFor($request);
+            echo "\nPréflight depuis $origin : " . ($headers === [] ? "refusé (aucun en-tête CORS)\n" : "accepté\n");
+
+            foreach ($headers as $name => $value) {
+                echo "  $name: $value\n";
+            }
+        }
+
+        echo "\n" . ($problems === 0 ? "Aucun problème détecté.\n" : "$problems point(s) à vérifier.\n");
+    }
+
+    /** Migration de la table des locataires et étapes suivantes (voir Niang\Core\Tenancy). */
+    private function tenancyInstall(): void
+    {
+        $dir = $this->basePath . '/database/migrations';
+        $table = (string) Config::get('tenancy.table', 'tenants');
+
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $existing = glob("$dir/*_create_{$table}_table.php") ?: [];
+
+        if ($existing !== []) {
+            echo 'Migration déjà présente : database/migrations/' . basename($existing[0]) . "\n";
+        } else {
+            $file = date('Y_m_d_His') . "_create_{$table}_table.php";
+            file_put_contents("$dir/$file", <<<PHP
+                <?php
+
+                use Niang\Core\Database\Migration;
+                use Niang\Core\Database\Schema;
+
+                return new class extends Migration {
+                    public function up(): void
+                    {
+                        Schema::create('{$table}', function (\$table) {
+                            \$table->id();
+                            \$table->string('name');
+                            \$table->string('slug')->unique();        // sous-domaine ou préfixe d'URL
+                            \$table->string('domain')->nullable()->unique();   // domaine personnalisé
+                            \$table->timestamps();
+                        });
+                    }
+
+                    public function down(): void
+                    {
+                        Schema::dropIfExists('{$table}');
+                    }
+                };
+
+                PHP);
+            echo "✓ database/migrations/$file\n";
+        }
+
+        echo <<<TEXT
+
+            Étapes suivantes :
+              1. TENANCY_ENABLED=true dans .env, puis ./bin/niang migrate
+              2. Dans chaque table par locataire : \$table->foreignId('tenant_id')->constrained('{$table}');
+                 et dans son modèle : protected static bool \$tenantScoped = true;
+              3. Routes des locataires dans un groupe avec App\Middleware\IdentifyTenant :
+                 \$router->domain('{tenant}.exemple.sn', fn (\$router) => \$router->group(
+                     ['middleware' => [IdentifyTenant::class]], function (\$router) { ... }));
+              4. Commandes et seeders : Tenancy::run(\$tenant, fn () => ...) ; administration : Tenancy::central(...)
+
+            TEXT;
+    }
+
+    private function makeNotification(?string $name): void
+    {
+        if (!$name) {
+            echo "Usage : niang make:notification NomNotification\n";
+            return;
+        }
+
+        $name = str_ends_with($name, 'Notification') ? $name : $name . 'Notification';
+        $dir = $this->basePath . '/app/Notifications';
+
+        if (!is_dir($dir)) {
+            mkdir($dir, 0755, true);
+        }
+
+        $path = "$dir/$name.php";
+
+        if (file_exists($path)) {
+            echo "La notification $name existe déjà.\n";
+            return;
+        }
+
+        $stub = <<<PHP
+        <?php
+
+        namespace App\Notifications;
+
+        use Niang\Core\Mailable;
+        use Niang\Core\Notification;
+
+        /** Notification::send(\$user, new {$name}(...)); */
+        class {$name} extends Notification
+        {
+            public function __construct(
+                // private array \$commande,
+            ) {
+            }
+
+            /** 'mail', 'database', 'webhook', ou une classe NotificationChannel. */
+            public function via(array \$notifiable): array
+            {
+                return ['database'];
+            }
+
+            public function toDatabase(array \$notifiable): array
+            {
+                return [
+                    'message' => '',
+                ];
+            }
+
+            // public function toMail(array \$notifiable): Mailable
+            // {
+            //     return new MonMailable(...);
+            // }
+        }
+
+        PHP;
+
+        file_put_contents($path, $stub);
+        echo "Notification créée : app/Notifications/$name.php\n";
+    }
+
     private function queueFailed(): void
     {
         $failed = Queue::failed();
@@ -1036,7 +1292,7 @@ class Commander
         }
 
         if (Env::get('APP_ENV') === 'production' && Env::get('APP_DEBUG', 'true') === 'true') {
-            $results[] = ['warn', 'APP_DEBUG=true en production — désactivez-le avant déploiement'];
+            $results[] = ['warn', 'APP_DEBUG=true en production — ignoré (le debug est toujours désactivé en production), retirez-le de .env'];
         }
 
         array_push($results, ...$this->mailChecks());
@@ -1052,12 +1308,44 @@ class Commander
             $results[] = ['warn', 'Site en maintenance (niang up pour le rouvrir)'];
         }
 
+        $redisUsers = array_keys(array_filter([
+            'CACHE_DRIVER' => (string) Config::get('cache.driver', Env::get('CACHE_DRIVER', 'file')),
+            'SESSION_DRIVER' => (string) Config::get('session.driver', Env::get('SESSION_DRIVER', 'file')),
+            'QUEUE_DRIVER' => (string) Config::get('queue.driver', Env::get('QUEUE_DRIVER', 'file')),
+        ], fn (string $driver) => $driver === 'redis'));
+
+        if ($redisUsers !== []) {
+            try {
+                \Niang\Core\Redis::command('PING');
+                $results[] = ['ok', 'Redis répond (' . implode(', ', $redisUsers) . ')'];
+            } catch (\Throwable $e) {
+                $results[] = ['fail', implode(', ', $redisUsers) . '=redis mais Redis ne répond pas : ' . $e->getMessage()];
+            }
+        }
+
+        if ((string) Config::get('filesystems.disk', Env::get('FILESYSTEM_DISK', 'local')) === 's3') {
+            $missing = array_filter(['key', 'secret', 'region', 'bucket'], fn (string $k) => (string) Config::get("filesystems.s3.$k", '') === '');
+            $results[] = $missing === []
+                ? ['ok', 'Disque s3 configuré (bucket ' . Config::get('filesystems.s3.bucket') . ')']
+                : ['fail', 'FILESYSTEM_DISK=s3 mais ' . implode(', ', $missing) . ' manquant(s) — voir AWS_* dans .env'];
+        }
+
         $logLevel = strtolower((string) Config::get('logging.level', 'debug'));
 
         if (!in_array($logLevel, Log::LEVELS, true)) {
             $results[] = ['warn', "LOG_LEVEL inconnu : « $logLevel » — tout est journalisé (attendu : " . implode(', ', Log::LEVELS) . ')'];
         } elseif ($logLevel === 'debug' && Env::get('APP_ENV') === 'production') {
             $results[] = ['warn', 'LOG_LEVEL=debug en production — préférez info ou warning pour ne pas remplir le disque'];
+        }
+
+        if (Metrics::enabled() && (string) Config::get('metrics.token', '') === '') {
+            $results[] = ['warn', 'METRICS_ENABLED=true sans METRICS_TOKEN — les métriques sont collectées mais ' . Metrics::path() . ' répond 404'];
+        }
+
+        $logFormat = (string) Config::get('logging.format', 'line');
+
+        if (!in_array($logFormat, ['line', 'json'], true)) {
+            $results[] = ['warn', "LOG_FORMAT inconnu : « $logFormat » — format 'line' utilisé (attendu : line, json)"];
         }
 
         return $results;
@@ -1073,17 +1361,28 @@ class Commander
     {
         $needed = [];
 
-        foreach (['session' => ['sessions'], 'cache' => ['cache_entries', 'rate_limits']] as $group => $tables) {
+        $groups = ['session' => ['sessions'], 'cache' => ['cache_entries', 'rate_limits'], 'queue' => ['jobs', 'failed_jobs']];
+
+        foreach ($groups as $group => $tables) {
             // La CLI ne charge pas config/*.php : même repli sur l'environnement que Cache::driver().
             $driver = (string) Config::get("$group.driver", Env::get(strtoupper($group) . '_DRIVER', 'file'));
+            $allowed = match ($group) {
+                'queue' => ['file', 'database', 'redis', 'sync'],
+                'cache' => ['file', 'database', 'redis', 'array'],
+                default => ['file', 'database', 'redis', 'array'],
+            };
 
-            if (!in_array($driver, ['file', 'database'], true)) {
-                return [$this->doctorCheck(false, '', strtoupper($group) . "_DRIVER inconnu : « $driver » (attendu : file ou database)")];
+            if (!in_array($driver, $allowed, true)) {
+                return [$this->doctorCheck(false, '', strtoupper($group) . "_DRIVER inconnu : « $driver » (attendu : " . implode(', ', $allowed) . ')')];
             }
 
             if ($driver === 'database') {
                 array_push($needed, ...$tables);
             }
+        }
+
+        if (Tenancy::enabled()) {
+            $needed[] = (string) Config::get('tenancy.table', 'tenants');
         }
 
         $results = [];
@@ -1093,7 +1392,8 @@ class Commander
                 DB::connection()->query("SELECT 1 FROM $table WHERE 1 = 0");
                 $results[] = $this->doctorCheck(true, "Table $table présente", '');
             } catch (\Throwable) {
-                $results[] = $this->doctorCheck(false, '', "Table $table absente — lancez `./bin/niang migrate`");
+                $hint = $table === Config::get('tenancy.table', 'tenants') && Tenancy::enabled() ? '`./bin/niang tenancy:install` puis ' : '';
+                $results[] = $this->doctorCheck(false, '', "Table $table absente — lancez {$hint}`./bin/niang migrate`");
             }
         }
 
@@ -1236,7 +1536,7 @@ class Commander
      * Arguments de `niang new` : un nom (le premier argument sans tiret) et des options --clé=valeur,
      * dans n'importe quel ordre (`niang new --type=blog mon-app` fonctionne comme `niang new mon-app --type=blog`).
      *
-     * @param list<string> $arguments
+     * @param array<int, string> $arguments
      * @return array{0: ?string, 1: array<string, ?string>}
      */
     private function parseNewArguments(array $arguments): array
@@ -1549,6 +1849,7 @@ class Commander
           route:cache              Compile routes/web.php dans storage/framework/routes.php
           route:clear              Supprime le cache de routes
           route:list               Liste toutes les routes déclarées
+          openapi [--output=f] [--prefix=/api] Décrit les routes de l'API au format OpenAPI 3 (public/openapi.json)
           make:middleware <Nom>    Génère un middleware dans app/Middleware
           make:request <Nom>       Génère une FormRequest dans app/Requests
           tinker                   REPL interactif sur l'application
@@ -1559,6 +1860,12 @@ class Commander
           queue:flush              Supprime définitivement tous les jobs échoués
           cache:clear              Vide le cache applicatif
           optimize                 Cache les routes + rappels de prod (opcache, autoload)
+          optimize:clear           Supprime les caches de routes et de configuration
+          about                    Vue d'ensemble : versions, environnement, pilotes, caches
+          env                      Affiche l'environnement courant (APP_ENV)
+          cors:check [origine]     Vérifie config/cors.php ; simule un préflight depuis une origine
+          make:notification <Nom>  Génère une notification dans app/Notifications
+          tenancy:install          Multi-locataire : migration de la table des locataires et étapes suivantes
           new <nom>                Crée un nouveau projet et y installe un thème de site (--type=<slug> pour éviter la question)
           np:install               Installe le raccourci global `np` (macOS, Linux, Windows)
           config:cache             Fige config/*.php (production uniquement)

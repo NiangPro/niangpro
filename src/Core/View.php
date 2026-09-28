@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core;
 
 use Niang\Core\Http\Response;
@@ -30,7 +32,9 @@ class View
             extract($data, EXTR_SKIP);
             ob_start();
             include $path;
-            return ob_get_clean();
+            $output = ob_get_clean();
+
+            return $output === false ? '' : $output;
         })();
 
         if (self::$pendingLayout !== null) {

@@ -1,9 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Exceptions;
 
 use Niang\Core\Auth;
-use Niang\Core\Env;
 use Niang\Core\Http\Request;
 use Niang\Core\Http\Response;
 use Niang\Core\Lang;
@@ -108,7 +109,7 @@ class Handler
 
     private static function isDebug(): bool
     {
-        return Env::get('APP_DEBUG', 'true') === 'true';
+        return \Niang\Core\Application::debug();
     }
 
     private static function renderDebugPage(\Throwable $e, Request $request, float $startedAt): Response
@@ -119,7 +120,7 @@ class Handler
         $trace = htmlspecialchars($e->getTraceAsString());
         $method = htmlspecialchars($request->method);
         $uri = htmlspecialchars($request->uri);
-        $params = $request->params ? htmlspecialchars(json_encode($request->params, JSON_UNESCAPED_UNICODE)) : '—';
+        $params = $request->params ? htmlspecialchars((string) json_encode($request->params, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PARTIAL_OUTPUT_ON_ERROR)) : '—';
         $user = Auth::check() ? htmlspecialchars((string) (Auth::user()['email'] ?? Auth::id())) : 'invité';
         $duration = number_format((hrtime(true) - $startedAt) / 1_000_000, 2);
 

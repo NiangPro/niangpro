@@ -46,7 +46,7 @@ class EmailVerificationTest extends TestCase
 
         preg_match('#/verify-email/\S+#', $sent[0]['mailable']->body(), $matches);
 
-        $this->get($matches[0])->assertRedirect('/login');
+        $this->get($matches[0] ?? '')->assertRedirect('/login');
 
         $verified = User::find($user['id']);
         $this->assertNotNull($verified['email_verified_at']);

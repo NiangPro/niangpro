@@ -42,7 +42,7 @@ class UploadedFileTest extends TestCase
 
         $this->assertSame('image/png', $file->mimeType());
         $this->assertSame('png', $file->extension());
-        $this->assertSame([120, 80], array_slice(getimagesize($file->path()), 0, 2));
+        $this->assertSame([120, 80], array_slice(getimagesize($file->path()) ?: [], 0, 2));
     }
 
     public function test_store_uses_a_random_name_and_the_real_extension(): void
@@ -118,9 +118,15 @@ class UploadedFileTest extends TestCase
         $this->assertInstanceOf(UploadedFile::class, $files['avatar']);
         $this->assertSame('a.png', $files['avatar']->clientName());
         $this->assertArrayNotHasKey('empty', $files, 'Un champ fichier laissé vide doit être absent, pas une erreur.');
-        $this->assertSame([0, 2], array_keys($files['photos']));
-        $this->assertSame('trois.jpg', $files['photos'][2]->clientName());
-        $this->assertSame(UPLOAD_ERR_PARTIAL, $files['photos'][2]->error());
+        $photos = $files['photos'];
+
+        if (!is_array($photos)) {
+            $this->fail('« photos » devrait être une liste de fichiers.');
+        }
+
+        $this->assertSame([0, 2], array_keys($photos));
+        $this->assertSame('trois.jpg', $photos[2]->clientName());
+        $this->assertSame(UPLOAD_ERR_PARTIAL, $photos[2]->error());
     }
 
     public function test_request_create_moves_uploaded_files_out_of_the_body(): void

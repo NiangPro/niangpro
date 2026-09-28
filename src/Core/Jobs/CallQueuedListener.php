@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Jobs;
 
 use Niang\Core\Job;
@@ -16,6 +18,6 @@ class CallQueuedListener extends Job
 
     public function handle(): void
     {
-        (new $this->listener())->handle(...$this->payload);
+        \Niang\Core\Event::classListener($this->listener)(...array_values($this->payload));
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core;
 
 /**
@@ -258,6 +260,22 @@ class Auth
     public static function check(): bool
     {
         return self::id() !== null;
+    }
+
+    /**
+     * Rôle de l'utilisateur connecté (config/permissions.php) : Auth::hasRole('admin'), ou ['admin', 'editor'].
+     *
+     * @param string|list<string> $roles
+     */
+    public static function hasRole(string|array $roles): bool
+    {
+        return Permission::hasRole(self::user(), $roles);
+    }
+
+    /** Gate::allows() pour l'utilisateur connecté : règle, Policy ou permission de rôle. */
+    public static function can(string $ability, mixed ...$args): bool
+    {
+        return Gate::allows($ability, ...$args);
     }
 
     public static function guest(): bool

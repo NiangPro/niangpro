@@ -32,7 +32,10 @@ class ThemeSetupTest extends TestCase
         parent::tearDown();
     }
 
-    /** @return array{0: list<string>, 1: string} */
+    /**
+     * @param list<string> $commands
+     * @return array{0: list<string>, 1: string}
+     */
     private function runSetup(array $commands): array
     {
         $output = '';

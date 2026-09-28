@@ -163,7 +163,7 @@ class TwoFactorTest extends TestCase
         $setup = $this->post('/user/two-factor', ['_token' => Csrf::token(), 'password' => 'motdepasse123']);
         $setup->assertOk();
         preg_match('/secret=([A-Z2-7]+)/', $setup->content(), $matches);
-        $secret = $matches[1];
+        $secret = $matches[1] ?? '';
 
         $this->post('/user/two-factor/confirm', ['_token' => Csrf::token(), 'code' => '000000'])->assertRedirect('/user/two-factor');
         $this->assertFalse(TwoFactor::enabled(User::find($user['id'])));

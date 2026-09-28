@@ -246,6 +246,25 @@ Product::query()->where('id', 5)->decrement('stock', 2);
 Post::query()->where('id', 5)->increment('views', 1, ['last_viewed_at' => date('Y-m-d H:i:s')]);
 ```
 
+Sous-requêtes et unions :
+
+```php
+// Articles qui ont au moins un commentaire (sous-requête corrélée)
+Post::query()->whereExists(
+    (new QueryBuilder('comments'))->select('id')->whereColumn('comments.post_id', 'posts.id')
+)->get();
+// ->whereNotExists(...), ->whereNotIn('status', ['draft', 'archived'])
+
+// Articles publiés et archives, dans une seule liste
+Post::query()->select('title', 'published_at')
+    ->union((new QueryBuilder('archives'))->select('title', 'published_at'))  // unionAll() garde les doublons
+    ->orderBy('published_at', 'desc')->paginate(20);
+```
+
+`orderBy()`, `limit()`, `count()` et `paginate()` s'appliquent au résultat combiné d'une union : triez par
+le nom de colonne tel qu'il apparaît dans le résultat (`published_at`, pas `posts.published_at`). Les
+requêtes ajoutées par `union()` ne peuvent pas être triées ni limitées elles-mêmes.
+
 `chunk()` trie par `id` si vous ne donnez pas d'`orderBy()` : sans ordre stable, deux paquets pourraient
 se chevaucher. Ne modifiez pas, dans le rappel, la colonne sur laquelle la requête filtre (par exemple
 `active` ci-dessus), sinon les paquets suivants sont décalés.
@@ -314,9 +333,19 @@ Schema::rename('anciens_posts', 'posts');
 En SQLite, les clés étrangères sont activées (`PRAGMA foreign_keys = ON`) — comme en MySQL/PostgreSQL,
 une insertion référençant une ligne inexistante est rejetée.
 
-Limite assumée : `->change()` (modifier le type d'une colonne existante) n'est pas encore supporté —
-les trois moteurs divergent trop pour une traduction fiable (SQLite ne le permet même pas nativement
-sans reconstruire la table). Pour l'instant, gérez ce cas via une nouvelle migration qui recrée la colonne.
+Modifier une colonne existante : la nouvelle définition remplace entièrement l'ancienne (type, `NULL`,
+valeur par défaut).
+
+```php
+Schema::table('posts', function ($table) {
+    $table->string('title', 500)->nullable()->change();
+    $table->integer('views')->default(0)->change();
+});
+```
+
+MySQL : `MODIFY COLUMN` ; PostgreSQL : `ALTER COLUMN` (type avec conversion `USING`, `NULL`, défaut) ; SQLite,
+qui ne sait pas modifier une colonne : reconstruction de la table selon la procédure officielle (données, index
+et clés étrangères conservés). `->unique()` ne se combine pas avec `change()` : ajoutez l'index à part.
 
 ## Seeders & factories
 
@@ -539,6 +568,22 @@ class SetLocale implements Middleware
 }
 ```
 
+**Pluriels** : plusieurs formes séparées par `|`, choisies selon le nombre.
+
+```php
+// lang/fr/panier.php
+return [
+    'articles' => 'un article|:count articles',
+    'etat' => '{0} Votre panier est vide|{1} Un article|[2,9] :count articles|[10,*] Plus de :count articles',
+];
+
+trans_choice('panier.articles', 3);       // « 3 articles » (:count remplacé automatiquement)
+Lang::choice('panier.etat', 0);            // « Votre panier est vide »
+```
+
+Les formes `{n}` et `[min,max]` (`*` = sans limite) sont testées d'abord. Sinon la règle de la langue
+choisit : en français, 0 et 1 sont au singulier (« 0 article »), en anglais seul 1 l'est (« 0 items »).
+
 Les messages destinés au développeur (exceptions internes, CLI) restent en français.
 
 ## Gestion des erreurs
@@ -582,6 +627,7 @@ de contexte. Un fichier par jour dans `storage/logs/`. Les exceptions non interc
 consignées automatiquement.
 
 ```dotenv
+LOG_CHANNEL=daily   # daily (un fichier par jour), single, errorlog, syslog ou stderr (Docker)
 LOG_LEVEL=warning   # niveau minimal écrit (debug par défaut) : warning ignore debug, info et notice
 LOG_DAYS=14         # jours de fichiers conservés ; 0 = ne jamais supprimer
 ```
@@ -631,6 +677,44 @@ Dans la vue :
 <?php foreach ($paginator->items as $post): ?>...<?php endforeach; ?>
 <?= $paginator->links('/blog') ?>
 ```
+
+Pour les grandes tables, deux variantes sans `COUNT(*)` :
+
+```php
+// « Précédent / Suivant » seulement : une ligne de plus est lue pour savoir s'il reste une page
+$page = Post::simplePaginate(20, (int) $request->input('page', 1));
+
+// Par curseur : reprend après le dernier id vu (WHERE id > ?) au lieu d'un OFFSET
+$page = Post::cursorPaginate(20, $request->input('cursor'));             // tri par id croissant
+$page = Post::cursorPaginate(20, $request->input('cursor'), 'id', 'desc');
+// $page->items, $page->nextCursor (null en fin de liste), $page->links('/fil')
+```
+
+Un `OFFSET` ralentit au fil des pages (la base parcourt toutes les lignes sautées) et, si une ligne
+arrive entre deux pages, en répète ou en saute une ; le curseur n'a aucun des deux défauts, mais ne
+permet pas d'aller à la page 7 directement. Triez par une colonne **unique** (`id` par défaut). Le curseur
+est une valeur opaque, toujours liée comme paramètre ; la colonne vient du code, jamais du curseur.
+`JsonResource::collection()` accepte les trois (méta `current_page`/`per_page`, ou `next_cursor`).
+
+## Documentation OpenAPI
+
+```bash
+./bin/niang openapi                                  # public/openapi.json, routes commençant par /api
+./bin/niang openapi --prefix=/v2 --output=docs/api.json
+./bin/niang openapi --prefix=/                       # toutes les routes
+```
+
+Le fichier (OpenAPI 3.0) est généré à partir des routes réelles, jamais retapé : chemins, méthodes,
+paramètres (typés `integer` si leur contrainte `where()` est numérique), corps de requête déduit des règles
+de la FormRequest injectée dans l'action (types, formats email/url/uuid/date, `in`, `min`/`max`,
+tableaux imbriqués `items.*.x`, fichiers en `multipart/form-data`), authentification (session ou Bearer,
+d'après les middlewares), résumé et description tirés du docblock de l'action, et réponses 401, 403, 404,
+422 et 429 quand elles s'appliquent. Il s'ouvre dans n'importe quel outil OpenAPI (Swagger UI, Redoc,
+Postman, Insomnia) ou sert à générer un client.
+
+Deux choses ne sont pas déduites : une validation écrite dans le corps de l'action
+(`$this->validate(...)` au lieu d'une FormRequest) et la forme des réponses. Relancez la commande à chaque
+déploiement (ou dans la CI) pour que le fichier reste à jour. OpenAPI reste facultatif.
 
 ## API : JSON Resources & CORS
 
@@ -688,6 +772,24 @@ $router->get('/posts/{id}', [PostController::class, 'show'])
 
 route('posts.show', ['id' => 5]); // '/posts/5'
 ```
+
+**Liaison de modèle** : le paramètre devient directement la ligne, ou une 404 si elle n'existe pas.
+
+```php
+$router->get('/posts/{post}', [PostController::class, 'show'])->bind(['post' => Post::class]);           // par id
+$router->get('/blog/{post}', [PostController::class, 'show'])->bind(['post' => Post::class . ':slug']);  // par slug
+
+public function show(array $post): Response   // même nom que le paramètre
+{
+    return $this->view('posts/show', ['post' => $post]);
+}
+```
+
+La recherche passe par le modèle (suppression douce et `$casts` respectés) et a lieu **après** les
+middlewares : un visiteur non authentifié ne peut pas sonder l'existence d'une ligne. Elle ne vérifie pas
+les droits : pour `/users/{user}/invoices/{invoice}`, contrôlez vous-même que la facture appartient bien
+à l'utilisateur (ou passez par une Policy), sinon changer l'identifiant dans l'URL suffit à lire celle d'un
+autre. Compatible avec `route:cache`.
 
 ```php
 $router->resource('tags', TagController::class);
@@ -900,6 +1002,34 @@ $this->authorize('post.delete', $post); // résout PostPolicy::delete(Auth::user
 `Gate::define()` reste prioritaire si une ability du même nom existe des deux côtés — utile pour
 surcharger ponctuellement une règle de policy sans y toucher.
 
+### Rôles et permissions
+
+Pour ne pas écrire une règle par action : un rôle par utilisateur (colonne `users.role`, fournie par le
+module d'administration des thèmes boutique et blog, sinon `$table->string('role')->default('user')`),
+et les permissions de chaque rôle dans `config/permissions.php` :
+
+```php
+'roles' => [
+    'admin' => ['*'],                                // tout
+    'editor' => ['posts.*', 'comments.moderate'],    // posts.create, posts.update...
+    'user' => [],
+],
+```
+
+```php
+Auth::hasRole('admin');            // ou ['admin', 'editor']
+Auth::can('posts.update');         // = Gate::allows('posts.update')
+
+// Route protégée : plusieurs abilities séparées par des virgules sont toutes exigées
+$router->delete('/posts/{id}', [PostController::class, 'destroy'], [Authorize::class . ':posts.delete']);
+```
+
+`Gate::allows()` consulte d'abord les règles `define()` puis les Policies ; les permissions de rôle ne
+décident que si aucune des deux ne répond pour cette ability. Un invité n'a aucune permission ;
+`Authorize` le renvoie vers `/login` (401 en JSON) et répond 403 à un utilisateur sans la permission.
+Plus généralement, un middleware de route reçoit des arguments après `:` (`MonMiddleware::class .
+':a,b'` → `handle($request, $next, 'a', 'b')`).
+
 ## Rate limiting
 
 `ThrottleRequests::class` limite par défaut à 10 requêtes/minute par IP et par route (utile sur
@@ -922,9 +1052,19 @@ concaténation de valeurs utilisateur dans le SQL, nulle part.
 Cache::remember('posts.index', 60, fn () => Post::all()); // TTL 60s
 Cache::put('clé', $valeur, 300);
 Cache::forget('clé');
+
+Cache::increment('visites.accueil');      // 1, 2, 3... (0 si absente) ; decrement() aussi
+Cache::increment('stock.42', -3);
 ```
 
-Fichier (`storage/framework/cache/`) par défaut, pas de dépendance à Redis/Memcached.
+`increment()` et `decrement()` sont atomiques : deux requêtes simultanées ne perdent pas d'incrément
+(verrou sur fichier, ou compare-and-swap en base). Le TTL d'une valeur existante est conservé ; une valeur
+qui n'est pas un entier lève une erreur plutôt que d'être écrasée.
+
+Trois pilotes (`CACHE_DRIVER`) : `file` (défaut, `storage/framework/cache/`), `database` (voir ci-dessous)
+et `array` (mémoire du process, vidée à chaque requête : pour les tests et la CLI). Pas de dépendance à
+Redis/Memcached. `SESSION_DRIVER=array` existe aussi pour les tests (jamais pour un site : le visiteur
+serait déconnecté à chaque page). Avec `CACHE_DRIVER=array`, la limitation de débit reste sur fichier.
 
 ### Plusieurs serveurs web (sessions, cache et limitation de débit partagés)
 
@@ -942,6 +1082,19 @@ puis `./bin/niang migrate` (tables `sessions`, `cache_entries`, `rate_limits`, l
 framework ; `niang doctor` signale une table manquante). `CACHE_DRIVER` pilote aussi `RateLimiter`,
 dont l'incrément reste atomique (un seul `UPDATE` conditionnel). Aucun verrou par session en base :
 si deux requêtes simultanées du même visiteur modifient la session, la dernière écriture l'emporte.
+
+### Redis
+
+Pour le cache, les sessions, la file d'attente et la limitation de débit, `redis` remplace `file` ou
+`database` : `CACHE_DRIVER=redis`, `SESSION_DRIVER=redis`, `QUEUE_DRIVER=redis`, avec `REDIS_HOST`,
+`REDIS_PORT`, `REDIS_PASSWORD`, `REDIS_DB` et `REDIS_PREFIX` (toutes les clés de l'application commencent par
+ce préfixe ; `Cache::flush()` n'efface qu'elles, jamais la base Redis entière). Un hôte en `tls://` chiffre la
+connexion (Upstash, ElastiCache...).
+
+Le client Redis est écrit à la main (protocole RESP), sans extension ni bibliothèque. Les opérations qui
+doivent être atomiques (incrément de cache, limitation de débit, réservation d'un job) sont des scripts Lua
+exécutés par Redis. Utilisable directement : `Redis::command('INCR', Redis::connection()->key('visites'))`.
+`niang doctor` vérifie que Redis répond. Redis 6 ou plus.
 
 ## Tâches planifiées
 
@@ -986,8 +1139,18 @@ Queue::push(new SendWelcomeEmailJob($email));
 Queue::later(300, new SendWelcomeEmailJob($email)); // dû dans 5 minutes
 ```
 
-File sur fichier (`storage/framework/queue/`) — pas de démon fourni : lancez `queue:work` via cron,
-ou en boucle, selon vos besoins.
+Pas de démon fourni : lancez `queue:work` via cron (ou le planificateur), ou en boucle. Trois pilotes,
+choisis par `QUEUE_DRIVER` :
+
+| Pilote | Stockage | Usage |
+| --- | --- | --- |
+| `file` (défaut) | `storage/framework/queue/` | un seul serveur |
+| `database` | tables `jobs` et `failed_jobs` (`./bin/niang migrate`) | plusieurs serveurs ou workers : chaque job est réservé par un seul worker, même sur une autre machine |
+| `sync` | aucun | exécution immédiate, sans worker (développement, tests) |
+
+Avec `database`, un job réservé par un worker qui s'est arrêté en cours de route est rendu à la file après
+`QUEUE_RETRY_AFTER` secondes (600 par défaut) : cette valeur doit dépasser la durée de votre plus long job.
+`niang doctor` signale des tables manquantes.
 
 Un job qui échoue est retenté jusqu'à `Job::$tries` fois, avec un backoff exponentiel (10s, 20s,
 40s...) entre les tentatives, puis déplacé vers les jobs échoués :
@@ -1000,17 +1163,33 @@ Un job qui échoue est retenté jusqu'à `Job::$tries` fois, avec un backoff exp
 
 ## Stockage de fichiers
 
-Disque local uniquement (`storage/app/`) — un driver S3 demanderait un SDK externe, contraire au
-principe « sans dépendance d'implémentation à l'exécution » du framework :
+Deux disques, choisis par `FILESYSTEM_DISK` : `local` (défaut, `storage/app/`) et `s3` (AWS S3, Cloudflare
+R2, MinIO, Wasabi, Scaleway... tout service compatible S3). Même API sur les deux :
 
 ```php
-Storage::put('avatars/1.png', $contents);
+Storage::put('avatars/1.png', $contents);                  // 3e argument facultatif : type MIME
 Storage::get('avatars/1.png');     // contenu, ou null si absent
 Storage::exists('avatars/1.png');
 Storage::delete('avatars/1.png');
 Storage::size('avatars/1.png');    // en octets, ou null
-Storage::url('avatars/1.png');     // '/storage/avatars/1.png' — à router vers Storage::get() si besoin de le servir
+Storage::url('avatars/1.png');     // local : '/storage/avatars/1.png' ; s3 : URL publique (AWS_URL) ou de l'objet
+Storage::temporaryUrl('factures/1.pdf', 300);  // lien de lecture valable 5 minutes, sans rendre le fichier public
 ```
+
+```dotenv
+FILESYSTEM_DISK=s3
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_DEFAULT_REGION=eu-west-3
+AWS_BUCKET=mon-bucket
+AWS_ENDPOINT=https://<compte>.r2.cloudflarestorage.com   # service compatible ; vide pour AWS
+AWS_URL=https://cdn.exemple.sn                           # facultatif : URL publique (CDN)
+```
+
+Le client S3 est écrit à la main (signature AWS SigV4, vérifiée contre les exemples publiés par AWS et un
+serveur S3 local en CI), sans SDK. `temporaryUrl()` donne une URL pré-signée sur S3, et une URL signée
+(`UrlSignature`) sur le disque local. `$file->store('avatars')` envoie le fichier sur le disque choisi.
+`Storage::path()` n'existe que sur le disque local. `niang doctor` signale une configuration S3 incomplète.
 
 Les chemins contenant `..` sont rejetés (`InvalidArgumentException`) : sans ça, un chemin construit
 à partir d'une entrée utilisateur pourrait écrire ou lire en dehors de `storage/app/`.
@@ -1272,8 +1451,14 @@ réponse hors 2xx lève une `NotificationException`.
 ## Compression & supervision
 
 Les réponses sont automatiquement compressées en gzip si le client l'accepte et que ça vaut le coût.
-`GET /up` renvoie `{"status":"ok","database":true}` (200) si la base de données répond, ou
-`{"status":"degraded","database":false}` (503) sinon — à brancher sur votre outil de supervision.
+
+| Route | Vérifie | Usage |
+| --- | --- | --- |
+| `GET /health` (alias `/up`, `/health/ready`) | base de données, cache, stockage, file d'attente : `{"status":"ok","services":{"database":"ok",...}}`, 503 si l'un échoue | supervision, sonde *readiness* (retirer un serveur du trafic) |
+| `GET /health/live` | rien : le process PHP répond | sonde *liveness* (redémarrer un conteneur bloqué) |
+
+Les quatre routes restent accessibles en mode maintenance. `./bin/niang health` fait la même vérification
+en ligne de commande.
 
 ## Debug toolbar
 
@@ -1290,9 +1475,24 @@ composer install --no-dev --optimize-autoloader
 ./bin/niang route:cache   # ou : ./bin/niang optimize
 ```
 
+Avec `APP_ENV=production`, le mode debug est **toujours désactivé** (pas de trace d'erreur, pas de barre de
+debug), même si `APP_DEBUG=true` traîne dans `.env` ; et aucune requête n'est servie sans `APP_KEY` valide
+(réponse 503, détail dans les logs). Hors production, le debug est actif sauf `APP_DEBUG=false`.
+
 Activez `opcache.enable=1` et `opcache.validate_timestamps=0` dans le `php.ini` de production
 (remettez `validate_timestamps=1` en développement, sinon vos modifications de code ne seront pas prises
 en compte sans redémarrage).
+
+### Performances mesurées
+
+```bash
+php -d opcache.enable_cli=1 benchmarks/run.php            # routage, conteneur, base, vues, requête complète
+php -d opcache.enable_cli=1 benchmarks/run.php --markdown # met à jour benchmarks/RESULTS.md
+```
+
+Chaque couche est comparée à son équivalent en PHP natif (p50, p95, p99, débit, mémoire), avec les
+conditions de mesure. Sur un Apple M1 avec OPcache, une requête complète coûte environ 0,015 ms de
+framework, plus 0,08 ms de démarrage : voir [benchmarks/RESULTS.md](benchmarks/RESULTS.md).
 
 ### Docker (facultatif)
 
@@ -1339,8 +1539,15 @@ PHPUnit, PHP-CS-Fixer, PHPStan.
 composer test       # PHPUnit
 composer lint        # PHP-CS-Fixer (dry-run)
 composer lint:fix     # PHP-CS-Fixer (applique)
-composer analyse      # PHPStan niveau 6
+composer analyse      # PHPStan niveau 7
+vendor/bin/phpunit --testsuite=Security   # la suite de sécurité seule
 ```
+
+`tests/Security/` regroupe les attaques de la roadmap (§55) : injection SQL (valeurs, identifiants,
+opérateurs, curseurs), XSS (`e()`, `json_for_html()`), CSRF, redirection ouverte, en-tête Host (liens
+envoyés par email construits avec `APP_URL`), fixation de session, cookies `HttpOnly`/`SameSite`,
+traversée de chemin, fichiers déguisés, noms de fichiers aléatoires, HTML/SVG jamais affichés, affectation
+de masse, IDOR, limitation de débit, en-têtes de sécurité.
 
 Couverture de code (extension `pcov` ou `xdebug`), vérifiée en CI : un seuil global (78 %) et un seuil par
 composant critique (Router, Container, Database, Auth, Validation, HTTP, sécurité), définis dans
@@ -1443,6 +1650,13 @@ Grammar — corrigé pour passer par `Schema`/`Blueprint` comme n'importe quelle
 ./bin/niang queue:flush              # supprime définitivement tous les jobs échoués
 ./bin/niang cache:clear              # vide le cache applicatif
 ./bin/niang optimize                 # cache les routes + rappels de prod
+./bin/niang optimize:clear           # supprime les caches de routes et de configuration
+./bin/niang about                    # versions, environnement, pilotes, caches
+./bin/niang env                      # environnement courant (APP_ENV)
+./bin/niang cors:check https://app.example.com  # vérifie config/cors.php, simule un préflight
+./bin/niang make:notification CommandeExpediee  # génère app/Notifications/CommandeExpedieeNotification.php
+./bin/niang openapi                  # génère public/openapi.json (voir Documentation OpenAPI)
+./bin/niang down / up                # mode maintenance (voir Passage en production)
 ./bin/niang new mon-app              # crée un nouveau projet (pose la question du type de site)
 ./bin/niang new mon-app --type=blog  # idem sans question : vitrine, ecommerce, blog, portfolio, landing, minimal
 ./bin/niang np:install               # installe le raccourci global `np` (macOS, Linux, Windows)
@@ -1520,9 +1734,19 @@ Auto-wiring par Reflection, sans configuration : type-hintez une dépendance dan
 une méthode de contrôleur, elle est résolue automatiquement (et récursivement).
 
 ```php
-$container->bind(PaymentGateway::class, fn ($c) => new StripeGateway(env('STRIPE_KEY')));
-$container->singleton(Clock::class, new SystemClock());
+$container->bind(PaymentGateway::class, StripeGateway::class);                         // interface -> classe
+$container->bind(PaymentGateway::class, fn ($c) => new StripeGateway(env('STRIPE_KEY'))); // ou une fabrique
+$container->singleton(CacheManager::class);                // une seule instance, créée au premier usage
+$container->singleton(Clock::class, SystemClock::class);   // idem, pour une interface
+$container->instance(Clock::class, new FrozenClock('2026-01-01'));  // objet déjà construit
+
+// Liaison contextuelle : une implémentation selon la classe qui la demande
+$container->when(RefundController::class)->needs(PaymentGateway::class)->give(PaypalGateway::class);
 ```
+
+`bind()` crée une nouvelle instance à chaque résolution ; `singleton()` et `instance()` renvoient toujours
+la même. La liaison contextuelle s'applique au constructeur de la classe comme à l'injection dans ses
+méthodes (actions de contrôleur).
 
 Erreurs explicites plutôt qu'un plantage silencieux ou un débordement de pile :
 
@@ -1559,7 +1783,7 @@ $container->make(ReportGenerator::class);
 ```
 
 Seules des interfaces PSR pures existent dans `composer.json` (`psr/container`, `psr/log`,
-`psr/http-message`, `psr/http-server-middleware`) : aucun code d'implémentation, aucune dépendance
+`psr/http-message`, `psr/http-server-middleware`, `psr/event-dispatcher`) : aucun code d'implémentation, aucune dépendance
 transitive lourde — le framework reste sans dépendance d'implémentation à l'exécution.
 
 ### PSR-7 / PSR-15 (brancher un middleware tiers)
@@ -1610,13 +1834,49 @@ Déclarez-les dans `config/app.php` (`providers`). Tous les `register()` s'exéc
 
 ## Événements
 
+Un événement est un objet (`./bin/niang make:event UserRegistered`), écouté par le nom de sa classe :
+
 ```php
-Event::listen('user.registered', function (array $user) {
-    Log::info('Nouvel utilisateur : {email}', ['email' => $user['email']]);
+class UserRegisteredEvent
+{
+    public function __construct(public readonly array $user) {}
+}
+
+Event::listen(UserRegisteredEvent::class, SendWelcomeEmailListener::class);   // classe avec handle()
+Event::listen(UserRegisteredEvent::class, function (UserRegisteredEvent $event) {
+    Log::info('Nouvel utilisateur : {email}', ['email' => $event->user['email']]);
 });
 
-Event::dispatch('user.registered', $user);
+Event::dispatch(new UserRegisteredEvent($user));   // retourne l'événement, modifiable par les écouteurs
 ```
+
+Un écouteur enregistré sur une classe parente ou une interface reçoit aussi les événements qui en
+héritent (après ceux de la classe exacte). Un événement qui étend `Niang\Core\Events\StoppableEvent`
+s'arrête dès qu'un écouteur appelle `$event->stopPropagation()`. Un écouteur `ShouldQueue` reçoit l'objet
+par la file (il doit donc être sérialisable). Les événements nommés restent pris en charge :
+`Event::listen('user.registered', ...)` puis `Event::dispatch('user.registered', $user)`.
+
+**Événements du framework** : pour une extension ou un paquet qui doit intervenir à chaque requête sans
+toucher au code de l'application.
+
+| Événement | Moment | Contenu |
+| --- | --- | --- |
+| `Events\ApplicationBooted` | après le `boot()` de tous les Service Providers | `$app` |
+| `Events\RequestReceived` | début de `handle()`, avant maintenance et routeur | `$request` |
+| `Events\RouteMatched` | route trouvée, avant les middlewares | `$request`, `$route` |
+| `Events\ResponsePrepared` | réponse prête, juste avant l'envoi (encore modifiable) | `$request`, `$response` |
+| `Events\RequestTerminated` | après l'envoi (avec PHP-FPM, le visiteur n'attend plus) | `$request`, `$response` |
+
+```php
+Event::listen(ResponsePrepared::class, fn (ResponsePrepared $e) => $e->response->header('X-Version', '2.1'));
+```
+
+Émis seulement s'ils sont écoutés : aucun coût sinon. Un écouteur qui lève une exception pendant
+`RequestReceived` donne une page d'erreur normale. Il n'y a pas d'`ApplicationStarting` : aucun écouteur ne
+pourrait être enregistré avant le démarrage des Service Providers.
+
+**PSR-14** : injectez `Psr\EventDispatcher\EventDispatcherInterface` (résolu par le conteneur en
+`Niang\Core\Events\Dispatcher`) dans du code qui ne doit pas dépendre de la façade ; mêmes écouteurs.
 
 Découple la logique secondaire (notifications, journalisation, futurs écouteurs) du contrôleur qui
 déclenche l'action — sans passer par un vrai bus d'événements avec files et retries.

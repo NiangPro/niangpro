@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Database;
 
 use Niang\Core\Database\Grammar\Grammar;
@@ -14,6 +16,7 @@ class ColumnDefinition
     private bool $hasDefault = false;
     private mixed $defaultValue = null;
     private bool $unique = false;
+    private bool $change = false;
     private ?ForeignKeyDefinition $foreignKey = null;
 
     public function __construct(private string $name, private string $type, private array $params = [])
@@ -31,6 +34,58 @@ class ColumnDefinition
         $this->hasDefault = true;
         $this->defaultValue = $value;
         return $this;
+    }
+
+    /**
+     * Modifie une colonne existante au lieu d'en ajouter une (dans Schema::table()) :
+     *   $table->string('title', 500)->nullable()->change();
+     * La nouvelle définition remplace entièrement l'ancienne (type, NULL, défaut).
+     */
+    public function change(): static
+    {
+        $this->change = true;
+        return $this;
+    }
+
+    public function isChange(): bool
+    {
+        return $this->change;
+    }
+
+    public function name(): string
+    {
+        return $this->name;
+    }
+
+    public function type(): string
+    {
+        return $this->type;
+    }
+
+    /** @return array<string, mixed> */
+    public function params(): array
+    {
+        return $this->params;
+    }
+
+    public function isNullable(): bool
+    {
+        return $this->nullable;
+    }
+
+    public function hasDefault(): bool
+    {
+        return $this->hasDefault;
+    }
+
+    public function defaultValue(): mixed
+    {
+        return $this->defaultValue;
+    }
+
+    public function isUnique(): bool
+    {
+        return $this->unique;
     }
 
     public function unique(): static

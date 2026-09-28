@@ -23,6 +23,8 @@ use App\Middleware\VerifyCsrfToken;
 // Supervision : à brancher sur votre outil de monitoring.
 $router->get('/up', [HealthController::class, 'index']);
 $router->get('/health', [HealthController::class, 'index']);
+$router->get('/health/ready', [HealthController::class, 'index']);
+$router->get('/health/live', [HealthController::class, 'live']);
 
 $router->get('/', [BlogController::class, 'home']);
 

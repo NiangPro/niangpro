@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Database;
 
 class Schema
@@ -31,6 +33,14 @@ class Schema
             DB::statement($statement);
         }
 
+        foreach ($blueprint->changedColumns() as $column) {
+            [$createSql, $indexSql] = $grammar instanceof Grammar\SQLiteGrammar ? self::sqliteDefinition($table) : [null, []];
+
+            foreach ($grammar->compileChange($table, $column, $createSql, $indexSql) as $statement) {
+                DB::statement($statement);
+            }
+        }
+
         foreach ($blueprint->renameStatements($grammar) as $statement) {
             DB::statement($statement);
         }
@@ -57,5 +67,17 @@ class Schema
     public static function dropIfExists(string $table): void
     {
         self::drop($table);
+    }
+
+    /** @return array{0: ?string, 1: list<string>} CREATE TABLE et CREATE INDEX actuels (sqlite_master) */
+    private static function sqliteDefinition(string $table): array
+    {
+        $create = DB::selectOne("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", [$table], 'write');
+        $indexes = DB::select("SELECT sql FROM sqlite_master WHERE type = 'index' AND tbl_name = ? AND sql IS NOT NULL", [$table], 'write');
+
+        return [
+            is_string($create['sql'] ?? null) ? $create['sql'] : null,
+            array_values(array_filter(array_map(fn (array $row) => is_string($row['sql']) ? $row['sql'] : '', $indexes))),
+        ];
     }
 }

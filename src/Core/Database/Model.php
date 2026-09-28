@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Database;
 
 use Niang\Core\Exceptions\DatabaseException;
 use Niang\Core\Exceptions\MassAssignmentException;
+use Niang\Core\Tenancy;
 
 abstract class Model
 {
@@ -45,6 +48,12 @@ abstract class Model
      */
     protected static bool $softDeletes = false;
 
+    /**
+     * Multi-locataire, base partagée (voir Niang\Core\Tenancy) : lectures, mises à jour et
+     * suppressions filtrées sur la colonne tenant_id du locataire courant, renseignée à la création.
+     */
+    protected static bool $tenantScoped = false;
+
     public static function table(): string
     {
         if (static::$table !== '') {
@@ -66,7 +75,10 @@ abstract class Model
     /** Comme query(), lignes supprimées en douceur comprises. */
     public static function withTrashed(): QueryBuilder
     {
-        return (new QueryBuilder(static::table()))->forModel(static::class);
+        $query = (new QueryBuilder(static::table()))->forModel(static::class);
+        $tenant = static::$tenantScoped ? Tenancy::scopeFor(static::class) : null;
+
+        return $tenant !== null ? $query->where(static::table() . '.' . Tenancy::column(), $tenant) : $query;
     }
 
     /** Uniquement les lignes supprimées en douceur (une corbeille). */
@@ -110,6 +122,13 @@ abstract class Model
     /** Comme create(), sans filtre $fillable — jamais avec des données venues directement de la requête. */
     public static function forceCreate(array $data): string
     {
+        $tenant = static::$tenantScoped ? Tenancy::scopeFor(static::class) : null;
+
+        if ($tenant !== null) {
+            // Imposé, jamais pris dans $data : impossible de créer une ligne chez un autre locataire.
+            $data[Tenancy::column()] = $tenant;
+        }
+
         if (static::$timestamps) {
             $now = date('Y-m-d H:i:s');
             $data += ['created_at' => $now, 'updated_at' => $now];
@@ -121,6 +140,10 @@ abstract class Model
     /** Comme update(), sans filtre $fillable — jamais avec des données venues directement de la requête. */
     public static function forceUpdate(int|string $id, array $data): bool
     {
+        if (static::$tenantScoped && Tenancy::scopeFor(static::class) !== null) {
+            unset($data[Tenancy::column()]);   // une ligne ne change pas de locataire
+        }
+
         if (static::$timestamps) {
             $data += ['updated_at' => date('Y-m-d H:i:s')];
         }
@@ -257,6 +280,16 @@ abstract class Model
         return static::query()->paginate($perPage, $page);
     }
 
+    public static function simplePaginate(int $perPage = 15, int $page = 1): SimplePaginator
+    {
+        return static::query()->simplePaginate($perPage, $page);
+    }
+
+    public static function cursorPaginate(int $perPage = 15, ?string $cursor = null, string $column = 'id', string $direction = 'asc'): CursorPaginator
+    {
+        return static::query()->cursorPaginate($perPage, $cursor, $column, $direction);
+    }
+
     /**
      * Charge une ou plusieurs relations en une seule requête chacune, pour éviter le N+1 :
      * Post::with(['comments', 'tags'])->get(). Les clés utilisables sont celles déclarées par
@@ -345,9 +378,10 @@ abstract class Model
             . "INNER JOIN {$pivotTable} ON {$relatedTable}.{$relatedPrimaryKey} = {$pivotTable}.{$relatedKey} "
             . "WHERE {$pivotTable}.{$foreignKey} IN ($placeholders)"
             . ($related::$softDeletes ? " AND {$relatedTable}.deleted_at IS NULL" : '');
+        [$tenantSql, $tenantBindings] = self::tenantCondition($related);
 
         $grouped = [];
-        foreach (DB::select($sql, $ids) as $row) {
+        foreach (DB::select($sql . $tenantSql, [...$ids, ...$tenantBindings]) as $row) {
             $parentId = $row['np_pivot_key'];
             unset($row['np_pivot_key']);
             $grouped[$parentId][] = $related::castRow($row);
@@ -398,7 +432,21 @@ abstract class Model
             . "INNER JOIN {$pivotTable} ON {$relatedTable}.{$relatedPrimaryKey} = {$pivotTable}.{$relatedKey} "
             . "WHERE {$pivotTable}.{$foreignKey} = ?"
             . ($related::$softDeletes ? " AND {$relatedTable}.deleted_at IS NULL" : '');
+        [$tenantSql, $tenantBindings] = self::tenantCondition($related);
 
-        return array_map([$related, 'castRow'], DB::select($sql, [$id]));
+        return array_map(fn (array $row) => $related::castRow($row), DB::select($sql . $tenantSql, [$id, ...$tenantBindings]));
+    }
+
+    /**
+     * Filtre du locataire pour les relations écrites en SQL (pivot).
+     *
+     * @param string $related classe d'un modèle
+     * @return array{0: string, 1: list<int|string>}
+     */
+    private static function tenantCondition(string $related): array
+    {
+        $tenant = $related::$tenantScoped ? Tenancy::scopeFor($related) : null;
+
+        return $tenant === null ? ['', []] : [' AND ' . $related::table() . '.' . Tenancy::column() . ' = ?', [$tenant]];
     }
 }

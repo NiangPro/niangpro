@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Console;
 
 use Niang\Core\AppKey;
@@ -35,6 +37,10 @@ class ComposerHooks
      */
     public static function handle(object $event, string $projectRoot, bool $stdinIsTty, ProjectScaffolder $scaffolder): void
     {
+        if (!method_exists($event, 'getIO')) {
+            throw new \InvalidArgumentException('ComposerHooks : un Composer\\Script\\Event est attendu.');
+        }
+
         $io = $event->getIO();
 
         self::createEnvFile($projectRoot, $io);
@@ -116,7 +122,9 @@ class ComposerHooks
 
         copy($example, $env);
         AppKey::writeTo($env);
-        $io->write('<info>.env créé, avec une APP_KEY propre à ce projet.</info>');
+        if (method_exists($io, 'write')) {
+            $io->write('<info>.env créé, avec une APP_KEY propre à ce projet.</info>');
+        }
     }
 
     /** Un « < » dans un libellé de thème ne doit pas être interprété comme une balise de mise en forme Composer. */

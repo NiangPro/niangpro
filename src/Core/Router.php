@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core;
 
 use Niang\Core\Exceptions\HttpException;
@@ -159,6 +161,16 @@ class Router
         self::$namedRoutes[$name] = $this->routes[$index]['uri'];
     }
 
+    /** @internal voir RouteRegistration::bind() */
+    public function setRouteBinding(int $index, string $parameter, string $model, string $column): void
+    {
+        if (!str_contains($this->routes[$index]['uri'], '{' . $parameter . '}')) {
+            throw new \InvalidArgumentException("bind() : la route {$this->routes[$index]['uri']} n'a pas de paramètre {{$parameter}}.");
+        }
+
+        $this->routes[$index]['bindings'][$parameter] = [$model, $column];
+    }
+
     public function setRouteConstraints(int $index, array $constraints): void
     {
         $this->routes[$index]['pattern'] = $this->toPattern($this->routes[$index]['uri'], $constraints);
@@ -235,6 +247,11 @@ class Router
 
         if ($route !== null) {
             $request->params = $params;
+
+            if (Event::hasListeners(Events\RouteMatched::class)) {
+                Event::dispatch(new Events\RouteMatched($request, $route));
+            }
+
             $response = $this->runRoute($route, $request, $container);
 
             return $usedGetForHead ? $response->content('') : $response;
@@ -338,16 +355,42 @@ class Router
             array_reverse($route['middleware']),
             function (\Closure $next, string $middleware) use ($container) {
                 return function (Request $request) use ($next, $middleware, $container) {
-                    $instance = $container->make($middleware);
-                    return $instance->handle($request, $next);
+                    // « Classe:arg1,arg2 » : les arguments suivent $next dans handle().
+                    [$class, $arguments] = array_pad(explode(':', $middleware, 2), 2, null);
+                    $instance = $container->make($class);
+
+                    return $instance->handle($request, $next, ...($arguments === null ? [] : explode(',', $arguments)));
                 };
             },
-            fn (Request $request) => $this->callAction($route['action'], $request, $container)
+            fn (Request $request) => $this->callAction($route['action'], $this->bindModels($route['bindings'] ?? [], $request), $container)
         );
 
         $result = $pipeline($request);
 
         return $result instanceof Response ? $result : Response::html((string) $result);
+    }
+
+    /**
+     * Après les middlewares (un visiteur non authentifié ne peut pas sonder l'existence d'une ligne) :
+     * chaque paramètre lié devient la ligne du modèle, ou 404. Les règles du modèle s'appliquent
+     * (suppression douce, $casts).
+     *
+     * @param array<string, array{0: class-string<Database\Model>, 1: string}> $bindings
+     */
+    private function bindModels(array $bindings, Request $request): Request
+    {
+        foreach ($bindings as $parameter => [$model, $column]) {
+            $value = $request->params[$parameter] ?? null;
+            $row = $value === null ? null : $model::query()->where($column, $value)->first();
+
+            if ($row === null) {
+                throw new Exceptions\NotFoundException();
+            }
+
+            $request->params[$parameter] = $row;
+        }
+
+        return $request;
     }
 
     private function callAction(mixed $action, Request $request, Container $container): mixed
@@ -364,6 +407,11 @@ class Router
         if (is_array($action)) {
             [$class, $method] = $action;
             $controller = $container->make($class);
+
+            if (!is_object($controller) || !is_string($method) || !is_callable([$controller, $method])) {
+                throw new \RuntimeException('Action de route introuvable : ' . (is_string($class) ? $class : get_debug_type($class)) . '@' . (is_string($method) ? $method : '?') . '.');
+            }
+
             return $container->call([$controller, $method], ['request' => $request]);
         }
 

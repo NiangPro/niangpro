@@ -93,6 +93,19 @@ class DatabaseDriversTest extends TestCase
         $this->assertFalse(Cache::has('lent'));
     }
 
+    public function test_increment_and_decrement_in_the_database(): void
+    {
+        $this->assertSame(1, Cache::increment('compteur'));
+        $this->assertSame(6, Cache::increment('compteur', 5));
+        $this->assertSame(3, Cache::decrement('compteur', 3));
+        $this->assertSame(3, Cache::get('compteur'));
+
+        Cache::put('visites', 10, 60);
+        $this->assertSame(11, Cache::increment('visites'));
+        $row = DB::selectOne('SELECT expiration FROM cache_entries WHERE cache_key = ?', [sha1('visites')]);
+        $this->assertNotNull($row['expiration'], 'le TTL est conservé');
+    }
+
     public function test_long_and_unicode_keys_are_supported(): void
     {
         $key = str_repeat('clé-très-longue/', 40);
@@ -157,7 +170,7 @@ class DatabaseDriversTest extends TestCase
 
     public function test_an_unknown_cache_driver_is_rejected(): void
     {
-        $this->useCacheDriver('redis');
+        $this->useCacheDriver('memcached');
 
         $this->expectException(ConfigurationException::class);
         Cache::get('x');

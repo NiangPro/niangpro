@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Database\Grammar;
 
 class MySqlGrammar extends Grammar
@@ -12,6 +14,11 @@ class MySqlGrammar extends Grammar
     public function compileId(string $name): string
     {
         return $this->wrap($name) . ' BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY';
+    }
+
+    public function compileChange(string $table, \Niang\Core\Database\ColumnDefinition $column, ?string $createSql = null, array $indexSql = []): array
+    {
+        return ['ALTER TABLE ' . $this->wrap($table) . ' MODIFY COLUMN ' . $this->compileChangedColumn($column)];
     }
 
     protected function compileEnumCheck(string $name, array $values): string

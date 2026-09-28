@@ -25,7 +25,7 @@ tests : ils tournent sur SQLite en mémoire (`.env.testing`).
 Les mêmes vérifications que la CI :
 
 ```bash
-composer test       # PHPUnit : Unit, Feature et Database (dont les suites des 6 thèmes)
+composer test       # PHPUnit : Unit, Feature, Database et Security (dont les suites des 6 thèmes)
 composer lint       # style PSR-12 (php-cs-fixer) ; composer lint:fix corrige
 composer analyse    # PHPStan
 ```
@@ -48,16 +48,24 @@ DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_DATABASE=niangpro_test DB_USERNAME=root
 ## Ce qu'on attend d'une contribution
 
 - **Des tests** qui échouent sans votre changement. Un bug corrigé sans test reviendra.
+- **`declare(strict_types=1);`** en tête de tout fichier de `src/Core/` (vérifié par un test). Pas dans
+  `app/` ni les thèmes : c'est du code copié chez l'utilisateur, où MySQL renvoie les entiers en chaînes.
 - **Aucune nouvelle dépendance à l'exécution** dans `composer.json` `require` (seules les interfaces
   PSR y figurent). Une dépendance de développement se discute dans l'issue d'abord.
 - **Rétrocompatibilité** : une API publique ne change pas de signature dans une version mineure ;
-  ajoutez un paramètre optionnel ou une nouvelle méthode. Une suppression passe par `@deprecated`
-  pendant une version (voir la roadmap, « Deprecation policy »).
+  ajoutez un paramètre optionnel ou une nouvelle méthode. Une suppression passe par `@deprecated` et
+  `trigger_deprecation()` pendant au moins une version. Ce qui est stable, expérimental ou interne est
+  listé dans [docs/API_STABILITY.md](docs/API_STABILITY.md) : mettez-le à jour pour toute nouvelle classe.
 - **La documentation** : le `README.md` pour l'essentiel, une entrée dans `CHANGELOG.md` sous
   `[Non publié]` (sections `Added`, `Changed`, `Fixed`, `Security`...). Le site de documentation
   ([NiangPro/niangpro-docs](https://github.com/NiangPro/niangpro-docs)) est mis à jour en français et
   en anglais.
 - **Un sujet par pull request** : plus facile à relire et à annuler si besoin.
+
+## Décisions d'architecture
+
+Une décision qui engage l'architecture (nouvelle dépendance, nouveau pilote, changement de modèle de
+données) s'accompagne d'un ADR dans [docs/adr/](docs/adr/README.md) : contexte, décision, conséquences.
 
 ## Messages de commit
 
@@ -89,4 +97,5 @@ app/, routes/      l'application de démonstration, copiée dans chaque nouveau 
 resources/scaffold les thèmes de site proposés par create-project
 tests/Unit         classes isolées        tests/Feature   requêtes HTTP simulées
 tests/Database     SQL réellement exécuté (SQLite, MySQL, PostgreSQL en CI)
+tests/Security     une attaque par test : toute faille corrigée y ajoute le sien
 ```

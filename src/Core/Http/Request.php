@@ -1,6 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Http;
+
+use Niang\Core\Config;
 
 class Request
 {
@@ -142,7 +146,9 @@ class Request
 
             if (str_contains($contentType, 'application/json')) {
                 $raw = file_get_contents('php://input');
-                return json_decode($raw, true) ?: [];
+                $decoded = $raw === false ? null : json_decode($raw, true);
+
+                return is_array($decoded) ? $decoded : [];
             }
 
             return $_POST;
@@ -190,9 +196,23 @@ class Request
         return $this->params[$key] ?? $default;
     }
 
+    /**
+     * Insensible à la casse (RFC 9110) : getallheaders() rend les noms tels que le client les a
+     * envoyés, et HTTP/2 les envoie toujours en minuscules (« authorization », « x-request-id »).
+     */
     public function header(string $key, mixed $default = null): mixed
     {
-        return $this->headers[$key] ?? $default;
+        if (array_key_exists($key, $this->headers)) {
+            return $this->headers[$key];
+        }
+
+        foreach ($this->headers as $name => $value) {
+            if (strcasecmp((string) $name, $key) === 0) {
+                return $value;
+            }
+        }
+
+        return $default;
     }
 
     public function isMethod(string $method): bool
@@ -200,10 +220,25 @@ class Request
         return $this->method === strtoupper($method);
     }
 
+    /**
+     * Vrai pour un client qui attend du JSON (Accept, Content-Type), et pour toute URL de l'API
+     * (app.api_prefix, '/api' par défaut) : une erreur 404, 405 ou 422 d'une API répond en JSON même
+     * si le client n'a pas envoyé d'en-tête Accept.
+     */
     public function wantsJson(): bool
     {
-        $accept = $this->header('Accept', '');
+        $accept = (string) $this->header('Accept', '');
+
         return str_contains($accept, 'application/json')
-            || str_contains($this->header('Content-Type', ''), 'application/json');
+            || str_contains((string) $this->header('Content-Type', ''), 'application/json')
+            || $this->isApi();
+    }
+
+    public function isApi(): bool
+    {
+        $prefix = rtrim((string) Config::get('app.api_prefix', '/api'), '/');
+        $path = '/' . trim($this->uri, '/');
+
+        return $prefix !== '' && ($path === $prefix || str_starts_with($path, "$prefix/"));
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core;
 
 use Niang\Core\Database\DB;
@@ -30,7 +32,7 @@ class DebugToolbar
 
     private static function shouldInject(Response $response): bool
     {
-        return Env::get('APP_DEBUG', 'true') === 'true'
+        return Application::debug()
             && !$response->isStreamed() // un fichier ou un flux n'est jamais lu ni modifié ici
             && str_starts_with((string) $response->getHeader('Content-Type'), 'text/html')
             && str_contains($response->getContent(), '</body>');

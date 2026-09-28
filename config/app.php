@@ -2,7 +2,10 @@
 
 return [
     'name' => env('APP_NAME', 'NiangPro'),
-    'debug' => env('APP_DEBUG', 'true') === 'true',
+    'debug' => \Niang\Core\Application::debug(), // toujours false en production
+
+    // Préfixe des routes d'API : leurs erreurs (404, 405, 422...) répondent toujours en JSON. '' : désactivé.
+    'api_prefix' => '/api',
     'url' => env('APP_URL', 'http://localhost:8000'),
 
     /*

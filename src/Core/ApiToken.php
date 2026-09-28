@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core;
 
 use Niang\Core\Database\QueryBuilder;
@@ -51,6 +53,29 @@ class ApiToken
 
         $model = Auth::model();
         return $model::find($record['user_id']);
+    }
+
+    /** Révoque un jeton (déconnexion d'un appareil) : sa ligne est supprimée. Faux s'il n'existait pas. */
+    public static function revoke(string $plaintext): bool
+    {
+        $record = self::query()->where('token_hash', self::hash($plaintext))->first();
+
+        if ($record === null) {
+            return false;
+        }
+
+        self::query()->where('id', $record['id'])->delete();
+
+        return true;
+    }
+
+    /** Révoque tous les jetons de $user (après un vol, un changement de mot de passe). @return int jetons révoqués */
+    public static function revokeAll(array $user): int
+    {
+        $count = self::query()->where('user_id', $user['id'])->count();
+        self::query()->where('user_id', $user['id'])->delete();
+
+        return $count;
     }
 
     private static function hash(string $plaintext): string

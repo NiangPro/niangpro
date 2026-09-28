@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Http;
 
 use Niang\Core\Lang;
@@ -170,6 +172,18 @@ final class UploadedFile
         }
 
         $relative = ltrim(trim($directory, '/') . '/' . $name, '/');
+
+        // Disque distant (S3) : le contenu est envoyé, le fichier temporaire est laissé à PHP.
+        if (Storage::disk() !== 'local') {
+            if (!Storage::put($relative, (string) file_get_contents($this->path), $this->mimeType())) {
+                throw new \RuntimeException("Impossible d'envoyer le fichier vers le disque " . Storage::disk() . " ($relative).");
+            }
+
+            $this->moved = true;
+
+            return $relative;
+        }
+
         $target = Storage::path($relative);
 
         if (!is_dir(dirname($target))) {

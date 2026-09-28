@@ -51,7 +51,7 @@ class AuthController extends Controller
         // écouteurs enregistrés comme closures, eux, restent toujours synchrones.
         Event::dispatch('user.registered', $user);
 
-        return $this->redirect('/');
+        return $this->redirect(User::homePath($user));
     }
 
     public function showLogin(): Response
@@ -112,7 +112,8 @@ class AuthController extends Controller
             ]);
 
             $minutes = (int) config('auth.password_reset_expire_minutes', 60);
-            $signedUrl = signedRoute('password.reset', ['token' => $token, 'email' => $data['email']], $minutes * 60);
+            // URL absolue (APP_URL) : un chemin relatif ne mène nulle part dans une boîte mail.
+            $signedUrl = url(signedRoute('password.reset', ['token' => $token, 'email' => $data['email']], $minutes * 60));
 
             Mail::to($data['email'])->send(new ResetPasswordMailable($signedUrl));
         }

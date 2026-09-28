@@ -22,7 +22,7 @@ final class FakeSmtpServer
     {
         $this->transcriptPath = tempnam(sys_get_temp_dir(), 'niang-smtp-');
 
-        $command = [PHP_BINARY, __DIR__ . '/fake-smtp-server.php', $this->transcriptPath, json_encode($options)];
+        $command = [PHP_BINARY, __DIR__ . '/fake-smtp-server.php', $this->transcriptPath, (string) json_encode($options)];
         $process = proc_open($command, [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
 
         if (!is_resource($process)) {
@@ -83,8 +83,8 @@ final class FakeSmtpServer
         $options = ['config' => $config, 'private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA];
 
         $key = openssl_pkey_new($options);
-        $csr = openssl_csr_new(['commonName' => '127.0.0.1'], $key, $options);
-        $cert = openssl_csr_sign($csr, null, $key, 1, $options);
+        $csr = $key === false ? false : openssl_csr_new(['commonName' => '127.0.0.1'], $key, $options);
+        $cert = $key === false || $csr === false ? false : openssl_csr_sign($csr, null, $key, 1, $options);
 
         if ($key === false || $csr === false || $cert === false) {
             throw new \RuntimeException('Génération du certificat de test impossible : ' . (openssl_error_string() ?: 'erreur openssl inconnue'));

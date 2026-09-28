@@ -1,12 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Niang\Core\Http;
+
+use Niang\Core\Trace;
 
 /**
  * Client HTTP minimal, sans extension (flux HTTP de PHP), pour les appels sortants du framework :
  * webhooks, OAuth. http et https uniquement, redirections non suivies, délai d'attente borné.
  * Une réponse 4xx/5xx est renvoyée normalement (status) ; seule une connexion impossible lève une
  * exception.
+ *
+ * @experimental destiné d'abord aux besoins internes (webhooks, OAuth).
  */
 final class Client
 {
@@ -22,8 +28,15 @@ final class Client
             throw new \InvalidArgumentException("URL invalide (http ou https attendu) : « $url ».");
         }
 
+        $defaults = ['User-Agent' => 'NiangPro'];
+
+        // Pendant une requête, le service appelé rejoint la même trace (W3C Trace Context).
+        if (Trace::active() && !array_filter(array_keys($headers), fn ($name) => strcasecmp((string) $name, 'traceparent') === 0)) {
+            $defaults['traceparent'] = Trace::traceparent();
+        }
+
         $lines = [];
-        foreach ($headers + ['User-Agent' => 'NiangPro'] as $name => $value) {
+        foreach ($headers + $defaults as $name => $value) {
             $lines[] = str_replace(["\r", "\n"], '', "$name: $value");
         }
 
