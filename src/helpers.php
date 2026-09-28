@@ -4,6 +4,7 @@ use Niang\Core\Csrf;
 use Niang\Core\Env;
 use Niang\Core\Exceptions\HttpException;
 use Niang\Core\Http\Response;
+use Niang\Core\Lang;
 use Niang\Core\Session;
 use Niang\Core\UrlSignature;
 use Niang\Core\View;
@@ -95,6 +96,17 @@ if (!function_exists('e')) {
     function e(mixed $value): string
     {
         return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (!function_exists('__')) {
+    /**
+     * Traduction dans la langue courante (voir Niang\Core\Lang) : __('validation.required',
+     * ['attribute' => 'email']). Retourne la clé elle-même si elle n'existe dans aucune langue.
+     */
+    function __(string $key, array $replace = []): string
+    {
+        return Lang::get($key, $replace);
     }
 }
 

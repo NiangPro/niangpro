@@ -5,7 +5,7 @@ namespace Niang\Core;
 /**
  * Signe une URL (chemin + query string, tel que renvoyé par route()) pour prouver qu'elle vient
  * de l'application sans authentification préalable — reset de mot de passe, vérification
- * d'email, désinscription... Même principe que Cookie::sign() (HMAC-SHA256, clé = APP_KEY),
+ * d'email, désinscription... HMAC-SHA256 avec APP_KEY (voir AppKey),
  * appliqué ici à une URL plutôt qu'à une valeur de cookie.
  *
  * La signature porte sur les paramètres de requête triés par clé (canonicalisation) : peu
@@ -76,6 +76,6 @@ class UrlSignature
 
     private static function key(): string
     {
-        return Env::get('APP_KEY', 'niangpro-insecure-default-key');
+        return AppKey::get();
     }
 }

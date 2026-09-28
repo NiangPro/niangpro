@@ -184,7 +184,8 @@ class Container implements ContainerInterface
                 $original->body,
                 $original->server,
                 $original->headers,
-                $original->params
+                $original->params,
+                $original->files
             )
             : new $className('GET', '/');
 

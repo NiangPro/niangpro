@@ -192,4 +192,31 @@ class ComposerHooksTest extends TestCase
         $this->assertSame(ComposerHooks::class, $class);
         $this->assertTrue((new \ReflectionMethod($class, $method))->isStatic());
     }
+
+    public function test_it_creates_the_env_file_with_a_unique_app_key(): void
+    {
+        $this->writeFile($this->project, '.env.example', "APP_NAME=NiangPro\nAPP_KEY=\nDB_CONNECTION=sqlite\n");
+
+        ComposerHooks::handle($this->event(false), $this->project, false, $this->scaffolder);
+
+        $env = (string) file_get_contents($this->project . '/.env');
+        $this->assertStringContainsString("APP_NAME=NiangPro\n", $env);
+        $this->assertMatchesRegularExpression('/^APP_KEY=[0-9a-f]{64}$/m', $env);
+
+        $other = $this->makeTempDirectory();
+        $this->writeFile($other, '.env.example', "APP_KEY=\n");
+        $this->writeFile($other, 'routes/web.php', '');
+        ComposerHooks::handle($this->event(false), $other, false, $this->scaffolder);
+        $this->assertNotSame($env, file_get_contents($other . '/.env'), 'Chaque projet doit avoir sa propre clé.');
+    }
+
+    public function test_it_never_overwrites_an_existing_env_file(): void
+    {
+        $this->writeFile($this->project, '.env.example', "APP_KEY=\n");
+        $this->writeFile($this->project, '.env', "APP_KEY=cle-existante\n");
+
+        ComposerHooks::handle($this->event(false), $this->project, false, $this->scaffolder);
+
+        $this->assertSame("APP_KEY=cle-existante\n", file_get_contents($this->project . '/.env'));
+    }
 }

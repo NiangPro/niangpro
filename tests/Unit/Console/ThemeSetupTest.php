@@ -45,7 +45,13 @@ class ThemeSetupTest extends TestCase
 
     private function calls(): array
     {
-        return file($this->project . '/calls.log', FILE_IGNORE_NEW_LINES) ?: [];
+        // Le dossier est passé par realpath() : sous Windows, getcwd() dans le process enfant peut
+        // rendre la forme courte (C:\\Users\\RUNNER~1\\...) du même dossier que realpath() rend en long.
+        return array_map(function (string $line): string {
+            [$dir, $command] = explode('|', $line, 2);
+
+            return (realpath($dir) ?: $dir) . '|' . $command;
+        }, file($this->project . '/calls.log', FILE_IGNORE_NEW_LINES) ?: []);
     }
 
     public function test_commands_run_in_order_inside_the_new_project_with_their_arguments(): void

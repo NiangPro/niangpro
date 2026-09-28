@@ -132,6 +132,9 @@ Attachez-le à une route : `$router->get('/ping', $action, [LogRequest::class]);
 class User extends Model
 {
     // protected static string $table = 'users';
+
+    // Colonnes qu'un formulaire peut remplir via create()/update() — les autres sont ignorées.
+    protected static array $fillable = ['name', 'email', 'password'];
 }
 
 User::all();
@@ -142,6 +145,46 @@ User::create(['name' => 'Awa']);
 User::update(1, ['name' => 'Fatou']);
 User::destroy(1);
 ```
+
+**Protection contre l'affectation de masse** : `create()` et `update()` ne gardent que les colonnes
+de `$fillable`. `User::create($request->all())` ne peut donc pas écrire `role` ou
+`email_verified_at`, même si un visiteur ajoute ces champs au formulaire. Un modèle sans `$fillable`
+fait lever une `MassAssignmentException` à `create()`/`update()` plutôt que de tout accepter (ou tout
+jeter) en silence — `niang make:model` génère la propriété, à compléter. Pour du code de confiance qui
+écrit une colonne sensible (seeder, rôle attribué par un administrateur, date de vérification
+d'email) : `User::forceCreate([...])` et `User::forceUpdate($id, [...])`. Les factories passent par
+`forceCreate()`.
+
+**Dates, types et suppression douce** — trois propriétés facultatives :
+
+```php
+class Article extends Model
+{
+    protected static array $fillable = ['title', 'published', 'options'];
+
+    // created_at / updated_at renseignés par create(), updated_at par update() (vrai par défaut ;
+    // false pour une table sans ces colonnes).
+    protected static bool $timestamps = true;
+
+    // Types à la lecture, quel que soit le SGBD (MySQL renvoie les entiers en chaînes) ;
+    // json : tableau PHP <-> texte JSON en base.
+    protected static array $casts = ['published' => 'bool', 'views' => 'int', 'options' => 'json'];
+
+    // destroy() renseigne deleted_at au lieu de supprimer ; toutes les lectures l'ignorent.
+    protected static bool $softDeletes = true;   // migration : $table->softDeletes();
+}
+
+Article::destroy($id);                 // UPDATE ... SET deleted_at = maintenant
+Article::onlyTrashed()->get();         // la corbeille
+Article::withTrashed()->count();       // tout, supprimé compris
+Article::restore($id);
+Article::forceDestroy($id);            // DELETE réel
+```
+
+Les lignes supprimées en douceur sont aussi ignorées par `with()` et les relations. Les dates sont
+écrites avec l'horloge PHP (`date_default_timezone`), pas `CURRENT_TIMESTAMP` de la base (UTC sous
+SQLite). `Model::query()->where(...)->update([...])` (mise à jour en masse via le Query Builder) ne
+touche pas `updated_at` : passez-le explicitement.
 
 Configurez la connexion dans `.env` (`DB_CONNECTION=sqlite` par défaut, ou `mysql`/`pgsql`).
 
@@ -423,6 +466,46 @@ $this->validate($request, ['email' => 'required|email'],
 
 Si la validation échoue : redirection automatique vers la page précédente avec les erreurs et l'ancienne
 saisie en flash (`errors('email')`, `old('email')`), ou réponse JSON 422 si la requête attend du JSON.
+
+## Langues (i18n)
+
+Les textes que voit un visiteur — messages de validation, erreurs d'upload, pages d'erreur,
+messages 401/403/419/429, pagination — viennent de `lang/<langue>/*.php`, livrés en français
+(défaut) et en anglais :
+
+```dotenv
+APP_LOCALE=en
+```
+
+```php
+__('validation.required', ['attribute' => 'email']);   // « The email field is required. »
+__('http.404');                                         // « Page not found. »
+Lang::setLocale('en');                                  // pour la requête en cours (ex. dans un middleware)
+```
+
+Les fichiers de `lang/` appartiennent à votre projet : modifiez un message directement, ajoutez
+une langue en copiant `lang/en/` vers `lang/es/`, ou donnez un libellé lisible à vos champs dans
+la section `attributes` de `validation.php` (`'email' => 'adresse email'`, `'items.*.name' => 'nom
+de l\'article'`). `:attribute`, `:min`... sont remplacés ; `:Attribute` met la première lettre en
+majuscule. Une clé absente de la langue courante est cherchée dans `APP_FALLBACK_LOCALE` (`fr`), puis
+affichée telle quelle.
+
+Pour choisir la langue par visiteur, un middleware suffit :
+
+```php
+class SetLocale implements Middleware
+{
+    public function handle(Request $request, \Closure $next): Response
+    {
+        $wanted = substr((string) $request->header('Accept-Language', 'fr'), 0, 2);
+        Lang::setLocale(in_array($wanted, ['fr', 'en'], true) ? $wanted : 'fr');
+
+        return $next($request);
+    }
+}
+```
+
+Les messages destinés au développeur (exceptions internes, CLI) restent en français.
 
 ## Gestion des erreurs
 
@@ -725,7 +808,48 @@ Cache::put('clé', $valeur, 300);
 Cache::forget('clé');
 ```
 
-Fichier (`storage/framework/cache/`), pas de dépendance à Redis/Memcached.
+Fichier (`storage/framework/cache/`) par défaut, pas de dépendance à Redis/Memcached.
+
+### Plusieurs serveurs web (sessions, cache et limitation de débit partagés)
+
+Derrière un répartiteur de charge, chaque serveur a ses propres fichiers : un visiteur envoyé sur
+un autre serveur perd sa session (déconnecté, panier vide), le cache n'est pas partagé, et une
+limite « 10 tentatives de connexion par minute » devient 10 × le nombre de serveurs. Tout passe en
+base de données avec deux variables :
+
+```dotenv
+SESSION_DRIVER=database
+CACHE_DRIVER=database
+```
+
+puis `./bin/niang migrate` (tables `sessions`, `cache_entries`, `rate_limits`, livrées avec le
+framework ; `niang doctor` signale une table manquante). `CACHE_DRIVER` pilote aussi `RateLimiter`,
+dont l'incrément reste atomique (un seul `UPDATE` conditionnel). Aucun verrou par session en base :
+si deux requêtes simultanées du même visiteur modifient la session, la dernière écriture l'emporte.
+
+## Tâches planifiées
+
+Les tâches se déclarent dans `routes/schedule.php` ; une seule ligne cron les lance toutes :
+
+```php
+$schedule->command('queue:work')->everyMinute()->withoutOverlapping();
+$schedule->command('db:seed', ['Tags'])->dailyAt('03:00');
+$schedule->call(fn () => Cache::forget('stats'), 'vider les statistiques')->hourly();
+$schedule->job(new SendWeeklyReportJob())->weeklyOn(1, '08:00');   // 0 = dimanche
+```
+
+```bash
+* * * * * cd /chemin/vers/le/projet && php bin/niang schedule:run >> /dev/null 2>&1
+./bin/niang schedule:list   # tâches, expression cron, prochaine exécution
+```
+
+Fréquences : `everyMinute()`, `everyFiveMinutes()`/`Ten`/`Fifteen`/`Thirty`, `hourly()`,
+`hourlyAt(17)`, `daily()`, `dailyAt('03:00')`, `weekly()`, `weeklyOn()`, `monthly()`, `monthlyOn()`,
+`weekdays()`, `weekends()`, ou `cron('30 8 * * 1-5')`. Une commande tourne dans un process séparé (un
+plantage ou un `exit()` n'arrête pas les autres tâches) ; une closure, dans l'application démarrée ; un
+job est poussé sur la file. `withoutOverlapping()` saute une exécution tant que la précédente tourne.
+Une tâche en échec est journalisée et `schedule:run` sort avec le code 1. Sur plusieurs serveurs, ne
+placez la ligne cron que sur l'un d'eux.
 
 ## Jobs différés
 
@@ -775,11 +899,58 @@ Storage::url('avatars/1.png');     // '/storage/avatars/1.png' — à router ver
 Les chemins contenant `..` sont rejetés (`InvalidArgumentException`) : sans ça, un chemin construit
 à partir d'une entrée utilisateur pourrait écrire ou lire en dehors de `storage/app/`.
 
+## Upload de fichiers
+
+`$request->file('champ')` retourne un `Niang\Core\Http\UploadedFile` (ou `null`). Le nom et le type
+envoyés par le navigateur ne sont jamais crus : le type réel est lu dans le contenu du fichier, et
+`store()` range le fichier dans `storage/app/` (hors de `public/`, donc jamais exécutable) sous un
+nom aléatoire suivi de l'extension réelle :
+
+```php
+public function updateAvatar(Request $request): Response
+{
+    $data = $this->validate($request, [
+        'avatar' => 'required|image|max:2048|dimensions:min_width=100,min_height=100',
+    ]);
+
+    $path = $data['avatar']->store('avatars');   // 'avatars/3f9c...e1.png'
+    User::update(Auth::id(), ['avatar' => $path]);
+
+    return $this->redirect('/profil');
+}
+```
+
+```html
+<form method="POST" action="/profil/avatar" enctype="multipart/form-data">
+    <?= csrf_field() ?>
+    <input type="file" name="avatar" accept="image/*">
+</form>
+```
+
+Règles de validation : `file`, `image` (JPEG, PNG, GIF, WebP, AVIF — SVG exclu, car il peut contenir
+du JavaScript ; autorisez-le explicitement avec `mimes:svg`), `mimes:jpg,png,pdf` (extension déduite du
+contenu), `mimetypes:application/pdf,image/*`, `dimensions:min_width=,max_width=,min_height=,max_height=,width=,height=`,
+et `min`/`max`/`between` **en kilo-octets** pour un fichier. Un upload arrivé en erreur (trop gros
+pour le serveur, partiel...) affiche sa vraie raison plutôt qu'un message générique ; un champ
+fichier laissé vide est traité comme absent (`required` échoue, `nullable` passe).
+
+Plusieurs fichiers (`name="photos[]"`) : `$request->files['photos']` est une liste, validée avec
+`'photos.*' => 'image'`. Autres méthodes : `hasFile()`, `clientName()` (affichage seulement),
+`mimeType()`, `extension()`, `size()`, `storeAs($dossier, $nom)`.
+
+La taille maximale réelle est aussi limitée par `upload_max_filesize` et `post_max_size` dans
+`php.ini` — au-delà de `post_max_size`, PHP vide la requête entière. En test :
+
+```php
+$this->post('/profil/avatar', ['avatar' => UploadedFile::fakeImage('moi.png', 200, 200)]);
+$this->post('/cv', ['cv' => UploadedFile::fake('cv.pdf', "%PDF-1.4 ...")]);
+```
+
 ## Emails
 
-Deux drivers, pilotés par `MAIL_MAILER` dans `.env` (`log` par défaut) — pas d'envoi SMTP réel :
-ça demanderait soit une extension, soit un client écrit à la main non vérifiable dans cet
-environnement, et une absence assumée vaut mieux qu'une implémentation non testée :
+Trois drivers, pilotés par `MAIL_MAILER` dans `.env` (`log` par défaut) : `smtp` pour un envoi
+réel, `log` en développement, `array` en test. Une valeur inconnue lève une erreur plutôt que de
+retomber silencieusement sur `log`.
 
 ```php
 class WelcomeMailable extends Mailable
@@ -787,10 +958,47 @@ class WelcomeMailable extends Mailable
     public function __construct(private string $name) {}
     public function subject(): string { return 'Bienvenue'; }
     public function body(): string { return "Bonjour {$this->name} !"; }
+    // Facultatif : avec une version HTML, l'email part en texte + HTML (multipart/alternative).
+    public function html(): ?string { return '<p>Bonjour <b>' . e($this->name) . '</b> !</p>'; }
 }
 
 Mail::to('awa@example.com')->send(new WelcomeMailable('Awa'));
 ```
+
+### SMTP (production)
+
+Un client SMTP écrit à la main (`Niang\Core\SmtpTransport`), sans extension ni dépendance —
+STARTTLS ou TLS implicite, `AUTH PLAIN`/`LOGIN`, sujets et noms accentués encodés :
+
+```dotenv
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.example.com
+MAIL_PORT=587
+MAIL_ENCRYPTION=tls
+MAIL_USERNAME=contact@example.com
+MAIL_PASSWORD=secret
+MAIL_FROM_ADDRESS=contact@example.com
+MAIL_FROM_NAME="Mon site"
+MAIL_TIMEOUT=10
+```
+
+`MAIL_ENCRYPTION` vaut `tls` (STARTTLS, port 587, le défaut), `ssl` (TLS implicite, port 465) ou
+`none` (serveur local uniquement). Pas de commentaire en fin de ligne dans `.env` : il ferait partie
+de la valeur.
+
+Deux garde-fous : avec `MAIL_ENCRYPTION=tls`, un serveur qui ne propose pas STARTTLS fait échouer
+l'envoi (jamais de repli en clair), et `MAIL_USERNAME`/`MAIL_PASSWORD` ne partent jamais sur une
+connexion non chiffrée, sauf vers `localhost` (Mailpit, MailHog...). Le certificat du serveur est
+vérifié. Une erreur (serveur injoignable, identifiants refusés, destinataire rejeté) lève une
+`Niang\Core\Exceptions\MailException` qui cite la réponse du serveur — jamais le mot de passe.
+`niang doctor` signale une configuration SMTP incomplète, et avertit si `MAIL_MAILER` vaut `log`
+ou `array` en production. En développement, [Mailpit](https://mailpit.axllent.org/) avec
+`MAIL_HOST=127.0.0.1`, `MAIL_PORT=1025` et `MAIL_ENCRYPTION=none` affiche les emails dans le navigateur.
+
+L'envoi est synchrone : pour ne pas faire attendre la requête, envoyez depuis un job
+(`Queue::push()`) ou un écouteur `ShouldQueue`.
+
+### Développement et tests
 
 `MAIL_MAILER=log` (défaut) écrit le contenu complet dans `storage/logs/` — pratique en développement
 pour lire un lien de vérification sans boîte mail réelle (ne le gardez pas en production si vos
@@ -934,24 +1142,28 @@ Grammar — corrigé pour passer par `Schema`/`Blueprint` comme n'importe quelle
 ./bin/niang optimize                 # cache les routes + rappels de prod
 ./bin/niang new mon-app              # crée un nouveau projet (pose la question du type de site)
 ./bin/niang new mon-app --type=blog  # idem sans question : vitrine, ecommerce, blog, portfolio, landing, minimal
-./bin/niang np:install               # installe le raccourci global `np` (macOS/Linux)
+./bin/niang np:install               # installe le raccourci global `np` (macOS, Linux, Windows)
 ./bin/niang theme:add vendor/theme-x # installe un thème publié comme paquet Composer (extra.niangpro-theme)
 ```
 
 ### Raccourci `np` (optionnel)
 
 Pour taper `np serve` au lieu de `./bin/niang serve`, installez une fois le raccourci global
-(macOS/Linux) :
+(macOS, Linux et Windows) :
 
 ```bash
-./bin/niang np:install
+./bin/niang np:install        # macOS / Linux
+php bin/niang np:install      # Windows (cmd ou PowerShell)
 ```
 
-La commande dépose un script `np` dans un dossier déjà présent dans votre `PATH` (auto-détecté, par
-exemple `~/.local/bin`, `/opt/homebrew/bin` ou `/usr/local/bin`) qui remonte l'arborescence depuis le
-dossier courant pour retrouver `bin/niang`. Résultat : `np` fonctionne dans **n'importe quel** projet
-NiangPro sur la machine, même depuis un sous-dossier, sans rien reconfigurer par projet. Si aucun
-dossier de votre `PATH` n'est accessible en écriture, la commande vous indique comment en créer un.
+La commande dépose un script `np` (sur Windows, `np.cmd`, utilisable depuis cmd comme depuis
+PowerShell) dans un dossier déjà présent dans votre `PATH` (auto-détecté, par exemple
+`~/.local/bin`, `/opt/homebrew/bin` ou `/usr/local/bin` ; sur Windows, le dossier `bin` global de
+Composer). Ce script remonte l'arborescence depuis le dossier courant pour retrouver `bin/niang`.
+Résultat : `np` fonctionne dans **n'importe quel** projet NiangPro sur la machine, même depuis un
+sous-dossier, sans rien reconfigurer par projet. Si aucun dossier de votre `PATH` n'est accessible
+en écriture, la commande installe `np` dans `~/.local/bin` (Windows : `%LOCALAPPDATA%\NiangPro\bin`)
+et affiche la ligne exacte à exécuter une fois pour l'ajouter au `PATH`.
 
 ## Configuration
 
@@ -985,6 +1197,15 @@ sûr uniquement parce qu'il est explicitement optionnel : ne l'activez qu'en pro
   (`config/session.php`), `Secure` détecté automatiquement selon HTTPS (ou forcé via
   `SESSION_SECURE_COOKIE` en `.env`).
 - **CSRF** : comparaison à temps constant (`hash_equals`), voir la section CSRF plus haut.
+- **`APP_KEY`** : générée automatiquement par `composer create-project` (dans un `.env` créé depuis
+  `.env.example`) et par `niang new` ; sinon `niang key:generate`. Elle signe les URLs, hache les
+  jetons API et chiffre les cookies — sans elle, ces trois fonctions lèvent une
+  `ConfigurationException` plutôt que d'utiliser une clé par défaut connue de tous.
+- **Cookies chiffrés** : `Cookie::set('panier', $valeur, $minutes)` / `Cookie::get('panier')` —
+  AES-256-GCM (`Niang\Core\Crypt`), illisibles et non modifiables par le navigateur, liés à leur
+  nom (impossible de recopier un cookie sous un autre nom) et expirés côté serveur. `Crypt::encrypt()`
+  / `Crypt::decrypt()` sont aussi utilisables directement (`decrypt()` retourne `null` pour une
+  valeur modifiée).
 - **Mots de passe** : Argon2id (ou bcrypt si indisponible), voir `Hash::make()`.
 - **SQL** : toutes les requêtes de l'ORM et du Query Builder passent par des requêtes préparées PDO.
 - **Régénération de session** : `Auth::login()`/`Auth::logout()` appellent `Session::regenerate()`

@@ -29,7 +29,7 @@ abstract class Controller
      */
     protected function validate(Request $request, array $rules, array $messages = [], array $attributes = []): array
     {
-        return Validator::make($request->all(), $rules, $messages, $attributes)->validate();
+        return Validator::make($request->allWithFiles(), $rules, $messages, $attributes)->validate();
     }
 
     /**
@@ -39,7 +39,7 @@ abstract class Controller
     protected function authorize(string $ability, mixed ...$args): void
     {
         if (Gate::denies($ability, ...$args)) {
-            throw new AuthorizationException("Action non autorisée : $ability");
+            throw new AuthorizationException(Lang::get('http.forbidden_ability', ['ability' => $ability]));
         }
     }
 }

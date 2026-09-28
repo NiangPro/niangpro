@@ -58,7 +58,8 @@ class OrderController extends Controller
         $order = Order::find((int) $id) ?? abort(404, 'Commande introuvable.');
         $data = $this->validate($request, ['status' => 'required|in:' . implode(',', Order::STATUSES)]);
 
-        Order::update($order['id'], ['status' => $data['status'], 'updated_at' => date('Y-m-d H:i:s')]);
+        // Statut hors de $fillable : changé ici par un administrateur, valeur validée ci-dessus.
+        Order::forceUpdate($order['id'], ['status' => $data['status'], 'updated_at' => date('Y-m-d H:i:s')]);
 
         return $this->redirect('/admin/commandes/' . $order['id'])
             ->with('success', 'Statut de la commande ' . $order['reference'] . ' : ' . mb_strtolower(Order::statusLabel($data['status'])) . '.');

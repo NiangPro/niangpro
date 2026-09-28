@@ -2,6 +2,8 @@
 
 namespace Niang\Core;
 
+use Niang\Core\Exceptions\ConfigurationException;
+
 class Session
 {
     private static bool $started = false;
@@ -20,6 +22,8 @@ class Session
             'secure' => self::resolveSecureFlag(),
             'samesite' => Config::get('session.same_site', 'Lax'),
         ]);
+
+        self::useConfiguredDriver();
 
         session_start();
         self::$started = true;
@@ -69,6 +73,27 @@ class Session
         $_SESSION = [];
         session_destroy();
         self::$started = false;
+    }
+
+    /** SESSION_DRIVER : 'file' garde le stockage natif de PHP, 'database' passe par DatabaseSessionHandler. */
+    private static function useConfiguredDriver(): void
+    {
+        $driver = (string) Config::get('session.driver', 'file');
+
+        if ($driver === 'file') {
+            return;
+        }
+
+        if ($driver !== 'database') {
+            throw new ConfigurationException("SESSION_DRIVER inconnu : « $driver » (attendu : file ou database).");
+        }
+
+        // lifetime 0 = cookie jusqu'à la fermeture du navigateur : côté serveur, on garde alors la
+        // durée de vie de PHP (session.gc_maxlifetime, 24 minutes par défaut).
+        $minutes = (int) Config::get('session.lifetime', 120);
+        $seconds = $minutes > 0 ? $minutes * 60 : (int) ini_get('session.gc_maxlifetime');
+
+        session_set_save_handler(new DatabaseSessionHandler($seconds), true);
     }
 
     /** Devine si la requête courante est en HTTPS, sauf si config/session.php force explicitement une valeur. */

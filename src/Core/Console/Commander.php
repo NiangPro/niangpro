@@ -2,22 +2,31 @@
 
 namespace Niang\Core\Console;
 
+use Niang\Core\AppKey;
+use Niang\Core\Application;
 use Niang\Core\Cache;
+use Niang\Core\Config;
 use Niang\Core\ConfigCache;
 use Niang\Core\Database\DB;
 use Niang\Core\Database\Migrator;
 use Niang\Core\Database\Seeder;
 use Niang\Core\Env;
 use Niang\Core\HealthCheck;
+use Niang\Core\Log;
 use Niang\Core\Queue;
 use Niang\Core\RouteCache;
 use Niang\Core\Router;
+use Niang\Core\Scheduling\Schedule;
 
 class Commander
 {
     public function __construct(private string $basePath)
     {
         Env::load($basePath . '/.env');
+
+        // Comme Application : sans ça, les commandes liraient des valeurs par défaut au lieu de
+        // config/*.php (ex. cache:clear viderait les fichiers alors que CACHE_DRIVER=database).
+        Config::load($basePath);
     }
 
     public function run(array $argv): void
@@ -60,6 +69,8 @@ class Commander
             'make:command' => $this->makeCommand($arg),
             'make:test' => $this->makeTest($arg),
             'theme:add' => $this->themeAdd($arg),
+            'schedule:run' => $this->scheduleRun(),
+            'schedule:list' => $this->scheduleList(),
             default => $this->runCustomCommand($command, array_slice($argv, 2)) ? null : $this->help(),
         };
     }
@@ -163,6 +174,9 @@ class Commander
         class {$name} extends Model
         {
             // protected static string \$table = 'ma_table';
+
+            /** Colonnes modifiables via create()/update() — à compléter (sinon create() lève une exception). */
+            protected static array \$fillable = [];
         }
 
         PHP;
@@ -728,17 +742,7 @@ class Commander
 
     private function keyGenerate(): void
     {
-        $key = bin2hex(random_bytes(32));
-        $path = $this->basePath . '/.env';
-        $env = file_exists($path) ? file_get_contents($path) : '';
-
-        if (preg_match('/^APP_KEY=.*$/m', $env)) {
-            $env = preg_replace('/^APP_KEY=.*$/m', "APP_KEY=$key", $env);
-        } else {
-            $env .= (($env !== '' && !str_ends_with($env, "\n")) ? "\n" : '') . "APP_KEY=$key\n";
-        }
-
-        file_put_contents($path, $env);
+        AppKey::writeTo($this->basePath . '/.env');
         echo "Nouvelle clé générée dans .env\n";
     }
 
@@ -746,6 +750,84 @@ class Commander
     {
         $count = Queue::work();
         echo $count > 0 ? "$count job(s) traité(s).\n" : "Aucun job en attente.\n";
+    }
+
+    /** routes/schedule.php, ou un planning vide si le fichier n'existe pas (projet antérieur). */
+    private function loadSchedule(?\Closure $output = null): Schedule
+    {
+        $schedule = new Schedule($this->basePath, $output);
+        $file = $this->basePath . '/routes/schedule.php';
+
+        if (file_exists($file)) {
+            (static function (Schedule $schedule, string $file): void {
+                require $file;
+            })($schedule, $file);
+        }
+
+        return $schedule;
+    }
+
+    /** Appelée chaque minute par cron : lance les tâches dues à cette minute, l'une après l'autre. */
+    private function scheduleRun(): void
+    {
+        // Comme pour une requête HTTP : config, container et Service Providers démarrés, pour que
+        // les closures planifiées disposent des mêmes services (écouteurs d'événements...).
+        new Application($this->basePath);
+
+        $now = new \DateTimeImmutable();
+        $schedule = $this->loadSchedule(static function (string $output): void {
+            echo rtrim($output) . "\n";
+        });
+        $due = $schedule->dueTasks($now);
+
+        if ($due === []) {
+            echo "Aucune tâche à lancer à {$now->format('H:i')}.\n";
+            return;
+        }
+
+        $failures = 0;
+
+        foreach ($due as $task) {
+            echo "[{$now->format('Y-m-d H:i')}] {$task->description()}\n";
+
+            try {
+                $code = $task->run($this->basePath . '/storage/framework/schedule');
+            } catch (\Throwable $e) {
+                $code = 1;
+                echo '  Erreur : ' . $e->getMessage() . "\n";
+                Log::error('Tâche planifiée « {task} » en échec : {message}', ['task' => $task->description(), 'message' => $e->getMessage()]);
+            }
+
+            if ($code === null) {
+                echo "  Sautée : l'exécution précédente tourne encore (withoutOverlapping).\n";
+            } elseif ($code !== 0) {
+                $failures++;
+                echo "  Échec (code $code).\n";
+                Log::error('Tâche planifiée « {task} » terminée avec le code {code}', ['task' => $task->description(), 'code' => $code]);
+            }
+        }
+
+        if ($failures > 0) {
+            exit(1);
+        }
+    }
+
+    private function scheduleList(): void
+    {
+        $tasks = $this->loadSchedule()->tasks();
+
+        if ($tasks === []) {
+            echo "Aucune tâche planifiée (voir routes/schedule.php).\n";
+            return;
+        }
+
+        $now = new \DateTimeImmutable();
+
+        printf("%-16s %-18s %s\n", 'CRON', 'PROCHAINE', 'TÂCHE');
+
+        foreach ($tasks as $task) {
+            printf("%-16s %-18s %s\n", $task->expression(), $task->nextRunAfter($now)->format('Y-m-d H:i'), $task->description());
+        }
     }
 
     private function queueFailed(): void
@@ -914,7 +996,90 @@ class Commander
             $results[] = ['warn', 'APP_DEBUG=true en production — désactivez-le avant déploiement'];
         }
 
+        array_push($results, ...$this->mailChecks());
+        array_push($results, ...$this->storageDriverChecks());
+
+        // Sans fileinfo, UploadedFile ne peut pas lire le vrai type d'un fichier : les règles
+        // image/mimes/mimetypes refusent alors tout, par prudence.
+        if (!extension_loaded('fileinfo')) {
+            $results[] = ['warn', 'Extension fileinfo manquante — les uploads validés par image/mimes/mimetypes seront tous refusés'];
+        }
+
         return $results;
+    }
+
+    /**
+     * SESSION_DRIVER / CACHE_DRIVER=database sans les tables (migration non jouée) : la première
+     * requête échouerait en 500.
+     *
+     * @return list<array{0: 'ok'|'fail'|'warn', 1: string}>
+     */
+    private function storageDriverChecks(): array
+    {
+        $needed = [];
+
+        foreach (['session' => ['sessions'], 'cache' => ['cache_entries', 'rate_limits']] as $group => $tables) {
+            // La CLI ne charge pas config/*.php : même repli sur l'environnement que Cache::driver().
+            $driver = (string) Config::get("$group.driver", Env::get(strtoupper($group) . '_DRIVER', 'file'));
+
+            if (!in_array($driver, ['file', 'database'], true)) {
+                return [$this->doctorCheck(false, '', strtoupper($group) . "_DRIVER inconnu : « $driver » (attendu : file ou database)")];
+            }
+
+            if ($driver === 'database') {
+                array_push($needed, ...$tables);
+            }
+        }
+
+        $results = [];
+
+        foreach ($needed as $table) {
+            try {
+                DB::connection()->query("SELECT 1 FROM $table WHERE 1 = 0");
+                $results[] = $this->doctorCheck(true, "Table $table présente", '');
+            } catch (\Throwable) {
+                $results[] = $this->doctorCheck(false, '', "Table $table absente — lancez `./bin/niang migrate`");
+            }
+        }
+
+        return $results;
+    }
+
+    /**
+     * Configuration mail, sans se connecter au serveur (doctor vérifie l'environnement statique ;
+     * un vrai envoi reste le seul test complet).
+     *
+     * @return list<array{0: 'ok'|'fail'|'warn', 1: string}>
+     */
+    private function mailChecks(): array
+    {
+        $mailer = (string) Env::get('MAIL_MAILER', 'log');
+
+        if ($mailer === 'smtp') {
+            $missing = array_values(array_filter(['MAIL_HOST', 'MAIL_FROM_ADDRESS'], fn (string $key) => (string) Env::get($key, '') === ''));
+            $encryption = strtolower((string) Env::get('MAIL_ENCRYPTION', 'tls'));
+
+            return [
+                $this->doctorCheck(
+                    $missing === [],
+                    'Mail SMTP configuré (' . Env::get('MAIL_HOST') . ')',
+                    'MAIL_MAILER=smtp mais ' . implode(' et ', $missing) . ' vide(s) dans .env'
+                ),
+                $this->doctorCheck(
+                    $encryption === 'none' || extension_loaded('openssl'),
+                    "Chiffrement SMTP : $encryption",
+                    "Extension openssl manquante (MAIL_ENCRYPTION=$encryption)"
+                ),
+            ];
+        }
+
+        if (!in_array($mailer, ['log', 'array'], true)) {
+            return [$this->doctorCheck(false, '', "MAIL_MAILER inconnu : « $mailer » (attendu : smtp, log ou array)")];
+        }
+
+        return Env::get('APP_ENV') === 'production'
+            ? [['warn', "MAIL_MAILER=$mailer en production — aucun email ne sera réellement envoyé (utilisez smtp)"]]
+            : [];
     }
 
     /** @return array{0: 'ok'|'fail', 1: string} */
@@ -989,12 +1154,7 @@ class Commander
         echo "Installation des dépendances...\n";
         passthru('composer install --working-dir=' . escapeshellarg($target) . ' --quiet');
 
-        $key = bin2hex(random_bytes(32));
-        $env = file_get_contents("$target/.env");
-        $env = preg_match('/^APP_KEY=.*$/m', $env)
-            ? preg_replace('/^APP_KEY=.*$/m', "APP_KEY=$key", $env)
-            : $env . "APP_KEY=$key\n";
-        file_put_contents("$target/.env", $env);
+        AppKey::writeTo("$target/.env");
 
         // Un thème décrit lui-même ses étapes (theme.json) : une boutique doit migrer et alimenter la
         // base, un site vitrine n'en a pas besoin. Le squelette minimal garde ses étapes historiques.
@@ -1138,26 +1298,110 @@ class Commander
         echo "Visible dans `niang new --type=$slug` et `NIANG_SITE_TYPE=$slug composer create-project ...`.\n";
     }
 
-    /** Installe un raccourci global `np` (macOS/Linux) qui trouve bin/niang en remontant depuis le dossier courant. */
+    /**
+     * Installe un raccourci global `np` qui trouve bin/niang en remontant depuis le dossier courant :
+     * script bash sur macOS/Linux, np.cmd sur Windows (utilisable depuis cmd comme depuis PowerShell).
+     */
     private function npInstall(): void
     {
-        if (str_starts_with(PHP_OS_FAMILY, 'Windows')) {
-            echo "np:install n'est pas encore disponible sur Windows. Créez un alias PowerShell manuellement :\n";
-            echo "  Set-Alias np .\\bin\\niang\n";
-            return;
+        $windows = PHP_OS_FAMILY === 'Windows';
+        $fallback = $this->npFallbackDir($windows);
+        $dir = $this->findWritablePathDir($windows, $fallback);
+        $inPath = $dir !== null;
+
+        if (!$inPath) {
+            // Aucun dossier du PATH n'est accessible en écriture : on installe dans un dossier
+            // personnel, et on explique comment l'ajouter au PATH.
+            if ($fallback === null) {
+                echo 'Impossible de déterminer votre dossier personnel (' . ($windows ? 'LOCALAPPDATA' : 'HOME') . " non défini).\n";
+                exit(1);
+            }
+
+            if (!is_dir($fallback) && !@mkdir($fallback, 0755, true)) {
+                echo "Impossible de créer le dossier $fallback.\n";
+                exit(1);
+            }
+
+            $dir = $fallback;
         }
 
-        $dir = $this->findWritablePathDir();
+        $path = $dir . DIRECTORY_SEPARATOR . ($windows ? 'np.cmd' : 'np');
 
-        if (!$dir) {
-            echo "Aucun dossier de votre PATH n'est accessible en écriture.\n";
-            echo "Créez-en un et ajoutez-le à votre PATH, par exemple :\n";
-            echo "  mkdir -p ~/.local/bin && echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc\n";
-            echo "puis relancez : ./bin/niang np:install\n";
-            return;
+        if (@file_put_contents($path, $windows ? $this->npWindowsScript() : $this->npUnixScript()) === false) {
+            echo "Impossible d'écrire $path.\n";
+            exit(1);
         }
 
-        $script = <<<'BASH'
+        if (!$windows) {
+            chmod($path, 0755);
+        }
+
+        echo "Raccourci installé : $path\n";
+
+        if (!$inPath) {
+            echo "\nCe dossier n'est pas encore dans votre PATH. Ajoutez-le une fois pour toutes :\n";
+
+            if ($windows) {
+                echo "  (PowerShell) [Environment]::SetEnvironmentVariable('Path', [Environment]::GetEnvironmentVariable('Path', 'User') + ';$dir', 'User')\n";
+            } else {
+                $rc = match (basename((string) getenv('SHELL'))) {
+                    'zsh' => '~/.zshrc',
+                    'bash' => PHP_OS_FAMILY === 'Darwin' ? '~/.bash_profile' : '~/.bashrc',
+                    default => '~/.profile',
+                };
+                echo "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> $rc\n";
+            }
+
+            echo "puis ouvrez un nouveau terminal.\n\n";
+        }
+
+        echo "Utilisez `np serve`, `np migrate`, etc. depuis n'importe quel projet NiangPro.\n";
+    }
+
+    /** Dossier personnel où poser `np` quand aucun dossier du PATH n'est accessible en écriture. */
+    private function npFallbackDir(bool $windows): ?string
+    {
+        $base = getenv($windows ? 'LOCALAPPDATA' : 'HOME');
+
+        if (!$base) {
+            return null;
+        }
+
+        return $windows ? "$base\\NiangPro\\bin" : "$base/.local/bin";
+    }
+
+    /**
+     * Premier dossier du PATH existant et accessible en écriture, ou null si aucun.
+     * Sur Windows, on se limite à des dossiers personnels connus : un terminal administrateur peut
+     * écrire dans C:\Windows\System32, qui est dans le PATH, et ce n'est pas l'endroit où poser `np`.
+     */
+    private function findWritablePathDir(bool $windows, ?string $fallback): ?string
+    {
+        $normalize = static fn (string $dir): string => $windows
+            ? strtolower(rtrim(str_replace('/', '\\', $dir), '\\'))
+            : rtrim($dir, '/');
+
+        $pathDirs = array_map($normalize, array_filter(explode(PATH_SEPARATOR, (string) getenv('PATH'))));
+
+        if ($windows) {
+            $appData = getenv('APPDATA');
+            $candidates = array_filter([$fallback, $appData ? "$appData\\Composer\\vendor\\bin" : null]);
+        } else {
+            $candidates = [...array_filter([$fallback]), '/opt/homebrew/bin', '/usr/local/bin', ...explode(PATH_SEPARATOR, (string) getenv('PATH'))];
+        }
+
+        foreach ($candidates as $dir) {
+            if ($dir !== '' && is_dir($dir) && is_writable($dir) && in_array($normalize($dir), $pathDirs, true)) {
+                return $dir;
+            }
+        }
+
+        return null;
+    }
+
+    private function npUnixScript(): string
+    {
+        return <<<'BASH'
         #!/usr/bin/env bash
         # Raccourci pour ./bin/niang : cherche bin/niang en remontant depuis le dossier courant.
         dir="$PWD"
@@ -1172,28 +1416,34 @@ class Commander
         exit 1
 
         BASH;
-
-        $path = "$dir/np";
-        file_put_contents($path, $script);
-        chmod($path, 0755);
-
-        echo "Raccourci installé : $path\n";
-        echo "Utilisez `np serve`, `np migrate`, etc. depuis n'importe quel projet NiangPro.\n";
     }
 
-    /** Premier dossier du PATH existant et accessible en écriture, ou null si aucun. */
-    private function findWritablePathDir(): ?string
+    /**
+     * Équivalent Windows (batch) : cmd ne sait pas exécuter bin/niang directement (pas de shebang),
+     * d'où l'appel explicite à php. Fins de ligne CRLF : avec LF seul, cmd rate parfois les étiquettes
+     * visées par goto. Pas d'accents : cmd n'affiche pas l'UTF-8 par défaut.
+     */
+    private function npWindowsScript(): string
     {
-        $preferred = [getenv('HOME') . '/.local/bin', '/opt/homebrew/bin', '/usr/local/bin'];
-        $pathDirs = array_filter(explode(PATH_SEPARATOR, (string) getenv('PATH')));
-
-        foreach ([...$preferred, ...$pathDirs] as $dir) {
-            if (is_dir($dir) && is_writable($dir) && in_array($dir, $pathDirs, true)) {
-                return $dir;
-            }
-        }
-
-        return null;
+        return implode("\r\n", [
+            '@echo off',
+            'rem Raccourci pour bin\niang : cherche bin\niang en remontant depuis le dossier courant.',
+            'setlocal',
+            'set "dir=%CD%"',
+            ':search',
+            'if exist "%dir%\bin\niang" goto run',
+            'for %%I in ("%dir%\..") do set "parent=%%~fI"',
+            'if /i "%parent%"=="%dir%" goto missing',
+            'set "dir=%parent%"',
+            'goto search',
+            ':run',
+            'php "%dir%\bin\niang" %*',
+            'exit /b %ERRORLEVEL%',
+            ':missing',
+            'echo np : bin\niang introuvable (etes-vous dans un projet NiangPro ?) 1>&2',
+            'exit /b 1',
+            '',
+        ]);
     }
 
     private function copyDirectory(string $source, string $target, array $exclude): void
@@ -1255,7 +1505,7 @@ class Commander
           cache:clear              Vide le cache applicatif
           optimize                 Cache les routes + rappels de prod (opcache, autoload)
           new <nom>                Crée un nouveau projet et y installe un thème de site (--type=<slug> pour éviter la question)
-          np:install                Installe le raccourci global `np` (macOS/Linux)
+          np:install               Installe le raccourci global `np` (macOS, Linux, Windows)
           config:cache             Fige config/*.php (production uniquement)
           config:clear             Supprime le cache de configuration
           doctor                   Diagnostique l'environnement (PHP, extensions, .env, DB, storage...)
@@ -1265,6 +1515,8 @@ class Commander
           make:event <Nom>         Génère un événement dans app/Events
           make:command <Nom>       Génère une commande custom dans app/Console/Commands
           make:test <Nom>          Génère un test dans tests/Unit
+          schedule:run             Lance les tâches planifiées dues (routes/schedule.php) — à appeler chaque minute par cron
+          schedule:list            Liste les tâches planifiées et leur prochaine exécution
           theme:add <vendor/paquet> Installe un thème publié comme paquet Composer (extra.niangpro-theme)
 
         TEXT;

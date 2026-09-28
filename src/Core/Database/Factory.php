@@ -37,7 +37,7 @@ final class Factory
         $ids = [];
 
         for ($i = 0; $i < $this->count; $i++) {
-            $ids[] = $model::create($this->make($overrides));
+            $ids[] = $model::forceCreate($this->make($overrides)); // données écrites par le développeur, pas par un visiteur
         }
 
         return $ids;

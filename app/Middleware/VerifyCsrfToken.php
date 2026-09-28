@@ -16,7 +16,7 @@ class VerifyCsrfToken implements Middleware
             $token = $request->input('_token') ?? $request->header('X-CSRF-Token');
 
             if (!Csrf::verify($token)) {
-                throw new HttpException(419, 'Jeton CSRF invalide ou expiré. Rechargez la page et réessayez.');
+                throw new HttpException(419, __('http.csrf_mismatch'));
             }
         }
 

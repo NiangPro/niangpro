@@ -2,16 +2,18 @@
 
 namespace Niang\Core;
 
+use Niang\Core\Exceptions\ConfigurationException;
+
 /**
- * Deux drivers, pilotés par MAIL_MAILER dans .env ('log' par défaut) :
+ * Trois drivers, pilotés par MAIL_MAILER dans .env ('log' par défaut) :
+ *  - 'smtp' : envoi réel via Niang\Core\SmtpTransport (MAIL_HOST, MAIL_PORT, MAIL_ENCRYPTION,
+ *    MAIL_USERNAME, MAIL_PASSWORD, MAIL_FROM_ADDRESS, MAIL_FROM_NAME) — le driver de production ;
  *  - 'log' : écrit le contenu de l'email dans storage/logs/ via Log — pratique en développement,
- *    sans configuration ni serveur SMTP.
+ *    sans configuration ni serveur SMTP ;
  *  - 'array' : garde les emails envoyés en mémoire du process, pour les assertions de test
  *    (voir fake()/sent()).
- * Pas d'envoi SMTP réel : ça demanderait soit une extension, soit un client écrit à la main que
- * cet environnement ne peut pas vérifier contre un vrai serveur — mieux vaut l'absence assumée
- * qu'une implémentation non testée. Le prochain driver (SMTP ou une API tierce) s'ajoute par un
- * cas de plus dans dispatch(), sans toucher Mailable/PendingMail.
+ * Une valeur inconnue lève une ConfigurationException plutôt que de retomber silencieusement sur
+ * 'log' : une faute de frappe en production ne doit pas faire disparaître des emails sans bruit.
  */
 class Mail
 {
@@ -27,9 +29,20 @@ class Mail
     /** @internal appelé par PendingMail::send() */
     public static function dispatch(string $to, Mailable $mailable): void
     {
-        if (self::$faked || Env::get('MAIL_MAILER', 'log') === 'array') {
+        $mailer = self::$faked ? 'array' : (string) Env::get('MAIL_MAILER', 'log');
+
+        if ($mailer === 'array') {
             self::$sent[] = ['to' => $to, 'mailable' => $mailable];
             return;
+        }
+
+        if ($mailer === 'smtp') {
+            SmtpTransport::fromEnv()->send($to, $mailable);
+            return;
+        }
+
+        if ($mailer !== 'log') {
+            throw new ConfigurationException("MAIL_MAILER inconnu : « $mailer » (attendu : smtp, log ou array).");
         }
 
         // Le corps complet est loggé (utile en dev pour lire un lien de vérification sans boîte mail

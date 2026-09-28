@@ -2,6 +2,6 @@
 
 <div style="text-align:center;">
     <h1 style="font-size:4rem;color:#facc15;">403</h1>
-    <p>Vous n'avez pas le droit d'effectuer cette action.</p>
-    <p><a href="/">Retour à l'accueil</a></p>
+    <p><?= e(__('http.page_forbidden')) ?></p>
+    <p><a href="/"><?= e(__('http.back_home')) ?></a></p>
 </div>

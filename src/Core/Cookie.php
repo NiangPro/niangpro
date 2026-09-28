@@ -2,11 +2,20 @@
 
 namespace Niang\Core;
 
+/**
+ * Cookies chiffrés (Crypt, AES-256-GCM) : le navigateur ne peut ni lire ni modifier la valeur. Le
+ * chiffré est lié au nom du cookie (une valeur valide pour « panier » est refusée sous
+ * « remember ») et porte sa propre date d'expiration, vérifiée côté serveur — un cookie recopié
+ * après son expiration est refusé même si le navigateur l'a gardé.
+ *
+ * Les cookies signés par une version précédente du framework (HMAC, en clair) ne sont plus
+ * acceptés : Cookie::get() retourne la valeur par défaut, comme pour un cookie absent.
+ */
 class Cookie
 {
     public static function set(string $name, string $value, int $minutes = 60): void
     {
-        setcookie($name, self::sign($value), [
+        setcookie($name, self::encode($name, $value, $minutes), [
             'expires' => time() + $minutes * 60,
             'path' => '/',
             'httponly' => true,
@@ -17,43 +26,41 @@ class Cookie
 
     public static function get(string $name, mixed $default = null): mixed
     {
-        if (!isset($_COOKIE[$name])) {
+        if (!isset($_COOKIE[$name]) || !is_string($_COOKIE[$name])) {
             return $default;
         }
 
-        $value = self::unsign($_COOKIE[$name]);
-
-        return $value ?? $default;
+        return self::decode($name, $_COOKIE[$name]) ?? $default;
     }
 
     public static function forget(string $name): void
     {
-        setcookie($name, '', ['expires' => time() - 3600, 'path' => '/']);
+        setcookie($name, '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'httponly' => true,
+            'secure' => self::resolveSecureFlag(),
+            'samesite' => Config::get('session.same_site', 'Lax'),
+        ]);
     }
 
-    private static function sign(string $value): string
+    private static function encode(string $name, string $value, int $minutes): string
     {
-        $signature = hash_hmac('sha256', $value, self::key());
-        return $signature . '.' . base64_encode($value);
+        $payload = json_encode(['v' => $value, 'e' => time() + $minutes * 60], JSON_THROW_ON_ERROR);
+
+        return Crypt::encrypt($payload, "cookie:$name");
     }
 
-    private static function unsign(string $signed): ?string
+    private static function decode(string $name, string $encrypted): ?string
     {
-        [$signature, $encoded] = array_pad(explode('.', $signed, 2), 2, '');
-        $value = base64_decode($encoded ?: '', true);
+        $payload = Crypt::decrypt($encrypted, "cookie:$name");
+        $data = $payload !== null ? json_decode($payload, true) : null;
 
-        if ($value === false || $signature === '') {
+        if (!is_array($data) || !is_string($data['v'] ?? null) || !is_int($data['e'] ?? null) || $data['e'] < time()) {
             return null;
         }
 
-        $expected = hash_hmac('sha256', $value, self::key());
-
-        return hash_equals($expected, $signature) ? $value : null;
-    }
-
-    private static function key(): string
-    {
-        return Env::get('APP_KEY', 'niangpro-insecure-default-key');
+        return $data['v'];
     }
 
     /** Devine si la requête courante est en HTTPS, sauf si config/session.php force explicitement une valeur. */

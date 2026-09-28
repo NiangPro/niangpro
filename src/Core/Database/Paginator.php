@@ -2,6 +2,8 @@
 
 namespace Niang\Core\Database;
 
+use Niang\Core\Lang;
+
 class Paginator
 {
     public function __construct(
@@ -34,7 +36,7 @@ class Paginator
         $html = '<nav class="pagination">';
 
         if ($this->currentPage > 1) {
-            $html .= sprintf('<a href="%s?page=%d">&laquo; Précédent</a>', $baseUrl, $this->currentPage - 1);
+            $html .= sprintf('<a href="%s?page=%d">%s</a>', $baseUrl, $this->currentPage - 1, Lang::get('pagination.previous'));
         }
 
         for ($page = 1; $page <= $last; $page++) {
@@ -44,7 +46,7 @@ class Paginator
         }
 
         if ($this->hasMorePages()) {
-            $html .= sprintf('<a href="%s?page=%d">Suivant &raquo;</a>', $baseUrl, $this->currentPage + 1);
+            $html .= sprintf('<a href="%s?page=%d">%s</a>', $baseUrl, $this->currentPage + 1, Lang::get('pagination.next'));
         }
 
         return $html . '</nav>';

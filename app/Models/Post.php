@@ -6,6 +6,8 @@ use Niang\Core\Database\Model;
 
 class Post extends Model
 {
+    protected static array $fillable = ['title', 'body'];
+
     public static function comments(int|string $postId): array
     {
         return static::hasMany($postId, Comment::class, 'post_id');

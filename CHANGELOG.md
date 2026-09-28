@@ -9,6 +9,133 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Planificateur de tâches** (roadmap §41) : `queue:work` devait déjà être lancé par cron, sans
+  aucun outil pour déclarer des tâches récurrentes.
+  - `routes/schedule.php` (reçoit `$schedule`) : `command()` (process séparé — un plantage ou un
+    `exit()` n'interrompt pas les autres tâches), `call()` (closure, application et Service Providers
+    démarrés), `job()` (poussé sur la file). Fréquences de `everyMinute()` à `monthlyOn()`,
+    `weekdays()`/`weekends()`, `cron()` brut ; `withoutOverlapping()` (verrou `flock`, libéré même si
+    le process meurt ou si la tâche lève une exception).
+  - `Niang\Core\Scheduling\CronExpression` : 5 champs, listes, intervalles, pas, dimanche = 0 ou 7,
+    règle « jour du mois OU jour de la semaine » de cron, prochaine exécution (29 février compris ;
+    une date impossible échoue au lieu de boucler).
+  - `niang schedule:run` (une ligne cron par minute ; code 1 si une tâche échoue, échecs journalisés)
+    et `niang schedule:list`.
+  - 20 tests. Vérifié en vrai sur une copie du projet : deux `schedule:run` simultanés (la tâche lente
+    `withoutOverlapping` est sautée par le second), une commande qui sort en code 3 (signalée, les
+    tâches suivantes continuent), un job mis en file puis traité par `queue:work`, une closure.
+
+- **Sessions, cache et limitation de débit en base de données** (roadmap §23-24) : tout était sur
+  le disque local (sessions PHP natives, `storage/framework/`) — impossible de tourner sur plusieurs
+  serveurs web derrière un répartiteur de charge.
+  - `SESSION_DRIVER=database` : `Niang\Core\DatabaseSessionHandler` (`SessionHandlerInterface`,
+    contenu en base64 pour les colonnes texte PostgreSQL, `lifetime = 0` géré).
+  - `CACHE_DRIVER=database` : `Cache` (table `cache_entries`, `false`/`0` restent des valeurs
+    valides) et `RateLimiter` (table `rate_limits`, incrément atomique par `UPDATE ... WHERE
+    attempts < ?`). `DB::affected()` retourne le nombre de lignes modifiées.
+  - Migrations livrées (`sessions`, `cache_entries`, `rate_limits`), `config/cache.php`,
+    `session.driver` ; `file` reste le défaut. Pilote inconnu → `ConfigurationException`.
+  - `niang doctor` vérifie la présence des tables quand un pilote `database` est choisi.
+  - **La CLI charge maintenant `config/*.php`** comme l'application web : sans ça, `niang
+    cache:clear` aurait vidé les fichiers alors que `CACHE_DRIVER=database`.
+  - Tests : `DatabaseDriversTest` (SQLite, et 56/56 de la suite Database sur un vrai MySQL local).
+    Vérifié avec deux serveurs `php -S` partageant une base, chacun avec son propre dossier de
+    sessions : connecté sur A, le visiteur reste connecté sur B avec `database`, pas avec `file`.
+
+- **ORM : `$timestamps`, `$casts`, `$softDeletes`** (roadmap §17) :
+  - **`updated_at` n'était jamais mis à jour** : `timestamps()` ne posait qu'une valeur par défaut à
+    l'insertion. `create()` renseigne désormais `created_at`/`updated_at`, `update()` `updated_at`
+    (valeur explicite prioritaire), avec l'horloge PHP plutôt que `CURRENT_TIMESTAMP` (UTC sous
+    SQLite, alors que les thèmes écrivaient déjà `date()` — deux fuseaux mélangés dans une même
+    colonne). Une table sans ces colonnes donne une `DatabaseException` qui explique la solution au
+    lieu d'une erreur SQL brute.
+  - **`$casts`** (`int`, `float`, `bool`, `string`, `json`) appliqués à toutes les lectures
+    (`find`, `all`, `where`, `query()`, `paginate`, `with()`, relations y compris `belongsToMany`) et,
+    pour `json`/`bool`, à l'écriture. `Product` du thème boutique les déclare : mêmes types sous
+    SQLite et MySQL.
+  - **Suppression douce** : `$softDeletes`, `withTrashed()`, `onlyTrashed()`, `restore()`,
+    `forceDestroy()`, `$table->softDeletes()`. Les lignes supprimées sont ignorées partout, relations
+    et eager loading compris ; un second `destroy()` ne déplace pas la date de suppression.
+  - 13 tests `ModelFeaturesTest`, passés sur SQLite et sur un vrai MySQL 9 local (PostgreSQL : CI).
+
+- **Internationalisation des textes vus par les visiteurs** (roadmap §43) : messages de validation,
+  erreurs d'upload, pages d'erreur, messages 401/403/405/419/429 et pagination étaient écrits en
+  français en dur dans `src/Core` et les middlewares.
+  - `Niang\Core\Lang` et le helper `__()` : fichiers `lang/<langue>/<groupe>.php` à la racine du
+    projet (`validation`, `upload`, `http`, `pagination`), livrés en **français** (textes identiques
+    à avant, aucun message existant ne change) et en **anglais**. `APP_LOCALE` / `config('app.locale')`
+    (défaut `fr`), `APP_FALLBACK_LOCALE` (défaut `fr`), `Lang::setLocale()` pour une requête.
+    Variables `:attribute`, `:min`... (les plus longues remplacées d'abord, `:Attribute` en majuscule) ;
+    clé absente → langue de repli → la clé elle-même.
+  - Libellés de champs traduisibles (`validation.attributes`), y compris pour des noms à points
+    (`items.*.name`, `address.city`) via `Lang::section()`.
+  - `<html lang>` de `layouts/app.php` et les pages d'erreur suivent la langue.
+  - Tests : `LangTest`, `LocalizationTest` (404, 422 JSON et 419 en anglais via la pile HTTP) ;
+    vérifié aussi sur un vrai serveur avec `APP_LOCALE=en`. `StagedProject` copie `lang/` ;
+    `LocalizationTest` dépend des vues du squelette et est retiré à l'installation d'un thème
+    (`shared/theme.json`), comme `ErrorHandlingTest`.
+  - Hors périmètre : la CLI et les exceptions destinées au développeur restent en français ; les
+    textes propres aux thèmes (contenu des sites) aussi.
+
+- **Protection contre l'affectation de masse (`$fillable`)** : `Model::create()`/`update()`
+  écrivaient toutes les clés reçues — `Post::create($request->all())` laissait un visiteur écrire
+  n'importe quelle colonne (`role`, `user_id`...).
+  - `protected static array $fillable` : `create()`/`update()` ne gardent que ces colonnes (les autres
+    sont ignorées, `_token` compris). Sans `$fillable`, `MassAssignmentException` plutôt qu'un
+    comportement silencieux ; idem si aucune colonne fournie n'est modifiable (au lieu d'une erreur
+    SQL obscure sur un INSERT vide).
+  - `forceCreate()`/`forceUpdate()` pour le code de confiance ; `Factory` les utilise.
+  - Tous les modèles livrés déclarent leurs colonnes (`User` : `name`, `email`, `password` — ni `role`
+    ni `email_verified_at`) ; les écritures serveur de colonnes sensibles passent par `force*()`
+    (vérification d'email, jeton de réinitialisation, rôle attribué par un admin, montants et statut
+    d'une commande, seeders). Le thème blog fournit son propre `app/Models/Post.php`, dont `$fillable`
+    couvre les colonnes ajoutées par sa migration. `niang make:model` génère `$fillable`.
+  - Vérifié sur un projet boutique créé par `composer create-project` : une inscription qui ajoute
+    `role=admin` et `email_verified_at` au formulaire crée un compte `user` non vérifié (403 sur
+    `/admin`).
+
+- **Envoi d'emails réel : driver SMTP** (roadmap §28) : jusqu'ici `Mail` n'avait que les drivers
+  `log` et `array` — la réinitialisation de mot de passe et la vérification d'email étaient codées
+  mais aucun email ne partait réellement.
+  - **`Niang\Core\SmtpTransport`**, client SMTP écrit à la main (RFC 5321), sans extension ni
+    dépendance : `stream_socket_client`, STARTTLS (`MAIL_ENCRYPTION=tls`, défaut) ou TLS implicite
+    (`ssl`), `AUTH PLAIN`/`LOGIN`, message RFC 5322 en quoted-printable, sujets et noms d'expéditeur
+    non ASCII encodés (RFC 2047), *dot-stuffing*, texte seul ou texte + HTML
+    (`multipart/alternative`) via le nouveau `Mailable::html()` (facultatif, `null` par défaut).
+  - **Sécurité** : pas de repli en clair si le serveur ne propose pas STARTTLS ; identifiants jamais
+    envoyés sur une connexion non chiffrée (sauf `localhost`) ; certificat du serveur vérifié ;
+    adresses et sujet contrôlés contre l'injection d'en-têtes ; le mot de passe n'apparaît jamais
+    dans une `MailException`.
+  - **`MAIL_MAILER` inconnu → `ConfigurationException`** au lieu d'un repli silencieux sur `log`
+    (une faute de frappe en production faisait disparaître les emails sans bruit).
+  - `niang doctor` vérifie la configuration SMTP (`MAIL_HOST`, `MAIL_FROM_ADDRESS`, `openssl`) et
+    avertit si `MAIL_MAILER` vaut `log`/`array` avec `APP_ENV=production`.
+  - Tests contre un vrai serveur dans un process séparé (`tests/Support/fake-smtp-server.php` :
+    vraie socket, vrai TLS avec certificat auto-signé généré au vol) — 16 tests `SmtpTransportTest`,
+    3 dans `MailTest`, 4 dans `CommanderDoctorTest`. Vérifié aussi contre une implémentation
+    indépendante (aiosmtpd, Python) : STARTTLS + AUTH, message relu sans défaut par le parseur
+    `email` de Python.
+
+- **Upload de fichiers** (roadmap §9 « Uploads » et §42) : `Request` ne lisait jamais `$_FILES`.
+  - **`Niang\Core\Http\UploadedFile`** : `$request->file('avatar')`, `hasFile()`,
+    `$request->files` (champs multiples `name="photos[]"` remis à l'endroit, champs laissés vides
+    ignorés). Type MIME **réel** lu dans le contenu (`finfo`), extension déduite de ce type — jamais
+    du nom envoyé ; `store($dossier)` range le fichier dans `storage/app/` sous un nom aléatoire
+    (40 caractères hexadécimaux) + l'extension réelle, en `0644`, via `move_uploaded_file()` ;
+    `storeAs()` refuse tout nom contenant un séparateur de chemin. Nouveau `Storage::path()`.
+  - **Règles de validation** `file`, `image` (JPEG/PNG/GIF/WebP/AVIF — SVG exclu par défaut, il peut
+    contenir du JavaScript), `mimes`, `mimetypes` (avec joker `image/*`), `dimensions` ;
+    `min`/`max`/`between` en kilo-octets pour un fichier. Un upload arrivé en erreur (taille serveur
+    dépassée, envoi partiel...) affiche sa vraie raison.
+  - `Controller::validate()` et `FormRequest` valident `$request->allWithFiles()` ; `all()` reste
+    sans fichiers, pour que l'ancienne saisie flashée (`old()`) n'en contienne jamais.
+  - Tests : `UploadedFile::fake()` et `UploadedFile::fakeImage()` (vrai PNG généré sans GD) —
+    `UploadedFileTest`, `ValidatorFileRulesTest`, `FileUploadTest` (pile HTTP complète, FormRequest,
+    422 JSON, flash). Vérifié aussi par de vrais envois multipart (`curl -F` sur `php -S`) :
+    `move_uploaded_file()` réel, nom `../../moi.PHP` stocké en `<aléatoire>.png`, PHP déguisé en
+    PNG refusé.
+  - `niang doctor` avertit si l'extension `fileinfo` manque.
+
 - **Espace d'administration pour les thèmes boutique et blog** : nouveau module
   `resources/scaffold/modules/admin/` (déclaré par `"modules": ["admin"]` dans `theme.json`,
   installé entre `shared/` et le thème). Colonne `users.role`, compte administrateur de test créé
@@ -36,7 +163,43 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
   thèmes boutique/blog (`auth/login.php`, `auth/register.php`, `auth/forgot-password.php`,
   `auth/reset-password.php`, `shop/checkout.php`).
 
+### Changed
+
+- **Rupture : `Model::$timestamps` vaut `true` par défaut.** Un modèle dont la table n'a pas
+  `created_at`/`updated_at` doit déclarer `protected static bool $timestamps = false;` (fait pour
+  `Tag` et `PasswordResetToken`). Les migrations générées par `make:migration` ont déjà
+  `timestamps()`.
+
+- **`np:install` fonctionne aussi sur Windows** : jusqu'ici, la commande affichait seulement un
+  alias PowerShell à créer à la main. Elle pose désormais un `np.cmd` (utilisable depuis cmd comme
+  depuis PowerShell) qui remonte l'arborescence pour trouver `bin/niang`, comme le script bash sur
+  macOS/Linux. Sur Windows, seuls des dossiers personnels sont retenus (le `bin` global de Composer,
+  ou `%LOCALAPPDATA%\NiangPro\bin`) : un terminal administrateur peut écrire dans
+  `C:\Windows\System32`, qui est dans le `PATH`, et ce n'est pas l'endroit où poser `np`. Sur
+  toutes les plateformes, quand aucun dossier du `PATH` n'est accessible en écriture, `np` est
+  maintenant installé quand même (`~/.local/bin` ou `%LOCALAPPDATA%\NiangPro\bin`), avec la
+  ligne exacte à exécuter pour ajouter ce dossier au `PATH`.
+
 ### Security
+
+- **Plus de clé de repli publique pour `APP_KEY`** : `Cookie`, `UrlSignature` et `ApiToken`
+  utilisaient `niangpro-insecure-default-key` quand `APP_KEY` était vide — et `composer
+  create-project` ne créait ni `.env` ni clé. Tout projet installé ainsi signait donc ses liens de
+  réinitialisation de mot de passe avec une clé connue de tous : n'importe qui pouvait en fabriquer
+  un valide pour n'importe quel compte.
+  - Nouvelle classe `Niang\Core\AppKey` : `get()` lève une `ConfigurationException` si la clé est
+    vide ; `derive()` (HKDF) pour les usages dérivés ; `writeTo()` partagé par `key:generate`,
+    `niang new` et le hook Composer.
+  - `composer create-project` crée désormais `.env` depuis `.env.example` avec une `APP_KEY` propre
+    au projet (jamais d'écrasement d'un `.env` existant). La CI de packaging vérifie cette clé ;
+    l'assertion « pas de `storage/` après installation », fausse depuis l'étape `setup` des thèmes
+    boutique et blog, est retirée.
+  - Les URLs signées et les jetons API existants restent valides (même clé, même HMAC).
+- **Cookies chiffrés** : `Cookie` ne faisait que signer (HMAC) une valeur lisible par le navigateur,
+  sans lier la signature au nom du cookie. Nouvelle classe `Niang\Core\Crypt` (AES-256-GCM, clé
+  dérivée d'`APP_KEY`, contexte authentifié) ; `Cookie::set()/get()` chiffrent la valeur, la lient au
+  nom du cookie et portent une expiration vérifiée côté serveur. Les cookies signés par l'ancien
+  format sont refusés (`get()` retourne la valeur par défaut). Vérifié par un vrai aller-retour HTTP.
 
 - **CORS : `allowed_origins: ['*']` combiné à `supports_credentials: true` reflétait n'importe
   quelle origine** (`Niang\Core\Cors`, audit de sécurité) : `config/cors.php` déconseille déjà

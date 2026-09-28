@@ -101,4 +101,16 @@ class GrammarTest extends TestCase
             $blueprint->dropStatements($grammar)
         );
     }
+
+    public function test_boolean_defaults_are_true_false_on_postgres_and_1_0_elsewhere(): void
+    {
+        foreach ([false, 0] as $default) {
+            $this->assertSame('"published" BOOLEAN NOT NULL DEFAULT FALSE', (new PostgresGrammar())->compileColumn('published', 'boolean', [], false, true, $default, false));
+            $this->assertSame('`published` TINYINT(1) NOT NULL DEFAULT 0', (new MySqlGrammar())->compileColumn('published', 'boolean', [], false, true, $default, false));
+            $this->assertSame('"published" BOOLEAN NOT NULL DEFAULT 0', (new SQLiteGrammar())->compileColumn('published', 'boolean', [], false, true, $default, false));
+        }
+
+        $this->assertStringEndsWith('DEFAULT TRUE', (new PostgresGrammar())->compileColumn('active', 'boolean', [], false, true, 1, false));
+        $this->assertStringEndsWith('DEFAULT 1', (new PostgresGrammar())->compileColumn('rank', 'integer', [], false, true, 1, false), 'un entier reste un entier hors colonne booléenne');
+    }
 }

@@ -2,6 +2,8 @@
 
 namespace Niang\Core\Exceptions;
 
+use Niang\Core\Lang;
+
 /**
  * Exception "d'erreur HTTP" générique : lui associer un code suffit pour que le Handler la rende
  * correctement (page d'erreur si elle existe, sinon un message simple), en JSON si le client
@@ -28,14 +30,10 @@ class HttpException extends \RuntimeException
 
     private static function defaultMessage(int $status): string
     {
-        return match ($status) {
-            401 => 'Authentification requise.',
-            403 => 'Action non autorisée.',
-            404 => 'Page introuvable.',
-            405 => 'Méthode non autorisée.',
-            419 => 'Jeton CSRF invalide ou expiré.',
-            429 => 'Trop de requêtes, réessayez plus tard.',
-            default => $status >= 500 ? 'Erreur serveur.' : "Erreur HTTP $status.",
+        return match (true) {
+            in_array($status, [401, 403, 404, 405, 419, 429], true) => Lang::get("http.$status"),
+            $status >= 500 => Lang::get('http.server_error'),
+            default => Lang::get('http.other', ['status' => $status]),
         };
     }
 }

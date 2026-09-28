@@ -1,6 +1,13 @@
 <?php
 
 return [
+    /*
+     * Où sont stockées les sessions :
+     *  - 'file' (défaut) : le stockage natif de PHP (session.save_path), propre à chaque serveur ;
+     *  - 'database' : table sessions (./bin/niang migrate), partagée entre plusieurs serveurs web.
+     */
+    'driver' => env('SESSION_DRIVER', 'file'),
+
     // Minutes avant expiration du cookie ; 0 = jusqu'à la fermeture du navigateur.
     'lifetime' => (int) env('SESSION_LIFETIME', 120),
 

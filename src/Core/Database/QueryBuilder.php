@@ -20,8 +20,18 @@ class QueryBuilder
     private bool $lock = false;
     private ?string $connection = null;
 
+    /** @var class-string<Model>|null Model dont les $casts s'appliquent aux lignes lues (voir Model::query()). */
+    private ?string $model = null;
+
     public function __construct(private string $table)
     {
+    }
+
+    /** @internal appelé par Model::query() : les lignes lues passent par Model::castRow(). */
+    public function forModel(string $model): static
+    {
+        $this->model = $model;
+        return $this;
     }
 
     public function select(string ...$columns): static
@@ -209,7 +219,9 @@ class QueryBuilder
 
     public function get(): array
     {
-        return DB::select($this->toSql(), $this->allBindings(), $this->connection ?? 'read');
+        $rows = DB::select($this->toSql(), $this->allBindings(), $this->connection ?? 'read');
+
+        return $this->model !== null ? array_map([$this->model, 'castRow'], $rows) : $rows;
     }
 
     public function first(): ?array

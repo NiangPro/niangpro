@@ -11,4 +11,7 @@ use Niang\Core\Database\Model;
 class OrderItem extends Model
 {
     protected static string $table = 'order_items';
+
+    // Pas de $fillable : une ligne de commande est toujours construite par le serveur (forceCreate),
+    // jamais à partir de données de formulaire.
 }

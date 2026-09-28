@@ -27,7 +27,7 @@ class AuthenticateWithToken implements Middleware
         $user = ApiToken::resolve(substr($header, 7));
 
         if ($user === null) {
-            throw new AuthenticationException('Jeton API invalide ou révoqué.');
+            throw new AuthenticationException(__('http.invalid_token'));
         }
 
         Auth::resolveViaToken($user);
