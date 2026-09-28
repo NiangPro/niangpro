@@ -7,6 +7,11 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ## [Non publié]
 
+## [2.0.0] — 2026-09-28
+
+Version majeure : le framework devient une dépendance (`composer create-project niangpro/niangpro mon-app`),
+découpé en 14 paquets `niangpro/<nom>`. Passer un projet 1.x en 2.0 : [UPGRADE.md](UPGRADE.md).
+
 ### Added
 
 - **2.0 : le framework devient une dépendance** (roadmap §46, ADR 0013, remplace 0008). `composer create-project
