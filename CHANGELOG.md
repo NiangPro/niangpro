@@ -7,6 +7,8 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ## [Non publié]
 
+## [2.0.2] — 2026-09-28
+
 ### Changed
 
 - **Thème blog : refonte du héros de l'accueil et de la page article.** Accueil : fond « aurore » animé, pastille
@@ -15,6 +17,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
   section lue, partage (copier le lien, partage natif), lettrine, citations et carte d'auteur redessinées.
   `PostFormat` donne un identifiant lisible à chaque intertitre (`PostFormat::headings()` pour le sommaire).
   Sans dépendance ni ressource externe ; clair, sombre, mobile et `prefers-reduced-motion` vérifiés.
+
+## [2.0.1] — 2026-09-28
+
+Aucun changement de code : le CHANGELOG de la 2.0.0 est figé.
 
 ## [2.0.0] — 2026-09-28
 
