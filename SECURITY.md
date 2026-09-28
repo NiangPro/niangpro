@@ -4,7 +4,7 @@
 
 Les correctifs de sécurité sont publiés pour la dernière version mineure. Les projets créés avec
 `composer create-project` sont des copies du framework : appliquez le correctif en mettant à jour
-les fichiers de `src/Core/` concernés, comme indiqué dans l'avis de sécurité.
+les fichiers de `packages/` concernés, comme indiqué dans l'avis de sécurité.
 
 | Version | Correctifs de sécurité |
 | ------- | ---------------------- |

@@ -1,8 +1,15 @@
 {
     "name": "niangpro/framework",
-    "description": "Un micro-framework PHP ultra simple, plus simple que Laravel : routeur, DI, ORM minimal, auth, tests, sans dépendance d'implémentation à l'exécution (seulement les interfaces PSR-11/PSR-3/PSR-7/PSR-15, pour l'interopérabilité).",
-    "type": "project",
-    "keywords": ["framework", "micro-framework", "php", "router", "orm", "minimal"],
+    "description": "Le framework NiangPro (v2) : les 14 paquets niangpro/* réunis. Pour créer une application : composer create-project niangpro/niangpro mon-app.",
+    "type": "library",
+    "keywords": [
+        "framework",
+        "micro-framework",
+        "php",
+        "router",
+        "orm",
+        "minimal"
+    ],
     "license": "MIT",
     "authors": [
         {
@@ -22,6 +29,22 @@
         "psr/http-server-middleware": "^1.0",
         "psr/event-dispatcher": "^1.0"
     },
+    "replace": {
+        "niangpro/core": "self.version",
+        "niangpro/database": "self.version",
+        "niangpro/redis": "self.version",
+        "niangpro/http": "self.version",
+        "niangpro/cache": "self.version",
+        "niangpro/queue": "self.version",
+        "niangpro/mail": "self.version",
+        "niangpro/storage": "self.version",
+        "niangpro/auth": "self.version",
+        "niangpro/tenancy": "self.version",
+        "niangpro/observability": "self.version",
+        "niangpro/openapi": "self.version",
+        "niangpro/debug": "self.version",
+        "niangpro/foundation": "self.version"
+    },
     "suggest": {
         "nyholm/psr7": "Fournit l'implémentation PSR-7 concrète (interfaces seulement en require) nécessaire pour Niang\\Core\\Http\\Psr7Bridge et Psr15Adapter."
     },
@@ -32,16 +55,32 @@
     },
     "autoload": {
         "psr-4": {
-            "Niang\\": "src/",
-            "App\\": "app/"
+            "Niang\\Core\\": [
+                "packages/core/src/",
+                "packages/database/src/",
+                "packages/redis/src/",
+                "packages/http/src/",
+                "packages/cache/src/",
+                "packages/queue/src/",
+                "packages/mail/src/",
+                "packages/storage/src/",
+                "packages/auth/src/",
+                "packages/tenancy/src/",
+                "packages/observability/src/",
+                "packages/openapi/src/",
+                "packages/debug/src/",
+                "packages/foundation/src/"
+            ]
         },
         "files": [
-            "src/helpers.php"
+            "packages/core/src/helpers.php",
+            "packages/http/src/helpers.php"
         ]
     },
     "autoload-dev": {
         "psr-4": {
-            "Tests\\": "tests/"
+            "Tests\\": "tests/",
+            "App\\": "app/"
         }
     },
     "minimum-stability": "stable",
@@ -55,7 +94,11 @@
         "test": "phpunit",
         "lint": "php-cs-fixer fix --dry-run --diff",
         "lint:fix": "php-cs-fixer fix",
-        "analyse": "phpstan analyse",
-        "post-create-project-cmd": "Niang\\Core\\Console\\ComposerHooks::postCreateProject"
+        "analyse": "phpstan analyse"
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "2.0.x-dev"
+        }
     }
 }

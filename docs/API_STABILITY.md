@@ -34,7 +34,7 @@ documenté). Ce document dit ce qui est couvert par cette promesse.
 - **Tests** : `Testing\TestCase`, `Testing\TestResponse`, `Testing\RefreshDatabase`.
 - **Console** : `Console\Command` (commandes sur mesure) et les commandes `niang` documentées.
 - **Exceptions** : toutes les classes de `Exceptions\` sauf `Handler`.
-- **Helpers globaux** de `src/helpers.php`.
+- **Helpers globaux** de `packages/core/src/helpers.php` et `packages/http/src/helpers.php`.
 
 ## Expérimental
 
@@ -43,6 +43,11 @@ documenté). Ce document dit ce qui est couvert par cette promesse.
 `Http\ServerSentEvent`, `Http\Client`, le disque `s3` de `Storage` (`Storage::temporaryUrl()`), `Redis` et les
 pilotes `redis`, `Metrics` (noms et étiquettes des métriques), `Trace` (contenu de `Trace::context()`), `Tenancy` (forme de
 la configuration).
+
+Points d'extension (ADR 0012), par lesquels `Application::wire()` assemble les composants et qu'une
+application peut aussi utiliser : `Log::contextUsing()`, `Http\Client::headersUsing()`, `Event::queueUsing()`,
+`Cache::prefixUsing()`, `Model::tenantScopeUsing()`, `Metrics::isolateUsing()`, `Queue::stampUsing()`,
+`Queue::wrapUsing()`, `Queue::afterUsing()`, `Container::resolveUsing()`.
 
 ## Interne
 

@@ -1,7 +1,7 @@
 <?php
 
 /**
- * Préchargement OPcache des classes du noyau (src/Core/**\/*.php) : à brancher via
+ * Préchargement OPcache des classes du framework (packages/<nom>/src/, récursivement) : à brancher via
  * `opcache.preload=/chemin/vers/preload.php` dans le php.ini du serveur — un réglage de
  * déploiement, jamais quelque chose que `niang optimize` (une requête CLI ponctuelle) peut
  * activer lui-même. Voir docs/ROADMAP_TECHNIQUE.md, section OPcache / production, pour le
@@ -17,12 +17,18 @@ if (!function_exists('opcache_compile_file')) {
     return;
 }
 
-$files = new RecursiveIteratorIterator(
-    new RecursiveDirectoryIterator(__DIR__ . '/src/Core', FilesystemIterator::SKIP_DOTS)
-);
+// packages/ : dépôt du framework ; vendor/niangpro/framework/packages/ : application (framework installé
+// avec Composer).
+foreach ([__DIR__ . '/packages', __DIR__ . '/vendor/niangpro/framework/packages'] as $packages) {
+    if (!is_dir($packages)) {
+        continue;
+    }
 
-foreach ($files as $file) {
-    if ($file->getExtension() === 'php') {
-        opcache_compile_file($file->getPathname());
+    $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($packages, FilesystemIterator::SKIP_DOTS));
+
+    foreach ($files as $file) {
+        if ($file->getExtension() === 'php') {
+            opcache_compile_file($file->getPathname());
+        }
     }
 }

@@ -1,0 +1,25 @@
+{
+    "name": "niangpro/debug",
+    "description": "Barre de debug en développement.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "NiangProgrammeur"
+        }
+    ],
+    "homepage": "https://github.com/NiangPro/niangpro",
+    "require": {
+        "php": ">=8.1",
+        "niangpro/core": "self.version",
+        "niangpro/http": "self.version"
+    },
+    "suggest": {
+        "niangpro/database": "Pilotes et ponts optionnels vers database."
+    },
+    "autoload": {
+        "psr-4": {
+            "Niang\\Core\\": "src/"
+        }
+    }
+}

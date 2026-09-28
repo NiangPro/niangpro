@@ -109,31 +109,40 @@ class CommanderNewTest extends TestCase
         $this->assertStringContainsString('vitrine, minimal', $output);
     }
 
-    public function test_install_site_theme_copies_the_theme_and_returns_the_next_steps(): void
+    public function test_in_an_application_new_creates_the_project_from_the_published_skeleton(): void
     {
-        $target = $this->makeTempDirectory();
-        $steps = [];
-
-        $output = $this->captureOutput(function () use ($target, &$steps) {
-            $steps = $this->call('installSiteTheme', $target, 'vitrine');
-        });
-
-        $this->assertSame('routes du thème', file_get_contents($target . '/routes/web.php'));
-        $this->assertSame(['./bin/niang db:seed'], $steps);
-        $this->assertStringContainsString('Thème « Site vitrine » installé.', $output);
+        // $this->project : une application (pas de packages/ ni de tools/build-skeleton.php).
+        $this->assertSame(
+            ['composer', 'create-project', 'niangpro/niangpro', '/tmp/mon-app', '--no-interaction'],
+            $this->call('createProjectCommand', '/tmp/mon-app')
+        );
     }
 
-    public function test_install_site_theme_does_nothing_for_the_minimal_skeleton(): void
+    public function test_in_the_framework_repository_new_links_the_local_framework(): void
     {
-        $target = $this->makeTempDirectory();
-        $steps = [];
+        if (!is_file(base_path('tools/build-skeleton.php'))) {
+            $this->markTestSkipped('Hors du dépôt du framework (projet créé ou copie de test).');
+        }
 
-        $output = $this->captureOutput(function () use ($target, &$steps) {
-            $steps = $this->call('installSiteTheme', $target, 'minimal');
-        });
+        $commander = new Commander(base_path());
+        $command = (new \ReflectionMethod($commander, 'createProjectCommand'))->invoke($commander, '/tmp/mon-app');
 
-        $this->assertSame([], $steps);
-        $this->assertSame('', $output);
-        $this->assertSame(['.', '..'], scandir($target));
+        $this->assertIsArray($command);
+        $this->assertSame(['composer', 'create-project'], array_slice($command, 0, 2));
+        $this->assertContains('--add-repository', $command);
+
+        $repositories = array_values(array_map(
+            fn (string $json) => json_decode($json, true),
+            array_filter($command, fn (string $part) => str_starts_with($part, '{'))
+        ));
+        $skeleton = $repositories[0]['url'];
+
+        try {
+            $this->assertSame('niangpro/niangpro', json_decode((string) file_get_contents("$skeleton/composer.json"), true)['name']);
+            $this->assertSame(base_path(), $repositories[1]['url']);
+            $this->assertTrue($repositories[1]['options']['symlink'], 'framework local relié, pas copié');
+        } finally {
+            self::deleteDirectory($skeleton);
+        }
     }
 }

@@ -1,7 +1,7 @@
 <?php
 
 $finder = (new PhpCsFixer\Finder())
-    ->in([__DIR__ . '/src', __DIR__ . '/app', __DIR__ . '/tests', __DIR__ . '/resources/scaffold'])
+    ->in([__DIR__ . '/packages', __DIR__ . '/app', __DIR__ . '/tests', __DIR__ . '/resources/scaffold'])
     // Même périmètre que la racine du projet : ni vues, ni routes, ni config, ni migrations.
     ->notPath(['#/resources/#', '#/routes/#', '#/config/#', '#/database/#', '#/public/#']);
 

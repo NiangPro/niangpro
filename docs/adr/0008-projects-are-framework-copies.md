@@ -1,6 +1,6 @@
 # 0008 — Un projet créé est une copie du framework
 
-- **Statut** : accepté
+- **Statut** : remplacé par [0013](0013-framework-as-dependency.md) en 2.0
 - **Date** : 2026-09 (dixième jalon, thèmes de site)
 
 ## Contexte

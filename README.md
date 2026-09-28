@@ -6,13 +6,22 @@ Un micro-framework PHP **ultra simple**, plus simple que Laravel : pas de magie,
 
 ## Installation
 
-Pour démarrer un nouveau projet (le package est publié sur [Packagist](https://packagist.org/packages/niangpro/framework)) :
+Pour démarrer un nouveau projet :
 
 ```bash
-composer create-project niangpro/framework mon-app
+composer create-project niangpro/niangpro mon-app
 cd mon-app
 ./bin/niang serve
 ```
+
+Le projet créé contient votre application (`app/`, `routes/`, `resources/views/`, `config/`...) ; le framework
+est une dépendance, [`niangpro/framework`](https://packagist.org/packages/niangpro/framework), installée dans
+`vendor/` et mise à jour avec `composer update niangpro/framework`. Il se compose de 14 paquets
+(`niangpro/core`, `niangpro/http`, `niangpro/database`, `niangpro/auth`...) utilisables aussi séparément.
+
+> **Version 1.x** : un projet créé était une copie du framework (`composer create-project
+> niangpro/framework:^1.5 mon-app`, toujours disponible). Pour passer un projet 1.x en 2.0, voir
+> [UPGRADE.md](UPGRADE.md).
 
 Testé en CI sur Linux, macOS et Windows (voir `.github/workflows/ci.yml`, job `cross-platform`).
 Sous Windows en CMD/PowerShell natif (hors WSL/Git Bash, où `./bin/niang` fonctionne tel quel),
@@ -30,9 +39,12 @@ Quel type de site souhaitez-vous construire ?
   3) blog       Blog / magazine
   4) portfolio  Portfolio
   5) landing    Landing page one-page
-  6) minimal    Minimal — squelette de démonstration (défaut)
+  6) auth       Application avec comptes (inscription, connexion, espace membre)
+  7) api        API REST (JSON, jetons, CORS, OpenAPI)
+  8) saas       SaaS (organisations, membres, abonnements)
+  9) minimal    Minimal — squelette de démonstration (défaut)
 
-Votre choix [6] :
+Votre choix [9] :
 ```
 
 | Type | Pages livrées |
@@ -42,13 +54,16 @@ Votre choix [6] :
 | `blog` | Accueil, articles paginés, article (tags, articles proches), catégories et thèmes, à propos, contact, 404 |
 | `portfolio` | Accueil, projets filtrables et pages de détail avec galerie, à propos et CV, contact, 404 |
 | `landing` | Une page à sections ancrées (fonctionnalités, fonctionnement, avis, tarifs, FAQ), mentions légales, 404 |
+| `auth` | Accueil, inscription, connexion, mot de passe oublié, vérification d'email, double authentification, OAuth, tableau de bord, « Mon compte » |
+| `api` | API REST JSON `/api/v1` : comptes et jetons, ressource d'exemple, CORS, limitation de débit, description OpenAPI |
+| `saas` | Organisations (multi-locataire), membres et rôles, invitations, plans et abonnements, « Mon compte » |
 | `minimal` | Le squelette de démonstration, tel quel |
 
 Sans terminal interactif (CI, script, `--no-interaction`), la question n'est pas posée : `minimal` est utilisé,
 sauf si vous choisissez explicitement le type avec la variable d'environnement `NIANG_SITE_TYPE` :
 
 ```bash
-NIANG_SITE_TYPE=blog composer create-project niangpro/framework mon-app --no-interaction
+NIANG_SITE_TYPE=blog composer create-project niangpro/niangpro mon-app --no-interaction
 ```
 
 Visitez http://127.0.0.1:8000. Pour les types `ecommerce` et `blog`, la base est migrée et alimentée
@@ -56,7 +71,8 @@ automatiquement à la création (`setup` du `theme.json`), avec un compte admini
 `admin@example.com` / `admin1234`. Connectez-vous avec ce compte sur `/login` : vous arrivez sur le tableau
 de bord `/admin` (mot de passe à changer dans `/admin/parametres` avant toute mise en ligne).
 
-Pour contribuer au framework lui-même (cloner ce dépôt directement) :
+Pour contribuer au framework lui-même (cloner ce dépôt directement ; l'application de démonstration y sert
+au développement et aux tests, `./bin/niang new essai` crée une application reliée à votre copie locale) :
 
 ```bash
 git clone https://github.com/NiangPro/niangpro.git
@@ -69,15 +85,25 @@ cp .env.example .env
 
 ## Structure
 
+D'une application :
+
 ```
-app/Controllers/    Vos contrôleurs
-app/Middleware/      Vos middlewares
+app/Controllers/      Vos contrôleurs
+app/Middleware/       Vos middlewares
 app/Models/           Vos modèles (Active Record minimal)
 routes/web.php        Toutes vos routes
 resources/views/      Vues PHP natives (pas de moteur de template)
 resources/scaffold/   Thèmes de site proposés à la création d'un projet
-src/Core/              Le cœur du framework
 public/index.php      Point d'entrée unique
+vendor/niangpro/framework/   Le framework (ne pas modifier : composer update niangpro/framework)
+```
+
+De ce dépôt (le framework) :
+
+```
+packages/<nom>/src/   Les 14 paquets (core, http, database, auth...), namespace Niang\Core
+skeleton/             composer.json et fichiers propres au squelette niangpro/niangpro
+app/, routes/...      L'application de démonstration, base du squelette (tools/build-skeleton.php)
 ```
 
 ## Routes
@@ -1883,10 +1909,12 @@ déclenche l'action — sans passer par un vrai bus d'événements avec files et
 
 ## Créer un nouveau projet
 
-Depuis un projet existant, `./bin/niang new mon-app` clone ce squelette (sans `vendor/`, `.git/`, données
-locales), installe les dépendances, génère une nouvelle `APP_KEY` et installe le thème du type de site choisi.
-Sans projet existant sous la main, utilisez plutôt `composer create-project niangpro/framework mon-app`
-(voir [Installation](#installation)) : les deux chemins posent la même question et exécutent le même code.
+Depuis un projet existant, `./bin/niang new mon-app` demande le type de site puis lance
+`composer create-project niangpro/niangpro mon-app` (à côté du projet courant) : nouvelle `APP_KEY`, thème
+installé. Depuis le dépôt du framework, le squelette est construit localement et relié à votre copie du
+framework, pour essayer une modification dans une vraie application. Sans projet sous la main, utilisez
+directement `composer create-project niangpro/niangpro mon-app` (voir [Installation](#installation)) : les
+deux chemins posent la même question et exécutent le même code.
 
 ```bash
 ./bin/niang new mon-app                # demande le type de site (si STDIN est un terminal)
@@ -1998,7 +2026,7 @@ curl -L https://unpkg.com/htmx.org@2.x.x/dist/htmx.min.js -o public/js/htmx.js
 <script src="/js/htmx.js" defer></script>
 ```
 
-`json_for_html()` (`src/helpers.php`) passe des données PHP à Alpine en toute sécurité — sensible
+`json_for_html()` (`packages/core/src/helpers.php`) passe des données PHP à Alpine en toute sécurité — sensible
 en XSS, échappe en deux temps (JSON_HEX_* pour le contenu, puis `htmlspecialchars()` pour
 l'attribut HTML lui-même, qui casserait sinon dès que `$data` est un tableau) :
 
@@ -2028,7 +2056,7 @@ export default {
 
 `npm run build` construit dans `public/build/` (fichiers hashés, servis comme n'importe quel
 fichier statique) ; `npm run dev` démarre le serveur de dev Vite. `vite_asset(string $entry):
-string` (`src/helpers.php`) résout l'URL réelle sans jamais casser un lien à chaque build :
+string` (`packages/http/src/helpers.php`) résout l'URL réelle sans jamais casser un lien à chaque build :
 
 ```php
 <script type="module" src="<?= e(vite_asset('resources/js/app.js')) ?>"></script>
@@ -2046,12 +2074,15 @@ Le code est sur GitHub : **https://github.com/NiangPro/niangpro** (public, CI ac
 
 ## Packagist
 
-Le package est publié : **[packagist.org/packages/niangpro/framework](https://packagist.org/packages/niangpro/framework)**.
-`composer create-project niangpro/framework mon-app` et `composer require niangpro/framework`
-fonctionnent pour tout le monde.
+Le framework est publié : **[packagist.org/packages/niangpro/framework](https://packagist.org/packages/niangpro/framework)**
+(`composer require niangpro/framework`). En 2.0, le squelette d'application `niangpro/niangpro` et les 14
+paquets `niangpro/<nom>` sont publiés depuis ce dépôt par `.github/workflows/split.yml`, dans des dépôts
+miroirs (voir l'en-tête du workflow pour la configuration à faire une fois : dépôts, jeton `SPLIT_TOKEN`,
+Packagist).
 
-Pour publier une nouvelle version : créez un tag (`git tag v1.1.0 && git push --tags`) — le webhook
-GitHub → Packagist (configuré une fois pour toutes) met à jour le package automatiquement à chaque push.
+Pour publier une nouvelle version : créez un tag (`git tag v2.0.0 && git push --tags`) — le webhook
+GitHub → Packagist (configuré une fois pour toutes) met à jour le package automatiquement à chaque push, et
+le workflow de publication pousse le même tag dans chaque miroir (versions synchronisées).
 Si le webhook n'est pas configuré : GitHub → repo → **Settings → Webhooks → Add webhook**, avec comme
 Payload URL `https://packagist.org/api/github?username=VOTRE_PSEUDO_PACKAGIST`, content type
 `application/json`, et comme secret votre [token API Packagist](https://packagist.org/profile/).

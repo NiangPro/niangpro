@@ -1,0 +1,31 @@
+{
+    "name": "niangpro/http",
+    "description": "Routeur, requêtes et réponses, sessions, cookies, CSRF, CORS, vues, validation.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "NiangProgrammeur"
+        }
+    ],
+    "homepage": "https://github.com/NiangPro/niangpro",
+    "require": {
+        "php": ">=8.1",
+        "niangpro/core": "self.version",
+        "psr/http-message": "^1.1 || ^2.0",
+        "psr/http-server-middleware": "^1.0"
+    },
+    "suggest": {
+        "niangpro/database": "Pilotes et ponts optionnels vers database.",
+        "niangpro/redis": "Pilotes et ponts optionnels vers redis.",
+        "niangpro/storage": "Pilotes et ponts optionnels vers storage."
+    },
+    "autoload": {
+        "psr-4": {
+            "Niang\\Core\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
+    }
+}

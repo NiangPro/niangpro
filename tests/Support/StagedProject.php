@@ -9,16 +9,16 @@ use Niang\Core\Console\ProjectScaffolder;
  * process PHPUnit à part — exactement ce que vivra quelqu'un qui vient de créer un projet.
  *
  * Un test en process ne peut pas le faire : base_path() (donc le dossier des vues) est figé sur le
- * vrai projet au chargement de src/helpers.php. La copie a donc son propre src/, et son vendor/ est
+ * vrai projet au chargement de helpers.php. La copie a donc son propre packages/, et son vendor/ est
  * reconstitué à moindre coût : seul vendor/composer/ est copié (ses fichiers d'autoload se repèrent
- * via leur propre dossier, donc pointent vers le src/ et l'app/ de la copie), tous les autres
+ * via leur propre dossier, donc pointent vers le packages/ et l'app/ de la copie), tous les autres
  * paquets sont des liens vers ceux du vrai vendor/.
  */
 class StagedProject
 {
     use UsesTempDirectory;
 
-    private const COPIED = ['src', 'app', 'config', 'database', 'lang', 'resources', 'routes', 'public', 'tests', 'bin'];
+    private const COPIED = ['packages', 'skeleton', 'app', 'config', 'database', 'lang', 'resources', 'routes', 'public', 'tests', 'bin'];
     private const COPIED_FILES = ['composer.json', 'phpunit.xml', '.env.testing', '.env.example'];
 
     public readonly string $path;

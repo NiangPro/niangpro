@@ -1,0 +1,39 @@
+{
+    "name": "niangpro/foundation",
+    "description": "Application, gestion des erreurs, CLI et outils de test : assemble tous les paquets.",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "NiangProgrammeur"
+        }
+    ],
+    "homepage": "https://github.com/NiangPro/niangpro",
+    "require": {
+        "php": ">=8.1",
+        "niangpro/core": "self.version",
+        "niangpro/database": "self.version",
+        "niangpro/redis": "self.version",
+        "niangpro/http": "self.version",
+        "niangpro/cache": "self.version",
+        "niangpro/queue": "self.version",
+        "niangpro/mail": "self.version",
+        "niangpro/storage": "self.version",
+        "niangpro/auth": "self.version",
+        "niangpro/tenancy": "self.version",
+        "niangpro/observability": "self.version",
+        "niangpro/openapi": "self.version",
+        "niangpro/debug": "self.version",
+        "psr/container": "^2.0",
+        "psr/event-dispatcher": "^1.0",
+        "psr/log": "^3.0"
+    },
+    "suggest": {
+        "phpunit/phpunit": "Niang\\Core\\Testing\\TestCase (requêtes simulées, RefreshDatabase) dans les tests d'une application."
+    },
+    "autoload": {
+        "psr-4": {
+            "Niang\\Core\\": "src/"
+        }
+    }
+}

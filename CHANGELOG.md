@@ -9,6 +9,34 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **2.0 : le framework devient une dépendance** (roadmap §46, ADR 0013, remplace 0008). `composer create-project
+  niangpro/niangpro mon-app` crée l'application ; le framework, `niangpro/framework`, est installé dans `vendor/`
+  et se met à jour avec `composer update niangpro/framework`. Le squelette est construit à partir de ce dépôt
+  (`tools/build-skeleton.php`) et publié dans son dépôt miroir avec les paquets. `niang new` passe par
+  `composer create-project` (dans le dépôt du framework : squelette local et framework relié). La CI crée un projet
+  par type de site avec le framework dans `vendor/` et lance ses tests. **Passer un projet 1.x en 2.0 :
+  [UPGRADE.md](UPGRADE.md)**, vérifié sur un projet 1.5.0 créé depuis Packagist (162 tests verts après migration).
+
+- **Frontières des paquets (roadmap §46, ADR 0012)** : `src/Core` peut être découpé en paquets (core, database,
+  redis, http, cache, queue, mail, storage, auth, tenancy, observability, openapi, debug, framework) sans aucune
+  dépendance circulaire, vérifié par `tests/Unit/Architecture/PackageBoundariesTest`. Les composants se
+  branchent désormais entre eux par des points d'extension publics, assemblés dans `Application::wire()` :
+  `Log::contextUsing()`, `Http\Client::headersUsing()`, `Event::queueUsing()`, `Cache::prefixUsing()`,
+  `Model::tenantScopeUsing()`, `Metrics::isolateUsing()`, `Queue::stampUsing()` / `wrapUsing()` / `afterUsing()`,
+  `Container::resolveUsing()`. `Env::debug()` porte la règle du mode debug.
+- **Un dossier par paquet** : `src/Core/` est réparti dans `packages/<nom>/src/` (14 paquets `niangpro/<nom>`, chacun
+  avec son `composer.json`, dépendances vérifiées par `PackageBoundariesTest`). Namespaces inchangés
+  (`Niang\Core\...`) : rien à modifier dans une application. `base_path()` trouve la racine du projet quel que soit
+  l'emplacement du framework (premier parent avec `composer.json` et `vendor/`). Vérifié avec un vrai
+  `composer create-project` (thèmes vitrine, blog, saas).
+  Les fonctions globales sont réparties entre `core` (`base_path()`, `config()`, `__()`, `e()`, `url()`...) et
+  `http` (`route()`, `view()`, `csrf_field()`, `old()`...) ; le test d'architecture vérifie aussi les appels de
+  fonctions, pour qu'un paquet installé seul n'appelle pas une fonction qu'il n'a pas.
+- **Paquets installables séparément** : chaque paquet s'installe seul avec ses propres dépendances (vérifié en CI
+  sous PHP 8.1 pour les 14). Publication préparée : `.github/workflows/split.yml` pousse chaque paquet dans son
+  dépôt miroir à chaque push sur `main` et à chaque tag (`tools/split-packages.sh`), dès que le secret
+  `SPLIT_TOKEN` est configuré.
+
 - **Starter « saas »** (roadmap §63), bâti sur le multi-locataire : organisations sous `/o/<slug>` (une organisation
   est un locataire), membres et rôles (propriétaire, administrateur, membre ; il reste toujours un propriétaire),
   invitations par email à usage unique et limitées à l'adresse invitée, projets d'exemple isolés par organisation,
