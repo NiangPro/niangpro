@@ -21,4 +21,4 @@ Votre code est dans `app/`, `routes/`, `resources/views/` et `config/`. Le frame
 composer update niangpro/framework
 ```
 
-Framework : https://github.com/NiangPro/niangpro · Documentation (FR + EN) : https://github.com/NiangPro/niangpro-docs
+Documentation (FR + EN) : https://app.niangprogrammeur.com · Framework : https://github.com/NiangPro/niangpro
