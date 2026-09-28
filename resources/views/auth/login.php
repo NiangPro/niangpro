@@ -12,7 +12,12 @@
     <input id="password" name="password" type="password">
     <?= component('components/field-errors', ['field' => 'password']) ?>
 
+    <label><input type="checkbox" name="remember" value="1"> Se souvenir de moi</label>
+
     <button type="submit">Se connecter</button>
 </form>
+<?php foreach (\Niang\Core\OAuth::configured() as $provider): ?>
+    <p class="link"><a href="/auth/<?= e($provider) ?>/redirect">Continuer avec <?= e($provider === 'github' ? 'GitHub' : 'Google') ?></a></p>
+<?php endforeach; ?>
 <p class="link">Pas de compte ? <a href="/register">Créer un compte</a></p>
 <p class="link"><a href="/forgot-password">Mot de passe oublié ?</a></p>

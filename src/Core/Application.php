@@ -104,12 +104,12 @@ class Application
         DB::resetQueryCount();
 
         try {
-            $response = $this->router->dispatch($request, $this->container);
+            $response = MaintenanceMode::intercept($request) ?? $this->router->dispatch($request, $this->container);
         } catch (\Throwable $e) {
             $response = Handler::render($e, $request, $startedAt);
         }
 
-        $response = $this->applySecurityHeaders($response);
+        $response = $this->applySecurityHeaders($response)->withQueuedCookies(Cookie::pullQueued());
         $response = DebugToolbar::inject($response, $startedAt);
 
         return $this->compressIfSupported($response, $request);
@@ -120,7 +120,7 @@ class Application
     {
         $acceptEncoding = $request->header('Accept-Encoding', $request->server['HTTP_ACCEPT_ENCODING'] ?? '');
 
-        if (!str_contains((string) $acceptEncoding, 'gzip') || !function_exists('gzencode')) {
+        if ($response->isStreamed() || !str_contains((string) $acceptEncoding, 'gzip') || !function_exists('gzencode')) {
             return $response;
         }
 

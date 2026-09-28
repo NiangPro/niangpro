@@ -153,6 +153,92 @@ jobs:
           DB_PASSWORD: postgres
         run: ./vendor/bin/phpunit --testsuite=Database
 
+  coverage:
+    name: Couverture de code
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite
+          coverage: pcov
+          # Sans ça, pcov ne mesure qu'un dossier (src/) : app/ apparaîtrait à 0 % bien que testé.
+          ini-values: pcov.directory=., pcov.exclude="~/vendor/~"
+
+      - name: Installer les dépendances
+        run: composer install --prefer-dist --no-progress
+
+      - name: Tests avec mesure de couverture
+        run: ./vendor/bin/phpunit --coverage-clover build/clover.xml --coverage-text
+
+      - name: Seuils (global et composants critiques, voir tools/coverage-check.php)
+        run: php tools/coverage-check.php build/clover.xml
+
+      - name: Rapport Clover
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: couverture-clover
+          path: build/clover.xml
+          if-no-files-found: ignore
+
+  docker:
+    name: Docker (compose.yaml)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Construire et démarrer PHP-FPM, Nginx et MySQL
+        run: docker compose up -d --build --wait
+
+      # Premier démarrage : le conteneur installe vendor/, crée .env et sa clé, puis migre.
+      - name: Attendre que l'application réponde (jusqu'à 180 s)
+        run: |
+          for i in $(seq 1 90); do
+            if curl -fsS http://localhost:8080/up > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          docker compose logs app web
+          exit 1
+
+      - name: Vérifier les réponses HTTP
+        run: |
+          set -e
+          curl -fsS http://localhost:8080/ > /dev/null
+          curl -fsS http://localhost:8080/health | tee /dev/stderr | grep -q '"database":"ok"'
+          # Fichier statique servi par Nginx, sans passer par PHP.
+          curl -fsS -o /dev/null http://localhost:8080/favicon.svg
+          # Jamais de fichier caché ni de .php hors du point d'entrée.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/.env)" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/autre.php)" = 404
+          # Les variables de Docker arrivent bien à PHP-FPM (clear_env = no) : un article inséré
+          # directement dans MySQL est renvoyé par l'API, via Nginx et PHP-FPM. Sans ça, FPM lirait
+          # DB_CONNECTION=sqlite dans .env et ne le trouverait pas.
+          docker compose exec -T db mysql -uniangpro -pniangpro niangpro \
+            -e "INSERT INTO posts (title, body) VALUES ('marqueur-docker-ci', 'x')"
+          curl -fsS http://localhost:8080/api/posts | grep -q marqueur-docker-ci
+          # La clé générée au premier démarrage n'est pas remplacée au redémarrage.
+          before=$(grep '^APP_KEY=' .env)
+          docker compose restart app
+          sleep 5
+          test "$before" = "$(grep '^APP_KEY=' .env)"
+          test -n "${before#APP_KEY=}"
+
+      - name: Suite Database dans le conteneur, contre MySQL
+        run: docker compose exec -T -e DB_DATABASE=niangpro_test app vendor/bin/phpunit --testsuite=Database
+
+      - name: Journaux en cas d'échec
+        if: failure()
+        run: docker compose logs
+
+      - name: Arrêter
+        if: always()
+        run: docker compose down -v
+
   packaging-smoke:
     name: Packaging — ${{ matrix.site_type }}
     runs-on: ubuntu-latest

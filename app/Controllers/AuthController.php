@@ -66,10 +66,15 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        if (!Auth::attempt($data['email'], $data['password'])) {
+        if (!Auth::attempt($data['email'], $data['password'], remember: $request->input('remember') === '1')) {
             return $this->redirect('/login')
                 ->with('errors', ['email' => ['Identifiants invalides.']])
                 ->with('old', ['email' => $data['email']]);
+        }
+
+        // Mot de passe correct, double authentification activée : le code est demandé avant de connecter.
+        if (Auth::twoFactorPending()) {
+            return $this->redirect('/two-factor-challenge');
         }
 
         return $this->redirect(User::homePath(Auth::user()));

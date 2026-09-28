@@ -226,7 +226,34 @@ Post::query()->max('views');
 Post::query()->where('id', 5)->exists();  // bool
 
 Post::query()->where('id', 5)->firstOrFail();  // lève NotFoundException si aucune ligne
+
+// Jointure externe : les articles sans auteur sont gardés (name vaut alors null)
+Post::query()->select('posts.title', 'users.name')
+    ->leftJoin('users', 'posts.author_id', '=', 'users.id')->get();
+
+// Une seule colonne
+Post::query()->pluck('title');          // ['Premier', 'Second', ...]
+Post::query()->pluck('title', 'id');    // [1 => 'Premier', 2 => 'Second', ...]
+
+// Parcourir une grande table par paquets, sans tout charger en mémoire
+User::query()->where('active', true)->chunk(500, function (array $users, int $paquet) {
+    foreach ($users as $user) { /* ... */ }
+    // return false; arrête le parcours
+});
+
+// Incrément calculé par la base : deux commandes simultanées ne perdent pas de mise à jour
+Product::query()->where('id', 5)->decrement('stock', 2);
+Post::query()->where('id', 5)->increment('views', 1, ['last_viewed_at' => date('Y-m-d H:i:s')]);
 ```
+
+`chunk()` trie par `id` si vous ne donnez pas d'`orderBy()` : sans ordre stable, deux paquets pourraient
+se chevaucher. Ne modifiez pas, dans le rappel, la colonne sur laquelle la requête filtre (par exemple
+`active` ci-dessus), sinon les paquets suivants sont décalés.
+
+Les noms de colonnes et de tables, et les opérateurs (`=`, `!=`, `<>`, `<`, `<=`, `>`, `>=`, `LIKE`,
+`NOT LIKE`), sont insérés tels quels dans le SQL : ils sont donc vérifiés, et tout le reste est refusé.
+`where('prix', $_GET['op'], 10)` ou `update($_POST)` ne peuvent pas injecter de SQL. Les valeurs, elles,
+sont toujours liées.
 
 ## Migrations
 
@@ -249,6 +276,9 @@ Schema::create('posts', function ($table) {
     $table->date('published_at')->nullable();
     $table->timestamp('deleted_at')->nullable();
     $table->json('metadata')->nullable();
+    $table->bigInteger('downloads')->default(0);          // 64 bits (BIGINT)
+    $table->uuid('public_id')->unique();                   // remplissez-la avec uuid()
+    $table->enum('status', ['draft', 'published'])->default('draft');
     $table->foreignId('author_id')->constrained();  // -> table `authors`, colonne `id`
     $table->string('slug')->unique();
     $table->timestamps();               // created_at + updated_at
@@ -259,6 +289,10 @@ Schema::create('posts', function ($table) {
 ```
 
 Chaque colonne accepte `->nullable()`, `->default($valeur)` et `->unique()`, chaînables entre eux.
+
+`enum()` devient un vrai `ENUM` en MySQL, et un `VARCHAR` avec une contrainte `CHECK` en SQLite et
+PostgreSQL : sur les trois moteurs, la base refuse une valeur hors liste. `uuid()` est un type natif
+`UUID` en PostgreSQL et 36 caractères ailleurs ; le helper `uuid()` génère une valeur (version 4).
 
 ### Multi-SGBD (SQLite, MySQL, PostgreSQL)
 
@@ -547,6 +581,18 @@ Niveaux disponibles (style PSR-3) : `emergency`, `alert`, `critical`, `error`, `
 de contexte. Un fichier par jour dans `storage/logs/`. Les exceptions non interceptées y sont aussi
 consignées automatiquement.
 
+```dotenv
+LOG_LEVEL=warning   # niveau minimal écrit (debug par défaut) : warning ignore debug, info et notice
+LOG_DAYS=14         # jours de fichiers conservés ; 0 = ne jamais supprimer
+```
+
+Les fichiers plus anciens que `LOG_DAYS` sont supprimés au premier message de chaque journée.
+Une valeur de contexte dont la clé évoque un secret (`password`, `token`, `secret`, `api_key`,
+`authorization`, `cookie`, `card`, `cvv`, `iban`...) est remplacée par `[masqué]`, à n'importe quelle
+profondeur : `Log::info('Connexion', $request->all())` n'écrit pas le mot de passe. `niang doctor`
+signale un `LOG_LEVEL` inconnu (tout est alors journalisé) et `debug` en production.
+`Config::set('logging.level', 'error')` change la valeur pour la suite du process (tests).
+
 Pour injecter un logger plutôt qu'appeler la façade statique (interop avec du code tiers, tests avec
 un mock), `Niang\Core\Logger` implémente `Psr\Log\LoggerInterface` et écrit dans les mêmes fichiers
 — voir [PSR-11 et PSR-3](#psr-11-et-psr-3).
@@ -742,6 +788,76 @@ $user['password'] = Hash::make($plain); // Argon2id si dispo, sinon bcrypt
 ```
 
 Un autre modèle ? `Auth::useModel(MonUser::class)`.
+
+**Se souvenir de moi.** `Auth::attempt($email, $password, remember: true)` (ou
+`Auth::login($user, remember: true)`) pose un cookie chiffré de 30 jours, qui reconnecte l'utilisateur
+quand sa session a expiré. Il faut la colonne `users.remember_token` (migration fournie). La case est
+déjà présente sur `/login`.
+
+```php
+Auth::logout();            // déconnecte cet appareil ; les autres appareils mémorisés le restent
+Auth::logoutEverywhere();  // invalide aussi le « se souvenir de moi » de tous les appareils
+```
+
+**Rehachage automatique.** À chaque connexion réussie, un mot de passe haché avec d'anciens paramètres
+(bcrypt, puis Argon2id devenu disponible, ou un coût relevé) est recalculé et enregistré : c'est le
+seul moment où le mot de passe en clair est connu. `Hash::needsRehash($hash)` fait la vérification.
+Un email inconnu coûte le même temps de calcul qu'un mauvais mot de passe : la durée de la réponse ne
+révèle pas quels comptes existent.
+
+**Double authentification (TOTP).** Compatible avec Google Authenticator, Microsoft Authenticator,
+Aegis, 1Password… (codes à 6 chiffres renouvelés toutes les 30 secondes, RFC 6238), sans dépendance.
+Les pages sont fournies : `/user/two-factor` pour l'activer (mot de passe demandé, clé et lien
+`otpauth://` à ajouter dans l'application, 8 codes de secours affichés une seule fois, puis un premier
+code pour confirmer) et `/two-factor-challenge`, demandé après le mot de passe.
+
+```php
+if (Auth::attempt($email, $password)) {
+    if (Auth::twoFactorPending()) {          // mot de passe correct, mais pas encore connecté
+        return redirect vers la saisie du code;
+    }
+}
+Auth::completeTwoFactor($code);              // code de l'application ou code de secours
+
+TwoFactor::enable($user);                    // ['secret', 'uri', 'recovery_codes'], à confirmer
+TwoFactor::confirm($user, $code);            // la double authentification devient obligatoire
+TwoFactor::disable($user);
+TwoFactor::regenerateRecoveryCodes($user);
+```
+
+Le secret est chiffré en base avec `APP_KEY`, les codes de secours ne sont stockés que sous forme
+d'empreintes et servent une fois, et un code déjà utilisé est refusé (pas de rejeu). La saisie du code
+doit se faire dans les 5 minutes, et la route est limitée en débit. `POST /api/tokens` exige aussi le
+code (champ `code`) : un jeton API ne contourne pas la double authentification. Pas de QR code intégré
+(il faudrait un encodeur) : la clé s'affiche en groupes de 4 caractères, et le lien `otpauth://` ouvre
+directement l'application sur mobile ; pour un QR code, passez `$setup['uri']` à la bibliothèque
+JavaScript de votre choix.
+
+**Connexion avec Google ou GitHub (OAuth 2).** Sans dépendance. Créez une application chez le
+fournisseur ([Google](https://console.cloud.google.com/apis/credentials),
+[GitHub](https://github.com/settings/developers)), déclarez l'URL de retour
+`APP_URL/auth/google/callback` (ou `github`), puis dans `.env` :
+
+```dotenv
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+```
+
+Le bouton « Continuer avec GitHub » apparaît alors sur `/login` (routes `/auth/{provider}/redirect` et
+`/auth/{provider}/callback`, 404 tant qu'un fournisseur n'est pas configuré). À la connexion, le compte est
+retrouvé par son email, ou créé (email marqué vérifié, mot de passe aléatoire : « mot de passe oublié »
+permet d'en choisir un). Pour vos propres routes :
+
+```php
+return OAuth::redirect('github');
+$profil = OAuth::user('github', $request); // ['id', 'email', 'email_verified', 'name', 'avatar', 'raw']
+Auth::loginOrRequireTwoFactor($user);       // connecte, ou exige le code si la 2FA est activée
+```
+
+Protections : `state` aléatoire à usage unique (un lien de retour forgé ou rejoué est refusé), PKCE (un
+code intercepté est inutilisable), secret client jamais envoyé au navigateur. Seul un email **vérifié par
+le fournisseur** désigne un compte : sans cette règle, créer chez le fournisseur une adresse non vérifiée
+identique à celle d'un compte suffirait à s'y connecter. La double authentification reste exigée.
 
 Protégez une route avec `Authenticate::class` (redirige vers `/login`, ou 401 JSON si la requête
 l'attend) ; empêchez l'accès aux pages login/register une fois connecté avec `RedirectIfAuthenticated::class`.
@@ -946,6 +1062,70 @@ $this->post('/profil/avatar', ['avatar' => UploadedFile::fakeImage('moi.png', 20
 $this->post('/cv', ['cv' => UploadedFile::fake('cv.pdf', "%PDF-1.4 ...")]);
 ```
 
+## Réponses fichiers
+
+```php
+return Response::download(Storage::path($facture['path']), 'Facture été 2026.pdf'); // téléchargement
+return Response::file(Storage::path($user['avatar']));                               // affichage (image, PDF...)
+return Response::stream(function () {                                               // corps écrit au fil de l'eau
+    foreach (Order::query()->get() as $order) {
+        echo $order['reference'] . ';' . $order['total_cents'] . "\n";
+    }
+}, 200, ['Content-Type' => 'text/csv']);
+```
+
+Le fichier est lu depuis le disque à l'envoi, sans être chargé en mémoire. Ni la compression gzip
+ni la barre de debug ne touchent un fichier ou un flux. `file()` n'affiche dans le navigateur que
+des types sûrs (images, PDF, texte, MP3, MP4) : un fichier HTML ou SVG envoyé par un visiteur
+exécuterait son JavaScript sur votre domaine, il est donc proposé en téléchargement. Le nom proposé
+peut contenir des accents (RFC 6266) ; un fichier absent donne une 404. Pour servir les uploads de
+`storage/app/`, passez par une route qui vérifie les droits avant `Response::file()`.
+
+Un cookie peut accompagner n'importe quelle réponse, chiffré comme ceux de `Cookie::set()`. Il
+n'est envoyé que si la réponse l'est, et reste lisible dans les tests (`assertCookie()`) :
+
+```php
+return Response::redirect('/')->cookie('theme', 'sombre', 60 * 24 * 30); // minutes
+return Response::redirect('/')->withoutCookie('theme');
+```
+
+### Temps réel : Server-Sent Events
+
+Pour pousser des mises à jour au navigateur (progression d'un export, notifications, tableau de bord)
+sans WebSocket ni dépendance :
+
+```php
+use Niang\Core\Http\ServerSentEvent;
+
+$router->get('/export/{id}/progression', function (string $id): Response {
+    return Response::eventStream(function () use ($id) {
+        while (($pourcent = Export::progression($id)) < 100) {
+            yield new ServerSentEvent(['pourcent' => $pourcent], event: 'progress', id: (string) $pourcent);
+            sleep(1);
+        }
+        yield new ServerSentEvent(['pourcent' => 100], event: 'done');
+    });
+});
+```
+
+```js
+const source = new EventSource('/export/42/progression');
+source.addEventListener('progress', e => barre.value = JSON.parse(e.data).pourcent);
+source.addEventListener('done', () => source.close());
+```
+
+Chaque `yield` part immédiatement : une chaîne est envoyée telle quelle, toute autre valeur en JSON.
+`yield null` ne produit rien, mais envoie un commentaire `: ping` si rien n'est parti depuis
+`$heartbeat` secondes (15 par défaut), pour que les proxys ne coupent pas la connexion. Pendant le flux,
+la session est libérée (les autres onglets du visiteur ne sont pas bloqués ; écrivez en session avant de
+commencer), et l'en-tête `X-Accel-Buffering: no` empêche Nginx de retenir les événements. Le flux s'arrête
+quand le générateur se termine ou, à un ou deux événements près, quand le client se déconnecte.
+
+Chaque flux occupe un processus PHP tant qu'il est ouvert : prévoyez assez de workers PHP-FPM
+(`pm.max_children`). En développement, `PHP_CLI_SERVER_WORKERS=4 ./bin/niang serve` permet de naviguer
+pendant qu'un flux est ouvert. Pour des milliers de connexions simultanées, un serveur dédié (WebSocket,
+Mercure) reste plus adapté.
+
 ## Emails
 
 Trois drivers, pilotés par `MAIL_MAILER` dans `.env` (`log` par défaut) : `smtp` pour un envoi
@@ -964,6 +1144,36 @@ class WelcomeMailable extends Mailable
 
 Mail::to('awa@example.com')->send(new WelcomeMailable('Awa'));
 ```
+
+### Copies, pièces jointes, envoi différé
+
+```php
+Mail::to('awa@example.com')
+    ->cc('comptabilite@example.com')           // visible de tous
+    ->bcc(['archives@example.com'])            // copie cachée : n'apparaît jamais dans le message
+    ->send(new InvoiceMailable($facture));
+
+class InvoiceMailable extends Mailable
+{
+    // ...
+    public function attachments(): array
+    {
+        return [
+            MailAttachment::fromPath(Storage::path($this->facture['path']), 'Facture été 2026.pdf'),
+            MailAttachment::fromData($csv, 'export.csv', 'text/csv'),   // contenu déjà en mémoire
+        ];
+    }
+}
+
+Mail::to($user['email'])->queue(new WelcomeMailable($user['name']));       // envoyé par queue:work
+Mail::to($user['email'])->later(3600, new ReminderMailable($user['name'])); // dans une heure au plus tôt
+```
+
+`queue()` ne fait pas attendre la requête HTTP le serveur SMTP ; le job retente 3 fois si le serveur
+est indisponible. Le Mailable est sérialisé : pas de closure ni de connexion dans ses propriétés, et
+un fichier joint par `fromPath()` doit encore exister quand `queue:work` envoie. Le type MIME d'une
+pièce jointe est détecté (extension `fileinfo`) si vous ne le donnez pas ; un nom accentué est encodé
+(RFC 2231).
 
 ### SMTP (production)
 
@@ -995,8 +1205,7 @@ vérifié. Une erreur (serveur injoignable, identifiants refusés, destinataire 
 ou `array` en production. En développement, [Mailpit](https://mailpit.axllent.org/) avec
 `MAIL_HOST=127.0.0.1`, `MAIL_PORT=1025` et `MAIL_ENCRYPTION=none` affiche les emails dans le navigateur.
 
-L'envoi est synchrone : pour ne pas faire attendre la requête, envoyez depuis un job
-(`Queue::push()`) ou un écouteur `ShouldQueue`.
+`send()` est synchrone : pour ne pas faire attendre la requête, utilisez `queue()` (voir plus haut).
 
 ### Développement et tests
 
@@ -1010,6 +1219,55 @@ Mail::fake();
 $this->post('/register', [...]);
 $this->assertCount(1, Mail::sent());
 ```
+
+## Notifications
+
+Un même message envoyé sur un ou plusieurs canaux : `mail`, `database` (table `notifications`, fournie
+avec les migrations), `webhook`, ou votre propre canal (SMS, Slack...).
+
+```php
+use Niang\Core\Notification;
+
+class CommandeExpediee extends Notification
+{
+    public function __construct(private array $commande) {}
+
+    public function via(array $user): array
+    {
+        return ['mail', 'database'];
+    }
+
+    public function toMail(array $user): Mailable
+    {
+        return new CommandeExpedieeMailable($this->commande);
+    }
+
+    public function toDatabase(array $user): array
+    {
+        return ['commande' => $this->commande['id'], 'message' => 'Votre commande est en route'];
+    }
+}
+
+Notification::send($user, new CommandeExpediee($commande));        // un destinataire (sa colonne email)
+Notification::send($admins, new CommandeExpediee($commande));      // ou une liste
+
+Notification::for($user);             // ses notifications (data décodé), les plus récentes d'abord
+Notification::unread($user);          // non lues ; Notification::unreadCount($user)
+Notification::markAsRead($user, $id); // false si la notification n'est pas la sienne
+Notification::markAllAsRead($user);
+```
+
+Une notification qui implémente `ShouldQueue` part par la file (un job par destinataire, 3 tentatives) ;
+`Notification::sendNow()` l'envoie tout de suite. En test, `Notification::fake()` puis
+`Notification::sent()`.
+
+**Webhook** : `toWebhook()` renvoie le corps JSON, `webhookUrl()` l'adresse (http ou https uniquement).
+Avec `webhookSecret()`, l'en-tête `X-Niang-Signature: sha256=<HMAC du corps>` permet au destinataire de
+vérifier l'origine (`hash_equals()` avec son propre calcul). Les redirections ne sont pas suivies, et une
+réponse hors 2xx lève une `NotificationException`.
+
+**Canal sur mesure** (SMS...) : une classe qui implémente `Niang\Core\Contracts\NotificationChannel`
+(`send(array $notifiable, Notification $notification)`), dont vous renvoyez le nom depuis `via()`.
 
 ## Compression & supervision
 
@@ -1036,6 +1294,42 @@ Activez `opcache.enable=1` et `opcache.validate_timestamps=0` dans le `php.ini` 
 (remettez `validate_timestamps=1` en développement, sinon vos modifications de code ne seront pas prises
 en compte sans redémarrage).
 
+### Docker (facultatif)
+
+```bash
+docker compose up -d     # PHP-FPM 8.3 + Nginx + MySQL 8.4, sur http://localhost:8080
+docker compose exec app php bin/niang db:seed
+docker compose down      # ajoutez -v pour supprimer aussi la base
+```
+
+Au premier démarrage, le conteneur `app` installe `vendor/`, crée `.env` et sa clé `APP_KEY` (jamais
+remplacée ensuite), puis lance les migrations (`NIANGPRO_MIGRATE=false` pour s'en passer). Le code est
+monté depuis votre dossier : une modification est visible sans reconstruire l'image. Les variables de
+`compose.yaml` (`DB_HOST=db`...) priment sur `.env`. Nginx ne sert que `public/`, n'exécute que
+`index.php` et refuse les fichiers cachés. Autre port : `NIANGPRO_HTTP_PORT=8000 docker compose up -d`.
+Une base `niangpro_test` est créée pour lancer la suite Database contre MySQL :
+`docker compose exec -e DB_DATABASE=niangpro_test app vendor/bin/phpunit --testsuite=Database`.
+
+Pour la production, `docker/php/Dockerfile` construit une image autonome (code copié, `composer install
+--no-dev`) : passez `APP_KEY`, `APP_ENV=production`, `APP_DEBUG=false` et les `DB_*` comme variables
+d'environnement, et mettez `opcache.validate_timestamps=0` dans `docker/php/php.ini`.
+
+Docker reste facultatif : `./bin/niang serve` avec SQLite suffit pour développer.
+
+### Mode maintenance
+
+```bash
+./bin/niang down                      # toute requête reçoit une page 503
+./bin/niang down --retry=60           # + en-tête Retry-After: 60
+./bin/niang down --secret             # affiche une URL secrète qui vous laisse naviguer (cookie 12 h)
+./bin/niang up                        # rouvre le site
+```
+
+`/up` et `/health` restent accessibles, pour que la supervision ne déclenche pas d'alerte pendant une
+maintenance prévue. La page 503 (`resources/views/errors/503.php`) n'utilise pas le layout du site,
+qui pourrait dépendre d'une base en cours de migration. Seul le hachage du secret est écrit sur le
+disque (`storage/framework/down`). Avec plusieurs serveurs web, lancez `down` et `up` sur chacun.
+
 ## Tests
 
 Les seules dépendances Composer du projet sont en `require-dev` (jamais livrées en production) :
@@ -1046,6 +1340,15 @@ composer test       # PHPUnit
 composer lint        # PHP-CS-Fixer (dry-run)
 composer lint:fix     # PHP-CS-Fixer (applique)
 composer analyse      # PHPStan niveau 6
+```
+
+Couverture de code (extension `pcov` ou `xdebug`), vérifiée en CI : un seuil global (78 %) et un seuil par
+composant critique (Router, Container, Database, Auth, Validation, HTTP, sécurité), définis dans
+`tools/coverage-check.php` :
+
+```bash
+vendor/bin/phpunit --coverage-clover build/clover.xml
+php tools/coverage-check.php build/clover.xml
 ```
 
 Client de test sans serveur HTTP réel (dispatche directement dans le Router) :

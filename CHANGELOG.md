@@ -9,6 +9,127 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
 
 ### Added
 
+- **Connexion avec Google ou GitHub** (OAuth 2, roadmap §52, sans dépendance) : `Niang\Core\OAuth`
+  (`redirect()`, `user()`, `configured()`), fournisseurs `GoogleProvider` (OpenID Connect) et
+  `GitHubProvider` (email principal lu sur `/user/emails`), `config/oauth.php`. `state` à usage unique
+  lié au fournisseur, PKCE S256. `Auth::loginOrRequireTwoFactor()` : la double authentification reste
+  exigée. Application de démonstration : routes `/auth/{provider}/redirect|callback`, boutons sur
+  `/login` pour les fournisseurs configurés ; un compte n'est rattaché que par un email vérifié par le
+  fournisseur. `Niang\Core\Http\Client` : client HTTP minimal (http/https, sans redirection, délai
+  borné), désormais utilisé aussi par le webhook des notifications. 12 tests contre un faux
+  fournisseur (vrai serveur HTTP local) ; un test de mutation confirme que retirer la vérification de
+  l'email fait échouer le test. Non testé contre les vrais Google et GitHub (identifiants requis).
+
+- **Server-Sent Events** (roadmap §51, sans paquet séparé ni dépendance) : `Response::eventStream()`
+  à partir d'un générateur, `Http\ServerSentEvent` (event, id, retry, données JSON ou texte, données
+  multi-lignes, retours à la ligne neutralisés dans event/id), commentaire `: ping` périodique.
+  `Response::send()` libère la session et vide les tampons de sortie avant tout flux (y compris
+  `stream()`). Vérifié sur un vrai serveur : événements reçus à une seconde d'intervalle, requête
+  du même visiteur servie en 1 ms pendant le flux, flux arrêté à la déconnexion (4 événements
+  produits sur 10 pour un client parti à 1,5 s).
+
+- **Double authentification TOTP** (roadmap §21) : `Niang\Core\Totp` (RFC 6238/4226, SHA-1,
+  6 chiffres, 30 s ; vérifié contre les vecteurs de la RFC et une implémentation Python indépendante),
+  `Niang\Core\TwoFactor` (secret chiffré avec `APP_KEY`, confirmation par un premier code, 8 codes de
+  secours à usage unique stockés sous forme d'empreintes, anti-rejeu par période et requête
+  conditionnelle). `Auth::attempt()` ne connecte plus un utilisateur qui l'a activée :
+  `Auth::twoFactorPending()` puis `Auth::completeTwoFactor($code)` (5 minutes, « se souvenir de moi »
+  conservé). Pages `/two-factor-challenge` et `/user/two-factor` (mot de passe exigé pour activer ou
+  désactiver). Nouvelles colonnes `users.two_factor_*` (migration). 23 tests.
+
+- **Notifications** (roadmap §29) : `Notification::send($user|$users, new X())`, canaux `mail`,
+  `database` (nouvelle table `notifications`), `webhook` (JSON POST, signature HMAC
+  `X-Niang-Signature` avec un secret, http/https uniquement, redirections non suivies, erreur hors 2xx)
+  et canaux sur mesure (`Contracts\NotificationChannel`, pour les SMS par exemple). `ShouldQueue` :
+  un job `SendQueuedNotification` par destinataire. Lecture : `for()`, `unread()`, `unreadCount()`,
+  `markAsRead()` (limité au destinataire : impossible de marquer la notification d'un autre),
+  `markAllAsRead()`. `Notification::fake()` / `sent()`. 13 tests, dont le webhook contre un vrai
+  serveur HTTP (process séparé).
+
+- **Docker** (roadmap §66) : `compose.yaml` (PHP-FPM 8.3, Nginx 1.27, MySQL 8.4) et `docker/` (image
+  PHP avec `pdo_mysql`, `pdo_pgsql`, OPcache ; configuration Nginx ; base `niangpro_test`). Au démarrage,
+  le conteneur installe `vendor/`, crée `.env` et une `APP_KEY` jamais remplacée, puis migre. PHP-FPM
+  garde les variables d'environnement (`clear_env = no`, sans quoi `DB_HOST` n'arriverait pas à
+  l'application). Nginx n'exécute que `public/index.php` et refuse les fichiers cachés. Nouveau job CI
+  `docker` qui construit et démarre la pile et vérifie : `/`, `/up`, `/health` avec MySQL, un article
+  inséré dans MySQL renvoyé par l'API (preuve que PHP-FPM reçoit bien les variables), fichier statique,
+  `.env` et autre `.php` en 404, clé conservée au redémarrage, suite Database dans le conteneur.
+  Non testé en local (Docker absent de la machine de développement) : la CI est la vérification.
+
+- **Couverture de code en CI** (roadmap §58 et §60) : job `coverage` (pcov), rapport Clover en
+  artefact, et `tools/coverage-check.php` qui impose un seuil global (78 %, mesuré 79,8 %) et un seuil
+  par composant critique : Router 85 %, Container 90 %, Database 85 %, Auth 90 %, Validation 90 %,
+  HTTP 80 %, sécurité (Crypt, Csrf, UrlSignature, AppKey, Cors, RateLimiter, MaintenanceMode, Env)
+  90 %. Nouveaux tests d'`Env` : le chargement de `.env` n'était jamais exercé (26,7 % → couvert).
+
+- **`SECURITY.md` et `CONTRIBUTING.md`** (roadmap §72-73) : signalement privé des failles via les
+  avis de sécurité GitHub, versions maintenues, délais de réponse, crédits ; installation, commandes
+  de vérification (`composer test`, `lint`, `analyse`), exigences d'une contribution (tests, aucune
+  dépendance à l'exécution, rétrocompatibilité, documentation FR + EN), format des commits. Modèles
+  d'issues (bug, fonctionnalité, lien vers le signalement privé) et de pull request.
+
+- **Logs : niveau minimal, durée de conservation, secrets masqués** (roadmap §27). `config/logging.php`
+  : `LOG_LEVEL` (défaut `debug` ; un niveau inconnu journalise tout plutôt que rien), `LOG_DAYS`
+  (défaut 14, 0 = tout garder ; les fichiers plus anciens sont supprimés au premier message de la
+  journée, `Log::prune()`). Les clés de contexte sensibles (`password`, `token`, `secret`, `api_key`,
+  `authorization`, `cookie`, `card`, `cvv`, `iban`) sont remplacées par `[masqué]` à toute profondeur,
+  y compris dans le message interpolé. `niang doctor` signale un `LOG_LEVEL` inconnu, et `debug` en
+  production. Nouveau `Config::set()` (notation pointée).
+
+- **Emails : copie (`cc()`), copie cachée (`bcc()`), pièces jointes, envoi par la file.**
+  `Mail::to(...)->cc(...)->bcc(...)`, `Mailable::attachments()` avec `MailAttachment::fromPath()` /
+  `fromData()` (`multipart/mixed`, base64 en lignes de 76 caractères, nom accentué RFC 2231, type
+  MIME détecté), `->queue()` / `->later()` (job `Niang\Core\Jobs\SendQueuedMail`, 3 tentatives).
+  En SMTP, un `RCPT TO` par destinataire (doublons retirés) et aucun en-tête `Bcc` dans le message.
+  Adresses en copie vérifiées contre l'injection d'en-têtes. `Mail::sent()` expose `cc` et `bcc`.
+  Vérifié avec un vrai serveur SMTP (aiosmtpd) et le parseur `email` de Python : aucun défaut MIME,
+  pièces jointes identiques octet pour octet, nom accentué lu correctement, `Bcc` absent.
+
+- **« Se souvenir de moi »** (roadmap §21) : `Auth::attempt(..., remember: true)` /
+  `Auth::login($user, remember: true)` posent un cookie chiffré de 30 jours (`remember_web`) qui
+  reconnecte l'utilisateur après expiration de sa session. Jeton aléatoire de 64 caractères dans
+  `users.remember_token` (nouvelle migration), réutilisé par chaque appareil ; comparaison
+  `hash_equals`, cookie invalide supprimé. `Auth::logoutEverywhere()` l'efface pour tous les
+  appareils. Case à cocher sur `/login` (squelette, thèmes blog et boutique). Vérifié sur un vrai
+  serveur : avec le seul cookie `remember_web`, l'utilisateur est reconnu.
+- **Rehachage automatique des mots de passe** : `Hash::needsRehash()`, appelé par `Auth::attempt()`
+  après une connexion réussie ; le nouveau hachage est écrit sans toucher `updated_at`.
+- **`Cookie::queue()` / `queueForget()`** : pour poser un cookie hors d'un contrôleur (ex. `Auth`), il
+  part avec la réponse de la requête en cours. `TestResponse::assertCookieForgotten()`.
+- **`RateLimiter::clear($key)`** remet un compteur à zéro. `TestCase::setUp()` vide désormais les
+  compteurs (`RateLimiter::reset()`), comme `Event` et `Queue` : les connexions d'un test ne font plus
+  échouer en 429 un test suivant sur `/login`.
+
+- **Query Builder : `leftJoin()`, `pluck()`, `chunk()`, `increment()` / `decrement()`** (roadmap §17).
+  `pluck('title', 'id')` accepte les colonnes qualifiées (`posts.title`) et applique les `$casts`.
+  `chunk()` trie par `id` à défaut d'`orderBy()` et s'arrête si le rappel retourne `false`.
+  `increment()` fait le calcul côté base (`stock = stock + ?`) : pas de mise à jour perdue entre deux
+  requêtes simultanées.
+- **Blueprint : `bigInteger()`, `uuid()`, `enum()`** et le helper `uuid()` (version 4). `enum()` :
+  `ENUM` natif en MySQL, `VARCHAR` + `CHECK` en SQLite et PostgreSQL ; une valeur hors liste est
+  refusée par la base sur les trois moteurs. Suite Database vérifiée sur SQLite et un vrai MySQL.
+
+- **Mode maintenance : `niang down` / `niang up`** : rien ne permettait de fermer le site pendant une
+  migration ou un déploiement. Tant que `storage/framework/down` existe, toute requête reçoit une 503
+  (page autonome `errors/503.php`, sans le layout qui pourrait dépendre de la base ; JSON pour une
+  API), sauf `/up` et `/health`. `--retry=N` ajoute `Retry-After`. `--secret[=valeur]` ouvre une URL
+  qui pose un cookie chiffré de 12 h pour naviguer normalement ; seul le hachage du secret est
+  écrit sur le disque. `niang doctor` signale un site resté en maintenance. Messages traduits (fr,
+  en). 11 tests, et vérifié sur un vrai serveur (503 + Retry-After, /up à 200, cookie posé par l'URL
+  secrète puis accepté, 200 après `up`).
+- **`Response::cookie()` / `withoutCookie()`** (roadmap §13) : un cookie chiffré posé avec la
+  réponse plutôt qu'immédiatement, visible dans les tests (`TestResponse::cookie()`,
+  `assertCookie()`). Pas encore transmis par le pont PSR-7.
+
+- **Réponses fichiers : `Response::download()`, `Response::file()`, `Response::stream()`** : aucun moyen
+  jusqu'ici d'envoyer un fichier (facture, export) ni de servir un upload de `storage/app/`.
+  Fichier lu à l'envoi (`readfile`, pas en mémoire), nom accentué selon RFC 6266 (en-tête protégé
+  contre l'injection), `nosniff`, 404 si absent. `file()` n'affiche inline que des types sûrs et
+  force le téléchargement du HTML/SVG. `Response::isStreamed()` : la compression gzip et la barre
+  de debug ne lisent ni ne modifient plus un fichier ou un flux ; vider le contenu (requête HEAD)
+  retire aussi le fichier. 8 tests, et vérifié sur un vrai serveur (octets complets malgré
+  `Accept-Encoding: gzip`, HEAD sans corps).
+
 - **Planificateur de tâches** (roadmap §41) : `queue:work` devait déjà être lancé par cron, sans
   aucun outil pour déclarer des tâches récurrentes.
   - `routes/schedule.php` (reçoit `$schedule`) : `command()` (process séparé — un plantage ou un
@@ -181,6 +302,20 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/), le vers
   ligne exacte à exécuter pour ajouter ce dossier au `PATH`.
 
 ### Security
+
+- **`POST /api/tokens` sans limitation de débit** : on pouvait y essayer des mots de passe sans
+  limite. `ThrottleRequests` y est ajouté, comme sur `/login`. La route répond aussi en temps constant
+  pour un email inconnu, et exige le code de double authentification quand elle est activée.
+- **`GET /api/me` renvoyait la ligne `users` entière**, hachage du mot de passe compris. La route de
+  démonstration ne renvoie plus que `id`, `name`, `email` et `email_verified_at`.
+- **`Auth::attempt()` avec un email inconnu répondait plus vite** qu'avec un mauvais mot de passe (pas
+  de calcul de hachage), ce qui permettait de deviner quels comptes existent. Même coût désormais.
+- **Query Builder : opérateurs et clés de colonnes vérifiés.** L'opérateur de `where()`, `orWhere()`,
+  `having()`, `whereColumn()` et `join()`, ainsi que les clés de `insert()` et `update()`, étaient
+  insérés tels quels dans le SQL : `where('prix', $_GET['op'], 10)` ou
+  `QueryBuilder::update($request->all())` permettaient une injection (les modèles, eux, étaient
+  protégés par `$fillable`). Seuls les opérateurs de comparaison usuels et les identifiants simples
+  ou qualifiés passent désormais ; le reste lève `InvalidArgumentException`.
 
 - **Plus de clé de repli publique pour `APP_KEY`** : `Cookie`, `UrlSignature` et `ApiToken`
   utilisaient `niangpro-insecure-default-key` quand `APP_KEY` était vide — et `composer

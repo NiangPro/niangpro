@@ -8,6 +8,7 @@ return [
     '405' => 'Méthode non autorisée.',
     '419' => 'Jeton CSRF invalide ou expiré.',
     '429' => 'Trop de requêtes, réessayez plus tard.',
+    '503' => 'Site en maintenance, réessayez dans quelques minutes.',
     'server_error' => 'Erreur serveur.',
     'database_error' => 'Erreur de base de données.',
     'other' => 'Erreur HTTP :status.',
@@ -21,4 +22,6 @@ return [
     'page_forbidden' => "Vous n'avez pas le droit d'effectuer cette action.",
     'page_server_error' => "Une erreur est survenue. L'équipe a été notifiée.",
     'back_home' => "Retour à l'accueil",
+    'page_maintenance_title' => 'Maintenance en cours',
+    'page_maintenance' => 'Nous effectuons une maintenance. Le site revient très vite.',
 ];

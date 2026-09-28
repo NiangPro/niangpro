@@ -113,4 +113,38 @@ class GrammarTest extends TestCase
         $this->assertStringEndsWith('DEFAULT TRUE', (new PostgresGrammar())->compileColumn('active', 'boolean', [], false, true, 1, false));
         $this->assertStringEndsWith('DEFAULT 1', (new PostgresGrammar())->compileColumn('rank', 'integer', [], false, true, 1, false), 'un entier reste un entier hors colonne booléenne');
     }
+
+    public function test_big_integer_uuid_and_enum_types_per_engine(): void
+    {
+        $blueprint = new Blueprint('orders');
+        $blueprint->bigInteger('views');
+        $blueprint->uuid('public_id')->unique();
+        $blueprint->enum('status', ['draft', "l'envoi"])->default('draft');
+
+        $sqlite = $blueprint->toCreateSql(new SQLiteGrammar());
+        $this->assertStringContainsString('"views" INTEGER NOT NULL', $sqlite);
+        $this->assertStringContainsString('"public_id" VARCHAR(36) NOT NULL UNIQUE', $sqlite);
+        $this->assertStringContainsString(<<<'SQL'
+            "status" VARCHAR(255) NOT NULL DEFAULT 'draft' CHECK ("status" IN ('draft', 'l''envoi'))
+            SQL, $sqlite);
+
+        $mysql = $blueprint->toCreateSql(new MySqlGrammar());
+        $this->assertStringContainsString('`views` BIGINT NOT NULL', $mysql);
+        $this->assertStringContainsString('`public_id` CHAR(36) NOT NULL UNIQUE', $mysql);
+        $this->assertStringContainsString("`status` ENUM('draft', 'l''envoi') NOT NULL DEFAULT 'draft'", $mysql);
+        $this->assertStringNotContainsString('CHECK', $mysql);
+
+        $postgres = $blueprint->toCreateSql(new PostgresGrammar());
+        $this->assertStringContainsString('"views" BIGINT NOT NULL', $postgres);
+        $this->assertStringContainsString('"public_id" UUID NOT NULL UNIQUE', $postgres);
+        $this->assertStringContainsString(<<<'SQL'
+            CHECK ("status" IN ('draft', 'l''envoi'))
+            SQL, $postgres);
+    }
+
+    public function test_enum_requires_a_non_empty_list_of_strings(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        (new Blueprint('orders'))->enum('status', []);
+    }
 }

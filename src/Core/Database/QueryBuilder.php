@@ -50,6 +50,7 @@ class QueryBuilder
     {
         self::assertIdentifier($column);
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
+        $operator = self::assertOperator($operator);
         $this->wheres[] = [$this->wheres ? 'AND' : '', "$column $operator ?"];
         $this->bindings[] = $value;
         return $this;
@@ -59,6 +60,7 @@ class QueryBuilder
     {
         self::assertIdentifier($column);
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
+        $operator = self::assertOperator($operator);
         $this->wheres[] = ['OR', "$column $operator ?"];
         $this->bindings[] = $value;
         return $this;
@@ -120,6 +122,7 @@ class QueryBuilder
     public function whereColumn(string $first, string $operatorOrSecond, ?string $second = null): static
     {
         [$operator, $second] = func_num_args() === 2 ? ['=', $operatorOrSecond] : [$operatorOrSecond, $second];
+        $operator = self::assertOperator($operator);
         self::assertIdentifier($first);
         self::assertIdentifier($second);
         $this->wheres[] = [$this->wheres ? 'AND' : '', "$first $operator $second"];
@@ -128,10 +131,22 @@ class QueryBuilder
 
     public function join(string $table, string $first, string $operator, string $second): static
     {
+        return $this->addJoin('JOIN', $table, $first, $operator, $second);
+    }
+
+    /** Garde les lignes sans correspondance dans $table (leurs colonnes valent alors NULL). */
+    public function leftJoin(string $table, string $first, string $operator, string $second): static
+    {
+        return $this->addJoin('LEFT JOIN', $table, $first, $operator, $second);
+    }
+
+    private function addJoin(string $type, string $table, string $first, string $operator, string $second): static
+    {
         self::assertIdentifier($table);
         self::assertIdentifier($first);
         self::assertIdentifier($second);
-        $this->joins[] = "JOIN $table ON $first $operator $second";
+        $operator = self::assertOperator($operator);
+        $this->joins[] = "$type $table ON $first $operator $second";
         return $this;
     }
 
@@ -139,6 +154,7 @@ class QueryBuilder
     {
         self::assertIdentifier($column);
         [$operator, $value] = func_num_args() === 2 ? ['=', $operator] : [$operator, $value];
+        $operator = self::assertOperator($operator);
         $this->havings[] = "$column $operator ?";
         $this->havingBindings[] = $value;
         return $this;
@@ -192,6 +208,23 @@ class QueryBuilder
         }
     }
 
+    private const OPERATORS = ['=', '!=', '<>', '<', '<=', '>', '>=', 'LIKE', 'NOT LIKE'];
+
+    /**
+     * L'opérateur est lui aussi interpolé dans la requête : `where('prix', $_GET['op'], 10)` serait
+     * sinon une injection. Seuls les opérateurs de comparaison usuels passent.
+     */
+    private static function assertOperator(mixed $operator): string
+    {
+        $normalized = is_string($operator) ? strtoupper(trim($operator)) : '';
+
+        if (!in_array($normalized, self::OPERATORS, true)) {
+            throw new \InvalidArgumentException('Opérateur SQL invalide : « ' . (is_scalar($operator) ? $operator : get_debug_type($operator)) . ' ».');
+        }
+
+        return $normalized;
+    }
+
     public function limit(int $limit): static
     {
         $this->limitValue = $limit;
@@ -234,6 +267,76 @@ class QueryBuilder
     public function firstOrFail(): array
     {
         return $this->first() ?? throw new NotFoundException();
+    }
+
+    /**
+     * Les valeurs d'une seule colonne : pluck('email') => ['a@x.sn', ...] ; avec une clé,
+     * pluck('name', 'id') => [1 => 'Awa', ...]. Les $casts du modèle s'appliquent.
+     *
+     * @return array<int|string, mixed>
+     */
+    public function pluck(string $column, ?string $key = null): array
+    {
+        self::assertIdentifier($column);
+
+        if ($key !== null) {
+            self::assertIdentifier($key);
+        }
+
+        $original = $this->columns;
+        $this->columns = $key !== null && $key !== $column ? "$column, $key" : $column;
+
+        try {
+            $rows = $this->get();
+        } finally {
+            $this->columns = $original;
+        }
+
+        $valueName = self::unqualified($column);
+        $values = array_column($rows, $valueName, $key !== null ? self::unqualified($key) : null);
+
+        return $values;
+    }
+
+    /**
+     * Parcourt le résultat par paquets de $size lignes, sans tout charger en mémoire. Trié par id
+     * si aucun orderBy() n'est donné (un ordre stable est indispensable entre deux paquets).
+     * Retourner false depuis $callback arrête le parcours. Ne modifiez pas, dans $callback, la
+     * colonne sur laquelle la requête filtre : les paquets suivants seraient décalés.
+     *
+     * @param \Closure(array<int, array>, int): mixed $callback reçoit les lignes et le numéro du paquet (1, 2...)
+     */
+    public function chunk(int $size, \Closure $callback): bool
+    {
+        if ($size < 1) {
+            throw new \InvalidArgumentException('La taille d\'un paquet doit être au moins 1.');
+        }
+
+        $query = clone $this;
+        $query->orderByClause ??= 'id ASC';
+
+        for ($page = 1; ; $page++) {
+            $rows = (clone $query)->limit($size)->offset(($page - 1) * $size)->get();
+
+            if ($rows === []) {
+                return true;
+            }
+
+            if ($callback($rows, $page) === false) {
+                return false;
+            }
+
+            if (count($rows) < $size) {
+                return true;
+            }
+        }
+    }
+
+    private static function unqualified(string $column): string
+    {
+        $position = strrpos($column, '.');
+
+        return $position === false ? $column : substr($column, $position + 1);
     }
 
     /** Existence seule, sans rapatrier de lignes (SELECT 1 ... LIMIT 1). */
@@ -293,6 +396,7 @@ class QueryBuilder
     public function insert(array $data): string
     {
         $columns = array_keys($data);
+        array_walk($columns, fn ($column) => self::assertIdentifier((string) $column));
         $placeholders = array_fill(0, count($columns), '?');
 
         $sql = sprintf(
@@ -307,10 +411,43 @@ class QueryBuilder
 
     public function update(array $data): bool
     {
+        foreach (array_keys($data) as $column) {
+            self::assertIdentifier((string) $column);
+        }
+
         $assignments = implode(', ', array_map(fn ($column) => "$column = ?", array_keys($data)));
         $sql = "UPDATE {$this->table} SET $assignments" . $this->whereSql();
 
         return DB::statement($sql, [...array_values($data), ...$this->bindings], $this->connection ?? 'write');
+    }
+
+    /**
+     * Incrément atomique côté base (`stock = stock + 1`), sans lecture préalable : deux requêtes
+     * simultanées ne peuvent pas se perdre une mise à jour. $extra met d'autres colonnes à jour
+     * dans la même requête.
+     */
+    public function increment(string $column, int|float $amount = 1, array $extra = []): bool
+    {
+        return $this->adjust($column, $amount, $extra);
+    }
+
+    public function decrement(string $column, int|float $amount = 1, array $extra = []): bool
+    {
+        return $this->adjust($column, -$amount, $extra);
+    }
+
+    private function adjust(string $column, int|float $amount, array $extra): bool
+    {
+        self::assertIdentifier($column);
+
+        foreach (array_keys($extra) as $name) {
+            self::assertIdentifier((string) $name);
+        }
+
+        $assignments = ["$column = $column + ?", ...array_map(fn ($name) => "$name = ?", array_keys($extra))];
+        $sql = "UPDATE {$this->table} SET " . implode(', ', $assignments) . $this->whereSql();
+
+        return DB::statement($sql, [$amount, ...array_values($extra), ...$this->bindings], $this->connection ?? 'write');
     }
 
     public function delete(): bool

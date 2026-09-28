@@ -14,4 +14,14 @@ abstract class Mailable
     {
         return null;
     }
+
+    /**
+     * Pièces jointes, ex. [MailAttachment::fromPath(Storage::path($facture['path']), 'Facture.pdf')].
+     *
+     * @return list<MailAttachment>
+     */
+    public function attachments(): array
+    {
+        return [];
+    }
 }

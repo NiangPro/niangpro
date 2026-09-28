@@ -94,6 +94,32 @@ class RateLimiter
         ) === 1;
     }
 
+    /** Remet le compteur à zéro, ex. après une connexion réussie : RateLimiter::clear($cle). */
+    public static function clear(string $key): void
+    {
+        if (Cache::driver() === 'database') {
+            DB::statement('DELETE FROM rate_limits WHERE limit_key = ?', [sha1($key)]);
+            return;
+        }
+
+        $path = self::path($key);
+
+        if (is_file($path)) {
+            unlink($path);
+        }
+    }
+
+    /**
+     * @internal appelée par Niang\Core\Testing\TestCase::setUp() : les tentatives d'un test (10
+     * connexions par minute sur /login) ne doivent pas faire échouer un test suivant en 429.
+     */
+    public static function reset(): void
+    {
+        foreach (glob(base_path('storage/framework/ratelimits/*.json')) ?: [] as $file) {
+            unlink($file);
+        }
+    }
+
     private static function path(string $key): string
     {
         $safe = preg_replace('/[^a-zA-Z0-9_.-]/', '_', $key);

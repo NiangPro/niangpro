@@ -3,10 +3,14 @@
 namespace Niang\Core\Testing;
 
 use Niang\Core\Application;
+use Niang\Core\Auth;
+use Niang\Core\Cookie;
 use Niang\Core\Database\Migrator;
 use Niang\Core\Event;
 use Niang\Core\Http\Request;
+use Niang\Core\Notification;
 use Niang\Core\Queue;
+use Niang\Core\RateLimiter;
 use Niang\Core\Session;
 use PHPUnit\Framework\TestCase as BaseTestCase;
 
@@ -37,6 +41,13 @@ abstract class TestCase extends BaseTestCase
         // listener ShouldQueue déclenché par une inscription) ne doit pas être traité par
         // Queue::work() d'un test suivant qui n'a rien à voir.
         Queue::reset();
+
+        // Un cookie mis en file hors d'une requête (Auth::login() appelé directement par un test)
+        // ne doit pas partir avec la réponse d'un test suivant.
+        Cookie::pullQueued();
+        RateLimiter::reset();
+        Notification::reset();
+        unset($_COOKIE[Auth::REMEMBER_COOKIE]);
 
         // Construit avant Session::start() : charge config/session.php (lifetime, cookie secure...).
         $this->app = new Application(base_path());

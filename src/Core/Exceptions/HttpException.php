@@ -31,7 +31,7 @@ class HttpException extends \RuntimeException
     private static function defaultMessage(int $status): string
     {
         return match (true) {
-            in_array($status, [401, 403, 404, 405, 419, 429], true) => Lang::get("http.$status"),
+            in_array($status, [401, 403, 404, 405, 419, 429, 503], true) => Lang::get("http.$status"),
             $status >= 500 => Lang::get('http.server_error'),
             default => Lang::get('http.other', ['status' => $status]),
         };

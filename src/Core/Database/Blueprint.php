@@ -49,6 +49,39 @@ class Blueprint
         return $this->addColumn($name, 'integer');
     }
 
+    /** Entier 64 bits (MySQL BIGINT au lieu d'INT, limité à ~2,1 milliards). */
+    public function bigInteger(string $name): ColumnDefinition
+    {
+        return $this->addColumn($name, 'bigInteger');
+    }
+
+    /** Identifiant UUID (36 caractères) ; générez la valeur avec uuid(). Type natif UUID sous PostgreSQL. */
+    public function uuid(string $name = 'uuid'): ColumnDefinition
+    {
+        return $this->addColumn($name, 'uuid');
+    }
+
+    /**
+     * Valeur choisie dans une liste fixe. ENUM sous MySQL, VARCHAR + CHECK ailleurs : une valeur
+     * hors liste est refusée par la base elle-même, sur les trois moteurs.
+     *
+     * @param array<mixed> $values des chaînes, vérifiées ici (elles finissent dans le SQL généré)
+     */
+    public function enum(string $name, array $values): ColumnDefinition
+    {
+        if ($values === []) {
+            throw new \InvalidArgumentException("enum('$name') : la liste des valeurs est vide.");
+        }
+
+        foreach ($values as $value) {
+            if (!is_string($value)) {
+                throw new \InvalidArgumentException("enum('$name') : chaque valeur doit être une chaîne.");
+            }
+        }
+
+        return $this->addColumn($name, 'enum', ['values' => array_values($values)]);
+    }
+
     public function boolean(string $name): ColumnDefinition
     {
         return $this->addColumn($name, 'boolean');

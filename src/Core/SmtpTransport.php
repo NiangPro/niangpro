@@ -65,10 +65,20 @@ final class SmtpTransport
         ]);
     }
 
-    public function send(string $to, Mailable $mailable): void
+    /**
+     * @param list<string> $cc  visibles de tous (en-tête Cc)
+     * @param list<string> $bcc copie cachée : reçoivent le message (RCPT TO) sans jamais apparaître dans ses en-têtes
+     */
+    public function send(string $to, Mailable $mailable, array $cc = [], array $bcc = []): void
     {
-        $this->assertAddress($to);
+        $recipients = array_values(array_unique([$to, ...$cc, ...$bcc]));
+
+        foreach ($recipients as $recipient) {
+            $this->assertAddress($recipient);
+        }
+
         $this->assertAddress($this->config['from_address']);
+        $message = $this->buildMessage($to, $mailable, $cc);
 
         try {
             $this->connect();
@@ -81,18 +91,30 @@ final class SmtpTransport
             $this->authenticate();
 
             $this->command('MAIL FROM:<' . $this->config['from_address'] . '>', [250]);
-            $this->command("RCPT TO:<$to>", [250, 251]);
+            foreach ($recipients as $recipient) {
+                $this->command("RCPT TO:<$recipient>", [250, 251]);
+            }
+
             $this->command('DATA', [354]);
-            $this->command($this->dotStuff($this->buildMessage($to, $mailable)) . self::CRLF . '.', [250]);
+            $this->command($this->dotStuff($message) . self::CRLF . '.', [250]);
             $this->command('QUIT', [221]);
         } finally {
             $this->disconnect();
         }
     }
 
-    /** Message complet (en-têtes + corps), lignes terminées par CRLF. */
-    public function buildMessage(string $to, Mailable $mailable): string
+    /**
+     * Message complet (en-têtes + corps), lignes terminées par CRLF. Aucun en-tête Bcc : le
+     * mettre dans le message le révélerait à tous les destinataires.
+     *
+     * @param list<string> $cc
+     */
+    public function buildMessage(string $to, Mailable $mailable, array $cc = []): string
     {
+        foreach ($cc as $address) {
+            $this->assertAddress($address);
+        }
+
         $subject = $mailable->subject();
 
         if (preg_match('/[\r\n]/', $subject) === 1) {
@@ -108,33 +130,72 @@ final class SmtpTransport
             'Date: ' . date(DATE_RFC2822),
             'From: ' . $from,
             'To: <' . $to . '>',
+            ...($cc !== [] ? ['Cc: ' . implode(', ', array_map(fn (string $address) => "<$address>", $cc))] : []),
             'Subject: ' . $this->encodeHeader($subject),
             'Message-ID: <' . bin2hex(random_bytes(16)) . '@' . $domain . '>',
             'MIME-Version: 1.0',
         ];
 
-        $text = $mailable->body();
-        $html = $mailable->html();
+        [$contentHeaders, $body] = $this->buildContent($mailable->body(), $mailable->html());
+        $attachments = $mailable->attachments();
 
+        if ($attachments === []) {
+            return implode(self::CRLF, [...$headers, ...$contentHeaders]) . self::CRLF . self::CRLF . $body;
+        }
+
+        // multipart/mixed : le contenu (texte, ou texte + HTML) d'abord, puis une partie par pièce jointe.
+        $boundary = 'niang-mixed-' . bin2hex(random_bytes(12));
+        $headers[] = 'Content-Type: multipart/mixed; boundary="' . $boundary . '"';
+
+        $message = implode(self::CRLF, $headers) . self::CRLF . self::CRLF
+            . '--' . $boundary . self::CRLF
+            . implode(self::CRLF, $contentHeaders) . self::CRLF . self::CRLF . $body . self::CRLF;
+
+        foreach ($attachments as $attachment) {
+            $message .= '--' . $boundary . self::CRLF . $this->buildAttachment($attachment) . self::CRLF;
+        }
+
+        return $message . '--' . $boundary . '--';
+    }
+
+    /** @return array{0: list<string>, 1: string} en-têtes Content-* et corps encodé */
+    private function buildContent(string $text, ?string $html): array
+    {
         if ($html === null) {
-            $headers[] = 'Content-Type: text/plain; charset=UTF-8';
-            $headers[] = 'Content-Transfer-Encoding: quoted-printable';
-
-            return implode(self::CRLF, $headers) . self::CRLF . self::CRLF . $this->encodeBody($text);
+            return [['Content-Type: text/plain; charset=UTF-8', 'Content-Transfer-Encoding: quoted-printable'], $this->encodeBody($text)];
         }
 
         $boundary = 'niang-' . bin2hex(random_bytes(12));
-        $headers[] = 'Content-Type: multipart/alternative; boundary="' . $boundary . '"';
 
         $part = fn (string $type, string $content): string => '--' . $boundary . self::CRLF
             . "Content-Type: $type; charset=UTF-8" . self::CRLF
             . 'Content-Transfer-Encoding: quoted-printable' . self::CRLF . self::CRLF
             . $this->encodeBody($content) . self::CRLF;
 
-        return implode(self::CRLF, $headers) . self::CRLF . self::CRLF
-            . $part('text/plain', $text)
-            . $part('text/html', $html)
-            . '--' . $boundary . '--';
+        return [
+            ['Content-Type: multipart/alternative; boundary="' . $boundary . '"'],
+            $part('text/plain', $text) . $part('text/html', $html) . '--' . $boundary . '--',
+        ];
+    }
+
+    /**
+     * Nom ASCII entre guillemets ; nom accentué selon RFC 2231 (filename*) SEUL — avec un repli
+     * filename= à côté, certains clients mail afficheraient le repli. Guillemets et retours à la
+     * ligne neutralisés (injection d'en-têtes).
+     */
+    private function buildAttachment(MailAttachment $attachment): string
+    {
+        $name = str_replace(["\r", "\n", '"', '\\', '/'], ' ', $attachment->name);
+        $mime = preg_match('#^[\w.+-]+/[\w.+-]+$#', $attachment->mime()) === 1 ? $attachment->mime() : 'application/octet-stream';
+        $ascii = preg_match('/[^\x20-\x7E]/', $name) !== 1;
+
+        $typeName = $ascii ? "\"$name\"" : '"' . $this->encodeHeader($name) . '"';
+        $disposition = $ascii ? "filename=\"$name\"" : "filename*=UTF-8''" . rawurlencode($name);
+
+        return "Content-Type: $mime; name=$typeName" . self::CRLF
+            . 'Content-Transfer-Encoding: base64' . self::CRLF
+            . "Content-Disposition: attachment; $disposition" . self::CRLF . self::CRLF
+            . rtrim(chunk_split(base64_encode($attachment->content()), 76, self::CRLF));
     }
 
     private function connect(): void

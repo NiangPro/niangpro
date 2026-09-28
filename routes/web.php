@@ -8,7 +8,9 @@ use App\Controllers\ContactController;
 use App\Controllers\HealthController;
 use App\Controllers\HomeController;
 use App\Controllers\PostController;
+use App\Controllers\SocialAuthController;
 use App\Controllers\TagController;
+use App\Controllers\TwoFactorController;
 use App\Middleware\Authenticate;
 use App\Middleware\AuthenticateWithToken;
 use App\Middleware\HandleCors;
@@ -54,6 +56,20 @@ $router->get('/login', [AuthController::class, 'showLogin'], [RedirectIfAuthenti
 $router->post('/login', [AuthController::class, 'login'], [VerifyCsrfToken::class, ThrottleRequests::class]);
 $router->post('/logout', [AuthController::class, 'logout'], [VerifyCsrfToken::class]);
 
+// Connexion avec Google ou GitHub (OAuth) : 404 tant que le fournisseur n'est pas configuré.
+$router->get('/auth/{provider}/redirect', [SocialAuthController::class, 'redirectToProvider'], [RedirectIfAuthenticated::class])
+    ->where(['provider' => 'google|github']);
+$router->get('/auth/{provider}/callback', [SocialAuthController::class, 'callback'], [ThrottleRequests::class])
+    ->where(['provider' => 'google|github']);
+
+// Double authentification (TOTP) : code demandé après le mot de passe, et réglage du compte.
+$router->get('/two-factor-challenge', [TwoFactorController::class, 'showChallenge']);
+$router->post('/two-factor-challenge', [TwoFactorController::class, 'challenge'], [VerifyCsrfToken::class, ThrottleRequests::class]);
+$router->get('/user/two-factor', [TwoFactorController::class, 'show'], [Authenticate::class]);
+$router->post('/user/two-factor', [TwoFactorController::class, 'enable'], [Authenticate::class, VerifyCsrfToken::class, ThrottleRequests::class]);
+$router->post('/user/two-factor/confirm', [TwoFactorController::class, 'confirm'], [Authenticate::class, VerifyCsrfToken::class, ThrottleRequests::class]);
+$router->post('/user/two-factor/disable', [TwoFactorController::class, 'disable'], [Authenticate::class, VerifyCsrfToken::class, ThrottleRequests::class]);
+
 // P0 #15, douzième jalon : récupération de mot de passe + vérification d'email (signedRoute()).
 $router->get('/forgot-password', [AuthController::class, 'showForgotPassword'], [RedirectIfAuthenticated::class])->name('password.request');
 $router->post('/forgot-password', [AuthController::class, 'sendResetLink'], [VerifyCsrfToken::class, ThrottleRequests::class]);
@@ -78,11 +94,14 @@ $router->group(['prefix' => '/api', 'middleware' => [HandleCors::class]], functi
     // P0 #15, treizième jalon : authentification par jeton. AuthenticateWithToken n'est posée
     // que sur les routes qui en ont besoin (/me), pas sur le groupe entier — /posts reste public,
     // /tokens (l'émission elle-même) ne peut pas exiger le jeton qu'elle délivre.
-    $router->post('/tokens', [TokenController::class, 'store']);
+    $router->post('/tokens', [TokenController::class, 'store'], [ThrottleRequests::class]);
     $router->options('/tokens', fn () => Response::html('', 204));
 
     $router->get('/me', function (Request $request): Response {
-        return Response::json(['user' => Auth::user()]);
+        // Jamais la ligne entière : elle contient le hachage du mot de passe et remember_token.
+        $user = Auth::user();
+
+        return Response::json(['user' => array_intersect_key($user ?? [], array_flip(['id', 'name', 'email', 'email_verified_at']))]);
     }, [AuthenticateWithToken::class]);
     $router->options('/me', fn () => Response::html('', 204));
 });
