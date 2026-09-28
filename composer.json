@@ -18,6 +18,7 @@
     ],
     "homepage": "https://github.com/NiangPro/niangpro",
     "support": {
+        "docs": "https://app.niangprogrammeur.com",
         "issues": "https://github.com/NiangPro/niangpro/issues",
         "source": "https://github.com/NiangPro/niangpro"
     },

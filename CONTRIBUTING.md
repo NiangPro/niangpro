@@ -58,7 +58,7 @@ DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_DATABASE=niangpro_test DB_USERNAME=root
   listé dans [docs/API_STABILITY.md](docs/API_STABILITY.md) : mettez-le à jour pour toute nouvelle classe.
 - **La documentation** : le `README.md` pour l'essentiel, une entrée dans `CHANGELOG.md` sous
   `[Non publié]` (sections `Added`, `Changed`, `Fixed`, `Security`...). Le site de documentation
-  ([NiangPro/niangpro-docs](https://github.com/NiangPro/niangpro-docs)) est mis à jour en français et
+  ([NiangPro/niangpro-docs](https://github.com/NiangPro/niangpro-docs), en ligne sur https://app.niangprogrammeur.com) est mis à jour en français et
   en anglais.
 - **Un sujet par pull request** : plus facile à relire et à annuler si besoin.
 

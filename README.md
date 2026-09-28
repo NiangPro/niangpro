@@ -4,6 +4,8 @@
 
 Un micro-framework PHP **ultra simple**, plus simple que Laravel : pas de magie, pas de compilation, juste du PHP.
 
+**Documentation complète (FR + EN) : https://app.niangprogrammeur.com**
+
 ## Installation
 
 Pour démarrer un nouveau projet :
